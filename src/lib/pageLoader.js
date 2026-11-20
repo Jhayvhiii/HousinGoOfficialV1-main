@@ -42,7 +42,6 @@ const PAGE_PARTIALS = [
   'pages/tenant-dashboard.html',
   'pages/post-property.html',
   'pages/user-settings.html',
-  'pages/browse.html',
   'pages/help.html',
 ];
 

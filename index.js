@@ -266,7 +266,6 @@ function updateNavForLoggedInUser() {
         const roleLabel = currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1);
         navList.innerHTML = `
             <li><a href="#" data-nav="home" onclick="showPage('home'); return false;">Home</a></li>
-            <li><a href="#" data-nav="browse-properties" onclick="showPage('browse-properties'); return false;">Browse Properties</a></li>
             <li><a href="#" data-nav="${dash}" onclick="showPage('${dash}'); return false;">Dashboard</a></li>
             <li><a href="#" data-nav="about" onclick="showPage('about'); return false;">About Us</a></li>
             <li><a href="#" data-nav="contact" onclick="showPage('contact'); return false;">Contact Us</a></li>
@@ -278,7 +277,6 @@ function updateNavForLoggedInUser() {
     } else {
         navList.innerHTML = `
             <li><a href="#" data-nav="home" onclick="showPage('home'); return false;">Home</a></li>
-            <li><a href="#" data-nav="browse-properties" onclick="showPage('browse-properties'); return false;">Browse Properties</a></li>
             <li><a href="#" data-nav="about" onclick="showPage('about'); return false;">About Us</a></li>
             <li><a href="#" data-nav="login" onclick="showPage('login'); return false;">Log In</a></li>
             <li><a href="#" data-nav="register" onclick="showPage('register'); return false;">Register</a></li>
@@ -369,9 +367,11 @@ function showPage(pageName) {
         pageName = getDashboardForRole(currentUser.role);
     }
 
+    if (pageName === 'browse-properties') pageName = 'home';
+
     const allPageIds = [
         'home-page', 'home-content', 'about-page', 'login-page', 'register-page',
-        'contact-page', 'help-page', 'browse-properties-page', 'admin-dashboard-page',
+        'contact-page', 'help-page', 'admin-dashboard-page',
         'landlord-dashboard-page', 'tenant-dashboard-page', 'post-property-page', 'user-settings-page'
     ];
     allPageIds.forEach(id => {
@@ -407,7 +407,6 @@ function showPage(pageName) {
     if (navMenu) navMenu.classList.remove('active');
 
     if (pageName === 'home') loadHomeProperties();
-    else if (pageName === 'browse-properties') loadBrowseProperties();
     else if (pageName === 'tenant-dashboard') loadTenantDashboard();
     else if (pageName === 'landlord-dashboard') { updateLandlordVerificationUI(); loadLandlordDashboard(); }
     else if (pageName === 'post-property') { updateLandlordVerificationUI(); loadPostPropertyForm(); }
@@ -677,70 +676,11 @@ function filterHomeProperties() {
 }
 
 function performHeroSearch() {
-    const searchVal = document.getElementById('search-input')?.value || '';
-    const maxPrice = document.getElementById('price-search')?.value || '';
-    showPage('browse-properties');
-    setTimeout(() => {
-        const bs = document.getElementById('browse-search-input');
-        const bm = document.getElementById('browse-max-price');
-        if (bs) bs.value = searchVal;
-        if (bm && maxPrice && maxPrice !== '999999') bm.value = maxPrice;
-        filterBrowseProperties();
-    }, 50);
-}
-
-async function loadBrowseProperties() {
-    await filterBrowseProperties();
-}
-
-async function filterBrowseProperties() {
-    const loadingEl = document.getElementById('browse-loading');
-    const containerEl = document.getElementById('browse-properties-container');
-    const emptyEl = document.getElementById('browse-empty-state');
-    const errorEl = document.getElementById('browse-error');
-    if (!containerEl) return;
-
-    const search = document.getElementById('browse-search-input')?.value || '';
-    const typeFilter = (document.getElementById('browse-type-filter')?.value || '').toLowerCase();
-    const minPrice = document.getElementById('browse-min-price')?.value || '';
-    const maxPrice = document.getElementById('browse-max-price')?.value || '';
-    const sortBy = document.getElementById('browse-sort')?.value || 'newest';
-
-    if (loadingEl) loadingEl.style.display = 'block';
-    if (errorEl) errorEl.style.display = 'none';
-    if (emptyEl) emptyEl.style.display = 'none';
-    containerEl.innerHTML = '';
-
-    try {
-        let list = await window.propertyService.getAvailableProperties({ search, minPrice, maxPrice, sortBy });
-        if (typeFilter) {
-            list = list.filter(p => `${p.title || ''} ${p.description || ''}`.toLowerCase().includes(typeFilter));
-        }
-        if (list.length === 0) {
-            if (emptyEl) emptyEl.style.display = 'block';
-        } else {
-            containerEl.innerHTML = list.map(renderPropertyCard).join('');
-        }
-    } catch (error) {
-        console.error('Browse error:', error);
-        if (errorEl) {
-            errorEl.textContent = `Failed to fetch properties: ${error.message}`;
-            errorEl.style.display = 'block';
-        }
-        showToast(error.message, 'error');
-    } finally {
-        if (loadingEl) loadingEl.style.display = 'none';
+    filterHomeProperties();
+    const homeContent = document.getElementById('home-content');
+    if (homeContent) {
+        homeContent.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-}
-
-function resetBrowseFilters() {
-    ['browse-search-input', 'browse-type-filter', 'browse-min-price', 'browse-max-price'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.value = '';
-    });
-    const sortEl = document.getElementById('browse-sort');
-    if (sortEl) sortEl.value = 'newest';
-    filterBrowseProperties();
 }
 
 // ============================================================================
@@ -947,7 +887,7 @@ async function loadTenantDashboard() {
 
         if (appsEl) {
             appsEl.innerHTML = apps.length === 0
-                ? '<p style="color:#654321;">You have not applied to any properties yet. <a href="#" onclick="showPage(\'browse-properties\'); return false;" style="color:#0288D1;font-weight:700;">Browse listings →</a></p>'
+                ? '<p style="color:#654321;">You have not applied to any properties yet. <a href="#" onclick="showPage(\'home\'); return false;" style="color:#0288D1;font-weight:700;">Browse listings →</a></p>'
                 : apps.map(a => `
                     <div style="border:2px solid #ADD8E6;border-radius:10px;padding:18px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;">
                         <div>
@@ -1862,11 +1802,6 @@ function wireAllUIListeners() {
             selectedHomeKeyword = this.getAttribute('data-type') || '';
             filterHomeProperties();
         });
-    });
-
-    // Browse search on Enter
-    document.getElementById('browse-search-input')?.addEventListener('keyup', e => {
-        if (e.key === 'Enter') filterBrowseProperties();
     });
 
     // Property details modal close
