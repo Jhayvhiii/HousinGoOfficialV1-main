@@ -37,14 +37,6 @@
        <li><a href="#" onclick="showPage('help'); return false;">Help</a></li>
       </ul>
      </nav>
-     <!-- Floating Chat Button -->
-     <div id="floating-chat-button" style="position: fixed; bottom: 20px; right: 20px; z-index: 2000; display: none;"><button onclick="showMessages()" onmouseover="this.style.transform='scale(1.1)'; this.style.boxShadow='0 6px 25px rgba(0,0,0,0.4)'" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 4px 20px rgba(0,0,0,0.3)'" style="width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, #ADD8E6 0%, #87CEEB 100%); border: 3px solid white; box-shadow: 0 4px 20px rgba(0,0,0,0.3); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 24px; transition: all 0.3s ease; position: relative;"> 💬 <span id="floating-messages-badge" style="display: none; position: absolute; top: -5px; right: -5px; background: #FF6B6B; color: white; border-radius: 50%; width: 24px; height: 24px; font-size: 12px; font-weight: 600; align-items: center; justify-content: center; border: 2px solid white; animation: pulse 2s infinite;">0</span> </button>
-      <div id="chat-status-indicator" style="position: absolute; bottom: 70px; right: 0; background: linear-gradient(135deg, #32CD32 0%, #228B22 100%); color: white; padding: 8px 12px; border-radius: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); font-size: 12px; font-weight: 600; white-space: nowrap; display: none;">
-       <div style="display: flex; align-items: center; gap: 6px;">
-        <div style="width: 6px; height: 6px; background: white; border-radius: 50%; animation: pulse 2s infinite;"></div><span>Live Chat</span>
-       </div>
-      </div>
-     </div>
      <!-- User Profile Dropdown (Hidden by default) -->
      <div id="user-profile-dropdown" style="display: none; position: relative;"><button id="profile-btn" onclick="toggleProfileDropdown()" style="background: none; border: none; color: #8B4513; font-size: 16px; font-weight: 600; cursor: pointer; padding: 10px 15px; border-radius: 8px; transition: background-color 0.3s; position: relative;"> <span id="user-name-display">👤 User</span> ▼ <span id="user-notification-indicator" style="display: none; position: absolute; top: 8px; right: 8px; background: #FF4444; width: 8px; height: 8px; border-radius: 50%; border: 2px solid white;"></span> </button>
       <div id="profile-dropdown-menu" style="display: none; position: absolute; top: 100%; right: 0; background: white; border: 2px solid #ADD8E6; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); min-width: 200px; z-index: 1001;"><a href="#" onclick="showPage('user-settings'); return false;" style="display: block; padding: 12px 20px; color: #8B4513; text-decoration: none; border-bottom: 1px solid #F5F5DC; transition: background-color 0.3s;">⚙️ Settings</a> <a href="#" onclick="showNotifications(); return false;" style="display: block; padding: 12px 20px; color: #8B4513; text-decoration: none; border-bottom: 1px solid #F5F5DC; transition: background-color 0.3s; position: relative;"> 🔔 Notifications <span id="notification-badge" style="display: none; position: absolute; top: 8px; right: 15px; background: #FF6B6B; color: white; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; text-align: center; line-height: 20px;">0</span> </a> <a href="#" onclick="logout(); return false;" style="display: block; padding: 12px 20px; color: #8B4513; text-decoration: none; transition: background-color 0.3s;">🚪 Logout</a>
@@ -59,6 +51,19 @@
 
   <!-- Global Modals (loaded dynamically from /components/modals.html) -->
   <div id="app-modals"></div>
+
+  <!-- Floating Chat Button (bottom-right of viewport, outside header so it never blocks profile/logout) -->
+  <div id="floating-chat-button" style="position: fixed; bottom: 24px; right: 24px; z-index: 2000; display: none;">
+   <button onclick="showMessages()" aria-label="Open Messages" title="Messages" onmouseover="this.style.transform='scale(1.08)'; this.style.boxShadow='0 8px 25px rgba(15,76,129,0.4)'" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 4px 18px rgba(15,76,129,0.28)'" style="width: 58px; height: 58px; border-radius: 50%; background: linear-gradient(135deg, #0F4C81 0%, #0288D1 100%); color: white; border: 3px solid white; box-shadow: 0 4px 18px rgba(15,76,129,0.28); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 24px; transition: all 0.25s ease; position: relative;">
+    💬
+    <span id="floating-messages-badge" style="display: none; position: absolute; top: -5px; right: -5px; background: #FF6B6B; color: white; border-radius: 50%; width: 22px; height: 22px; font-size: 11px; font-weight: 700; align-items: center; justify-content: center; border: 2px solid white;">0</span>
+   </button>
+   <div id="chat-status-indicator" style="position: absolute; bottom: 68px; right: 0; background: linear-gradient(135deg, #32CD32 0%, #228B22 100%); color: white; padding: 6px 12px; border-radius: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); font-size: 12px; font-weight: 600; white-space: nowrap; display: none;">
+    <div style="display: flex; align-items: center; gap: 6px;">
+     <div style="width: 6px; height: 6px; background: white; border-radius: 50%; animation: pulse 2s infinite;"></div><span>Live Chat</span>
+    </div>
+   </div>
+  </div>
 
   <!-- Global Footer -->
   <footer>
