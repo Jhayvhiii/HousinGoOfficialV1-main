@@ -1,116 +1,60 @@
 <!-- Landlord Dashboard -->
 <main id="landlord-dashboard-page" style="display: none;">
-    <div
-        style="max-width: 75%; margin: 40px auto; background-color: #FFFFFF; padding: 40px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
-        <div
-            style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 20px;">
-            <h1 style="font-size: 36px; color: #8B4513; margin: 0;">Landlord Dashboard</h1>
-            <button id="landlord-add-property-btn" class="btn" onclick="openCreatePropertyForm()"
-                style="font-size: 16px; padding: 13px 26px;">+ Add New Property</button>
-            <div class="dash-shell">
-                <div
-                    style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 22px;">
-                    <div>
-                        <h1 style="font-size: 32px; color: #2C1E16; margin: 0 0 4px;">Landlord Dashboard</h1>
-                        <p style="color: #64748B; font-size: 14px; margin: 0;">Manage your rental listings, tenant
-                            applications, and inquiries.</p>
-                    </div>
-                    <button id="landlord-add-property-btn" class="btn" onclick="openCreatePropertyForm()"
-                        style="font-size: 15px; padding: 12px 24px;">+ Add New Property</button>
-                </div>
+ <div class="dash-shell dash-fullscreen">
+  <!-- Lively Full-Width Dashboard Header Banner -->
+  <div class="dash-hero-bar">
+   <div>
+    <span class="dash-role-pill">🔑 Landlord Workspace</span>
+    <h1 style="font-size: 32px; color: #FFFFFF; margin: 8px 0 4px;">Landlord Dashboard</h1>
+    <p style="color: rgba(255,255,255,0.86); font-size: 14px; margin: 0;">Manage your rental listings, review tenant applications, and reply to inquiries in real time.</p>
+   </div>
+   <button id="landlord-add-property-btn" class="btn dash-hero-cta" onclick="openCreatePropertyForm()">+ Add New Property</button>
+  </div>
 
-                <div id="landlord-verification-banner" class="verification-banner" role="status">
-                    <div style="font-size: 24px;">⏳</div>
-                    <div>
-                        <strong>Pending Verification:</strong> Your landlord account is currently awaiting admin
-                        verification. Posting new properties is disabled until an admin verifies your account.
-                    </div>
-                </div>
+  <div id="landlord-verification-banner" class="verification-banner" role="status">
+   <div style="font-size: 24px;">⏳</div>
+   <div>
+    <strong>Pending Verification:</strong> Your landlord account is currently awaiting admin verification. Posting new properties is disabled until an admin verifies your account.
+   </div>
+  </div>
 
-                <!-- Stats from landlord_property_summary view -->
-                <div
-                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 18px; margin-bottom: 38px;">
-                    <div style="background-color: #ADD8E6; padding: 22px; border-radius: 10px;">
-                        <h3 style="color: #8B4513; margin-bottom: 8px; font-size: 15px;">Total Properties</h3>
-                        <p style="font-size: 30px; font-weight: bold; color: #8B4513;" id="landlord-total-properties">0
-                        </p>
-                        <div class="kpi-grid">
-                            <div class="kpi-card">
-                                <div class="kpi-label">Total Properties</div>
-                                <p class="kpi-value" id="landlord-total-properties">0</p>
-                            </div>
-                            <div style="background-color: #E8F5E9; padding: 22px; border-radius: 10px;">
-                                <h3 style="color: #2E7D32; margin-bottom: 8px; font-size: 15px;">Available</h3>
-                                <p style="font-size: 30px; font-weight: bold; color: #2E7D32;"
-                                    id="landlord-available-properties">0</p>
-                                <div class="kpi-card green">
-                                    <div class="kpi-label">Available</div>
-                                    <p class="kpi-value" style="color: #2E7D32;" id="landlord-available-properties">0
-                                    </p>
-                                </div>
-                                <div style="background-color: #FFF8E1; padding: 22px; border-radius: 10px;">
-                                    <h3 style="color: #B54708; margin-bottom: 8px; font-size: 15px;">Occupied / Hidden
-                                    </h3>
-                                    <p style="font-size: 30px; font-weight: bold; color: #B54708;"
-                                        id="landlord-occupied-properties">0</p>
-                                    <div class="kpi-card amber">
-                                        <div class="kpi-label">Occupied / Hidden</div>
-                                        <p class="kpi-value" style="color: #D97706;" id="landlord-occupied-properties">0
-                                        </p>
-                                    </div>
-                                    <div style="background-color: #F5F5DC; padding: 22px; border-radius: 10px;">
-                                        <h3 style="color: #8B4513; margin-bottom: 8px; font-size: 15px;">Portfolio Value
-                                            / mo</h3>
-                                        <p style="font-size: 26px; font-weight: bold; color: #8B4513;"
-                                            id="landlord-total-value">₱0</p>
-                                        <div class="kpi-card">
-                                            <div class="kpi-label">Portfolio Value / mo</div>
-                                            <p class="kpi-value" style="font-size: 24px;" id="landlord-total-value">₱0
-                                            </p>
-                                        </div>
-                                    </div>
+  <!-- Stats from landlord_property_summary view -->
+  <div class="kpi-grid">
+   <div class="kpi-card">
+    <div class="kpi-label">Total Properties</div>
+    <p class="kpi-value" id="landlord-total-properties">0</p>
+   </div>
+   <div class="kpi-card green">
+    <div class="kpi-label">Available</div>
+    <p class="kpi-value" style="color: #2E7D32;" id="landlord-available-properties">0</p>
+   </div>
+   <div class="kpi-card amber">
+    <div class="kpi-label">Occupied / Hidden</div>
+    <p class="kpi-value" style="color: #D97706;" id="landlord-occupied-properties">0</p>
+   </div>
+   <div class="kpi-card">
+    <div class="kpi-label">Portfolio Value / mo</div>
+    <p class="kpi-value" style="font-size: 26px;" id="landlord-total-value">₱0</p>
+   </div>
+  </div>
 
-                                    <div style="margin-bottom: 40px;">
-                                        <h2
-                                            style="font-size: 24px; margin-bottom: 18px; color: #8B4513; border-bottom: 2px solid #ADD8E6; padding-bottom: 8px;">
-                                            🏠 My Listings</h2>
-                                        <!-- Tabbed Navigation -->
-                                        <div class="dash-tabs" data-tab-group="landlord">
-                                            <button type="button" class="dash-tab-btn active"
-                                                data-tab-target="landlord-tab-listings"
-                                                onclick="switchDashboardTab('landlord', 'landlord-tab-listings')">🏠 My
-                                                Listings</button>
-                                            <button type="button" class="dash-tab-btn"
-                                                data-tab-target="landlord-tab-apps"
-                                                onclick="switchDashboardTab('landlord', 'landlord-tab-apps')">📩
-                                                Applications Received</button>
-                                            <button type="button" class="dash-tab-btn"
-                                                data-tab-target="landlord-tab-inquiries"
-                                                onclick="switchDashboardTab('landlord', 'landlord-tab-inquiries')">💬
-                                                Tenant Inquiries</button>
-                                        </div>
+  <!-- Tabbed Navigation -->
+  <div class="dash-tabs" data-tab-group="landlord">
+   <button type="button" class="dash-tab-btn active" data-tab-target="landlord-tab-listings" onclick="switchDashboardTab('landlord', 'landlord-tab-listings')">🏠 My Listings</button>
+   <button type="button" class="dash-tab-btn" data-tab-target="landlord-tab-apps" onclick="switchDashboardTab('landlord', 'landlord-tab-apps')">📩 Applications Received</button>
+   <button type="button" class="dash-tab-btn" data-tab-target="landlord-tab-inquiries" onclick="switchDashboardTab('landlord', 'landlord-tab-inquiries')">💬 Tenant Inquiries</button>
+  </div>
 
-                                        <div id="landlord-tab-listings" class="dash-tab-panel active"
-                                            data-tab-group="landlord">
-                                            <div id="landlord-properties-list"></div>
-                                        </div>
+  <div id="landlord-tab-listings" class="dash-tab-panel active" data-tab-group="landlord">
+   <div id="landlord-properties-list"></div>
+  </div>
 
-                                        <div style="margin-bottom: 40px;">
-                                            <h2
-                                                style="font-size: 24px; margin-bottom: 18px; color: #8B4513; border-bottom: 2px solid #ADD8E6; padding-bottom: 8px;">
-                                                📩 Applications Received</h2>
-                                            <div id="landlord-tab-apps" class="dash-tab-panel"
-                                                data-tab-group="landlord">
-                                                <div id="landlord-applications-list"></div>
-                                            </div>
+  <div id="landlord-tab-apps" class="dash-tab-panel" data-tab-group="landlord">
+   <div id="landlord-applications-list"></div>
+  </div>
 
-                                            <div>
-                                                <h2
-                                                    style="font-size: 24px; margin-bottom: 18px; color: #8B4513; border-bottom: 2px solid #ADD8E6; padding-bottom: 8px;">
-                                                    💬 Tenant Inquiries</h2>
-                                                <div id="landlord-tab-inquiries" class="dash-tab-panel"
-                                                    data-tab-group="landlord">
-                                                    <div id="landlord-inquiries-list"></div>
-                                                </div>
-                                            </div>
+  <div id="landlord-tab-inquiries" class="dash-tab-panel" data-tab-group="landlord">
+   <div id="landlord-inquiries-list"></div>
+  </div>
+ </div>
 </main>

@@ -1200,15 +1200,56 @@ nav a.nav-link-active {
     backdrop-filter: blur(6px);
 }
 
-/* Modern Dashboard Shell, KPI Cards & Tabs */
+/* Modern Full-Screen Dashboard Shell, Hero Bar, KPI Cards & Tabs */
 .dash-shell {
-    max-width: 1120px;
-    margin: 36px auto;
+    width: 100%;
+    max-width: 1440px;
+    min-height: calc(100vh - 96px);
+    margin: 0 auto;
     background: #FFFFFF;
-    padding: 36px;
-    border-radius: 18px;
-    border: 1px solid #EAE5DC;
-    box-shadow: 0 6px 24px rgba(44, 30, 22, 0.06);
+    padding: 28px 36px 48px;
+    border-radius: 0;
+    border-left: 1px solid #EAE5DC;
+    border-right: 1px solid #EAE5DC;
+    box-shadow: 0 4px 24px rgba(44, 30, 22, 0.04);
+}
+
+.dash-hero-bar {
+    background: linear-gradient(135deg, #0F4C81 0%, #0288D1 100%);
+    border-radius: 16px;
+    padding: 26px 30px;
+    margin-bottom: 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    box-shadow: 0 8px 24px rgba(15, 76, 129, 0.18);
+}
+
+.dash-role-pill {
+    display: inline-block;
+    background: rgba(255, 255, 255, 0.18);
+    color: #FFFFFF;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 4px 12px;
+    border-radius: 999px;
+    letter-spacing: 0.03em;
+}
+
+.dash-hero-cta {
+    background: #FFFFFF !important;
+    color: #0F4C81 !important;
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    padding: 13px 24px !important;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14) !important;
+}
+
+.dash-hero-cta:hover:not(:disabled) {
+    background: #F0F9FF !important;
+    transform: translateY(-2px);
 }
 
 .kpi-grid {
