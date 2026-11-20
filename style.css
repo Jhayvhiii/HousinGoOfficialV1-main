@@ -1302,3 +1302,163 @@ nav a.nav-link-active {
         font-size: 14px;
     }
 }
+
+/* ============================================================================
+   Spotahome-Style Split-Screen GPS Map & Price-Pill Pins
+   ============================================================================ */
+
+#home-content {
+    max-width: 1380px !important;
+    margin: 0 auto !important;
+    padding: 0 24px 60px !important;
+}
+
+.home-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-bottom: 20px;
+}
+
+.home-split-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(360px, 0.85fr);
+    gap: 24px;
+    align-items: start;
+}
+
+.home-split-layout.map-hidden {
+    grid-template-columns: 1fr;
+}
+
+.home-split-layout.map-hidden .home-map-column {
+    display: none;
+}
+
+.home-listings-column .properties-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+    gap: 20px;
+}
+
+.home-map-column {
+    position: sticky;
+    top: 92px;
+    height: calc(100vh - 115px);
+    min-height: 460px;
+    background: #FFFFFF;
+    border-radius: 18px;
+    border: 1px solid #EAE5DC;
+    box-shadow: 0 8px 26px rgba(15, 76, 129, 0.1);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.map-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: #FFFFFF;
+    border-bottom: 1px solid #EAE5DC;
+    flex-wrap: wrap;
+}
+
+.map-panel-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1E293B;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.map-panel-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.gps-pill-btn {
+    background: #EEF6FA;
+    color: #0F4C81;
+    border: 1px solid #C8E2F2;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.18s ease;
+}
+
+.gps-pill-btn:hover {
+    background: #0F4C81;
+    color: #FFFFFF;
+}
+
+#home-gps-map {
+    flex: 1;
+    width: 100%;
+    min-height: 400px;
+    z-index: 1;
+}
+
+/* Spotahome-style Price Pin Markers */
+.hg-price-pin {
+    background: #FFFFFF;
+    color: #0F4C81;
+    border: 2px solid #0F4C81;
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 800;
+    white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(15, 76, 129, 0.25);
+    transition: transform 0.18s ease, background-color 0.18s ease, color 0.18s ease;
+    cursor: pointer;
+    display: inline-block;
+}
+
+.hg-price-pin:hover,
+.hg-price-pin.active {
+    background: #0F4C81;
+    color: #FFFFFF;
+    transform: scale(1.12);
+    z-index: 1000 !important;
+}
+
+.hg-user-gps-dot {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #2563EB;
+    border: 3px solid #FFFFFF;
+    box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.28);
+}
+
+.post-map-box {
+    width: 100%;
+    height: 270px;
+    border-radius: 12px;
+    border: 1.5px solid #D8D2C7;
+    overflow: hidden;
+    margin-top: 10px;
+    z-index: 1;
+}
+
+@media (max-width: 1024px) {
+    .home-split-layout {
+        grid-template-columns: 1fr;
+    }
+    .home-map-column {
+        position: relative;
+        top: 0;
+        height: 420px;
+        order: -1;
+    }
+}

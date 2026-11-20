@@ -21,6 +21,14 @@ let selectedNewRecipient = null;
 let editingExistingImageUrls = [];
 let streamClient = null;
 let isStreamConnected = false;
+let homeMap = null;
+let homeMapMarkers = new Map();
+let userGpsMarker = null;
+let userGpsCoords = null;
+let postPropertyMap = null;
+let postPropertyPin = null;
+
+const DEFAULT_EAST_REMBO = { lat: 14.5547, lng: 121.0596 };
 
 // ============================================================================
 // Utility Helpers
@@ -89,6 +97,8 @@ function encodePropertyDescription(plainText, meta = {}) {
         map_link: (meta.map_link || '').trim(),
         rules: (meta.rules || '').trim(),
         amenities: Array.isArray(meta.amenities) ? meta.amenities : [],
+        lat: meta.lat !== undefined && meta.lat !== '' && !Number.isNaN(Number(meta.lat)) ? Number(meta.lat) : null,
+        lng: meta.lng !== undefined && meta.lng !== '' && !Number.isNaN(Number(meta.lng)) ? Number(meta.lng) : null,
     };
     return `${cleanText}\n\n${META_OPEN}${JSON.stringify(cleanedMeta)}${META_CLOSE}`;
 }
@@ -649,7 +659,7 @@ function renderPropertyCard(p) {
         : '';
 
     return `
-        <div class="property-card" style="background:#fff;overflow:hidden;display:flex;flex-direction:column;">
+        <div class="property-card" data-property-id="${p.property_id}" onmouseenter="highlightMapPin('${p.property_id}', true)" onmouseleave="highlightMapPin('${p.property_id}', false)" style="background:#fff;overflow:hidden;display:flex;flex-direction:column;">
             <div class="property-card-media">
                 ${imgHtml}
                 <div class="property-card-badge">${statusBadgeHtml(p.availability_status || 'available')}</div>
@@ -709,12 +719,255 @@ function renderHomeGrid(list) {
     if (!list || list.length === 0) {
         containerEl.style.display = 'none';
         if (emptyEl) emptyEl.style.display = 'block';
+        updateHomeMapMarkers([]);
         return;
     }
 
     if (emptyEl) emptyEl.style.display = 'none';
     containerEl.style.display = 'grid';
     containerEl.innerHTML = list.map(renderPropertyCard).join('');
+    updateHomeMapMarkers(list);
+}
+
+// ============================================================================
+// Spotahome-Style Interactive GPS Map (Leaflet + OpenStreetMap)
+// ============================================================================
+const PH_LOCATION_CENTROIDS = [
+    { match: 'east rembo', lat: 14.5547, lng: 121.0596 },
+    { match: 'pembo',      lat: 14.5446, lng: 121.0618 },
+    { match: 'mckinley',   lat: 14.5345, lng: 121.0496 },
+    { match: 'bgc',        lat: 14.5508, lng: 121.0498 },
+    { match: 'taguig',     lat: 14.5243, lng: 121.0792 },
+    { match: 'poblacion',  lat: 14.5653, lng: 121.0315 },
+    { match: 'makati',     lat: 14.5547, lng: 121.0244 },
+    { match: 'kapitolyo',  lat: 14.5718, lng: 121.0588 },
+    { match: 'ortigas',    lat: 14.5869, lng: 121.0614 },
+    { match: 'pasig',      lat: 14.5764, lng: 121.0851 },
+    { match: 'katipunan',  lat: 14.6368, lng: 121.0746 },
+    { match: 'quezon',     lat: 14.6760, lng: 121.0437 },
+    { match: 'marikina',   lat: 14.6507, lng: 121.1029 },
+    { match: 'cebu',       lat: 10.3304, lng: 123.9064 },
+];
+
+function deterministicOffset(seedStr) {
+    let hash = 0;
+    const s = String(seedStr || 'hg');
+    for (let i = 0; i < s.length; i++) hash = ((hash << 5) - hash + s.charCodeAt(i)) | 0;
+    const latOff = (((hash & 0xff) / 255) - 0.5) * 0.006;
+    const lngOff = ((((hash >> 8) & 0xff) / 255) - 0.5) * 0.006;
+    return { latOff, lngOff };
+}
+
+function resolvePropertyCoords(property, meta = {}) {
+    if (typeof meta.lat === 'number' && typeof meta.lng === 'number') {
+        return { lat: meta.lat, lng: meta.lng };
+    }
+    const loc = `${property.location || ''} ${property.title || ''}`.toLowerCase();
+    const found = PH_LOCATION_CENTROIDS.find(c => loc.includes(c.match));
+    const base = found || DEFAULT_EAST_REMBO;
+    const { latOff, lngOff } = deterministicOffset(property.property_id || property.title);
+    return { lat: base.lat + latOff, lng: base.lng + lngOff };
+}
+
+function calcDistanceKm(lat1, lng1, lat2, lng2) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function initHomeMap() {
+    if (typeof window.L === 'undefined') {
+        console.error('❌ Leaflet library (window.L) not loaded.');
+        return null;
+    }
+    const mapEl = document.getElementById('home-gps-map');
+    if (!mapEl) return null;
+
+    if (!homeMap) {
+        homeMap = window.L.map(mapEl, { zoomControl: true }).setView([DEFAULT_EAST_REMBO.lat, DEFAULT_EAST_REMBO.lng], 14);
+        window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors',
+        }).addTo(homeMap);
+    }
+    setTimeout(() => homeMap?.invalidateSize(), 120);
+    return homeMap;
+}
+
+function updateHomeMapMarkers(properties) {
+    const countEl = document.getElementById('map-results-count');
+    if (countEl) countEl.textContent = `${properties.length} rental${properties.length === 1 ? '' : 's'} on map`;
+
+    const map = initHomeMap();
+    if (!map) return;
+
+    homeMapMarkers.forEach(({ marker }) => map.removeLayer(marker));
+    homeMapMarkers.clear();
+
+    const bounds = [];
+    properties.forEach(p => {
+        const { meta } = parsePropertyDescription(p.description);
+        const { lat, lng } = resolvePropertyCoords(p, meta);
+        bounds.push([lat, lng]);
+
+        const priceShort = `₱${Math.round(Number(p.price || 0)).toLocaleString('en-PH')}`;
+        const icon = window.L.divIcon({
+            className: '',
+            html: `<div class="hg-price-pin" id="map-pin-${p.property_id}">${priceShort}</div>`,
+            iconSize: [78, 28],
+            iconAnchor: [39, 14],
+        });
+
+        const distText = userGpsCoords
+            ? `<div style="font-size:11px;color:#2563EB;font-weight:700;margin-bottom:6px;">📍 ${calcDistanceKm(userGpsCoords.lat, userGpsCoords.lng, lat, lng).toFixed(1)} km from you</div>`
+            : '';
+
+        const imgUrl = Array.isArray(p.image_urls) && p.image_urls[0] ? p.image_urls[0] : '';
+        const popupHtml = `
+            <div style="min-width:210px;font-family:'Plus Jakarta Sans',sans-serif;">
+                ${imgUrl ? `<img src="${escapeHtml(imgUrl)}" style="width:100%;height:100px;object-fit:cover;border-radius:8px;margin-bottom:8px;">` : ''}
+                <div style="font-weight:700;font-size:14px;color:#1E293B;margin-bottom:3px;">${escapeHtml(p.title)}</div>
+                <div style="font-size:12px;color:#64748B;margin-bottom:5px;">📍 ${escapeHtml(p.location)}</div>
+                ${distText}
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
+                    <strong style="color:#0F4C81;font-size:15px;">${formatPeso(p.price)}/mo</strong>
+                    <button onclick="openPropertyDetails('${p.property_id}')" style="background:#0F4C81;color:#fff;border:none;padding:5px 10px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">View Details</button>
+                </div>
+            </div>
+        `;
+
+        const marker = window.L.marker([lat, lng], { icon }).addTo(map).bindPopup(popupHtml);
+        homeMapMarkers.set(p.property_id, { marker, lat, lng });
+    });
+
+    if (bounds.length > 0 && !userGpsCoords) {
+        map.fitBounds(bounds, { padding: [45, 45], maxZoom: 15 });
+    }
+}
+
+function highlightMapPin(propertyId, isActive) {
+    const pinEl = document.getElementById(`map-pin-${propertyId}`);
+    if (pinEl) pinEl.classList.toggle('active', Boolean(isActive));
+}
+
+function locateUserOnMap() {
+    if (!navigator.geolocation) {
+        return showToast('GPS geolocation is not supported by your browser.', 'warning');
+    }
+    showToast('Locating your GPS position...', 'info');
+    navigator.geolocation.getCurrentPosition(
+        (pos) => {
+            const { latitude: lat, longitude: lng } = pos.coords;
+            userGpsCoords = { lat, lng };
+            const map = initHomeMap();
+            if (!map) return;
+
+            if (userGpsMarker) map.removeLayer(userGpsMarker);
+            const gpsIcon = window.L.divIcon({
+                className: '',
+                html: '<div class="hg-user-gps-dot"></div>',
+                iconSize: [18, 18],
+                iconAnchor: [9, 9],
+            });
+            userGpsMarker = window.L.marker([lat, lng], { icon: gpsIcon })
+                .addTo(map)
+                .bindPopup('<strong>📍 You are here</strong>')
+                .openPopup();
+
+            map.flyTo([lat, lng], 14, { duration: 1.0 });
+            updateHomeMapMarkers(cachedAvailableProperties);
+            showToast('GPS location found! Distances updated on map pins.', 'success');
+        },
+        (err) => {
+            showToast(`Could not access GPS: ${err.message}`, 'error');
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+    );
+}
+
+function resetMapToEastRembo() {
+    const map = initHomeMap();
+    if (!map) return;
+    map.flyTo([DEFAULT_EAST_REMBO.lat, DEFAULT_EAST_REMBO.lng], 15, { duration: 0.9 });
+}
+
+function toggleHomeMap() {
+    const split = document.getElementById('home-split-layout');
+    const btn = document.getElementById('toggle-map-btn');
+    if (!split) return;
+    const isHidden = split.classList.toggle('map-hidden');
+    if (btn) btn.textContent = isHidden ? '🗺️ Show Map' : '🗺️ Hide Map';
+    if (!isHidden) setTimeout(() => homeMap?.invalidateSize(), 120);
+}
+
+function initPostPropertyMap(initialLat = null, initialLng = null) {
+    if (typeof window.L === 'undefined') return;
+    const mapEl = document.getElementById('post-property-map');
+    if (!mapEl) return;
+
+    const lat = typeof initialLat === 'number' ? initialLat : DEFAULT_EAST_REMBO.lat;
+    const lng = typeof initialLng === 'number' ? initialLng : DEFAULT_EAST_REMBO.lng;
+
+    if (!postPropertyMap) {
+        postPropertyMap = window.L.map(mapEl).setView([lat, lng], 15);
+        window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors',
+        }).addTo(postPropertyMap);
+
+        postPropertyMap.on('click', (e) => {
+            setPostPropertyPin(e.latlng.lat, e.latlng.lng);
+        });
+    } else {
+        postPropertyMap.setView([lat, lng], 15);
+    }
+
+    if (typeof initialLat === 'number' && typeof initialLng === 'number') {
+        setPostPropertyPin(initialLat, initialLng);
+    } else if (postPropertyPin) {
+        postPropertyMap.removeLayer(postPropertyPin);
+        postPropertyPin = null;
+    }
+
+    setTimeout(() => postPropertyMap?.invalidateSize(), 150);
+}
+
+function setPostPropertyPin(lat, lng) {
+    const latEl = document.getElementById('property-lat');
+    const lngEl = document.getElementById('property-lng');
+    const lbl = document.getElementById('post-map-coords-label');
+    if (latEl) latEl.value = lat.toFixed(6);
+    if (lngEl) lngEl.value = lng.toFixed(6);
+    if (lbl) lbl.textContent = `Pinned GPS: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+
+    if (postPropertyMap) {
+        if (postPropertyPin) {
+            postPropertyPin.setLatLng([lat, lng]);
+        } else {
+            postPropertyPin = window.L.marker([lat, lng], { draggable: true }).addTo(postPropertyMap);
+            postPropertyPin.on('dragend', (ev) => {
+                const p = ev.target.getLatLng();
+                setPostPropertyPin(p.lat, p.lng);
+            });
+        }
+        postPropertyMap.panTo([lat, lng]);
+    }
+}
+
+function useCurrentGpsForProperty() {
+    if (!navigator.geolocation) return showToast('GPS not supported by this browser.', 'warning');
+    showToast('Getting your current GPS coordinates...', 'info');
+    navigator.geolocation.getCurrentPosition(
+        (pos) => {
+            initPostPropertyMap(pos.coords.latitude, pos.coords.longitude);
+            setPostPropertyPin(pos.coords.latitude, pos.coords.longitude);
+            showToast('GPS pin placed at your current location!', 'success');
+        },
+        (err) => showToast(`GPS error: ${err.message}`, 'error'),
+        { enableHighAccuracy: true, timeout: 10000 }
+    );
 }
 
 function filterHomeProperties() {
@@ -1243,6 +1496,8 @@ async function openEditPropertyForm(propertyId) {
         setVal('property-description', cleanDesc);
         setVal('property-rules', meta.rules || '');
         setVal('property-availability-status', prop.availability_status || 'available');
+        setVal('property-lat', meta.lat ?? '');
+        setVal('property-lng', meta.lng ?? '');
 
         const savedAmenities = new Set(Array.isArray(meta.amenities) ? meta.amenities : []);
         document.querySelectorAll('#post-property-form input[name="amenity"]').forEach(cb => {
@@ -1255,6 +1510,7 @@ async function openEditPropertyForm(propertyId) {
         if (submitBtn) submitBtn.textContent = 'Save Changes';
 
         renderExistingImagePreview();
+        initPostPropertyMap(meta.lat, meta.lng);
     } catch (error) {
         showToast(`Could not load property for editing: ${error.message}`, 'error');
     }
@@ -1283,6 +1539,9 @@ function loadPostPropertyForm() {
     if (cn) cn.value = currentUser.full_name;
     if (cnum) cnum.value = currentUser.phone || 'Not set';
     hideAuthAlert('post-property-alert');
+    const latVal = document.getElementById('property-lat')?.value;
+    const lngVal = document.getElementById('property-lng')?.value;
+    initPostPropertyMap(latVal ? Number(latVal) : null, lngVal ? Number(lngVal) : null);
 }
 
 async function handlePostProperty(event) {
@@ -1308,6 +1567,8 @@ async function handlePostProperty(event) {
         map_link: document.getElementById('location-link')?.value || '',
         rules: document.getElementById('property-rules')?.value || '',
         amenities: checkedAmenities,
+        lat: document.getElementById('property-lat')?.value || '',
+        lng: document.getElementById('property-lng')?.value || '',
     });
     const fileInput = document.getElementById('property-images');
     const submitBtn = document.getElementById('post-property-submit-btn');

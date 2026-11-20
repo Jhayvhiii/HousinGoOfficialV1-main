@@ -45,6 +45,20 @@
     <input type="text" id="property-address" required placeholder="e.g., 15th Ave, Brgy. East Rembo, Taguig City" style="width: 100%; padding: 12px; border: 1.5px solid #D8D2C7; border-radius: 10px; font-size: 15px;">
    </div>
 
+   <!-- Interactive GPS Pin Picker -->
+   <div style="margin-bottom: 20px; background: #FAF8F5; padding: 16px; border-radius: 12px; border: 1px solid #EAE5DC;">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+     <div>
+      <label style="display: block; font-weight: 700; color: #2C1E16; font-size: 15px;">📍 Pin Exact GPS Location on Map</label>
+      <small id="post-map-coords-label" style="color: #64748B;">Click anywhere on the map to place the pin (default: Brgy. East Rembo, Taguig)</small>
+     </div>
+     <button type="button" class="gps-pill-btn" onclick="useCurrentGpsForProperty()">📍 Use My Current GPS</button>
+    </div>
+    <input type="hidden" id="property-lat" value="">
+    <input type="hidden" id="property-lng" value="">
+    <div id="post-property-map" class="post-map-box"></div>
+   </div>
+
    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 18px;">
     <div>
      <label for="monthly-rent" style="display: block; margin-bottom: 6px; font-weight: 600; color: #2C1E16;">Monthly Price (₱)</label>
