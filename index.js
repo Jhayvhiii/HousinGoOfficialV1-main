@@ -1,20 +1,11 @@
 /** 
- * @brief Supabase project URL.
- * @details Base URL used to connect to your Supabase backend.
+ * @brief Shared Supabase client instance initialized by src/lib/supabaseClient.js.
+ * @details Reads VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY from environment variables.
  */
-const SUPABASE_URL = "https://myeqpxnpyurmxqtovdec.supabase.co";
-
-/**
- * @brief Supabase public anonymous API key.
- * @warning This key should be stored in environment variables in production.
- */
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im15ZXFweG5weXVybXhxdG92ZGVjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI1MzA0MzgsImV4cCI6MjA3ODEwNjQzOH0.X5aSsAzjvHvaaiOjM9f_M7gajFOpobn3IX623WFUzBA";
-
-/**
- * @brief Creates a Supabase client instance.
- * @details Used for all database queries and authentication actions.
- */
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabase = window.supabaseClient;
+if (!supabase) {
+    console.error('❌ Supabase client not found on window.supabaseClient. Make sure /env.js and src/lib/supabaseClient.js are loaded.');
+}
 
 
 // ============================================================================
@@ -1015,22 +1006,26 @@ function performHeroSearch() {
     }, 300);
 }
 
-function filterProperties() {
-    const searchTerm = document.getElementById('search-input').value.toLowerCase();
-    const typeSearch = document.getElementById('type-search').value;
-    const priceSearch = document.getElementById('price-search').value;
+function filterHomeProperties() {
+    const searchEl = document.getElementById('search-input');
+    const typeEl = document.getElementById('type-search');
+    const priceEl = document.getElementById('price-search');
+    const searchTerm = searchEl ? searchEl.value.toLowerCase() : '';
+    const typeSearch = typeEl ? typeEl.value : '';
+    const priceSearch = priceEl ? priceEl.value : '';
 
     let filtered = allProperties.filter(property => {
-    const matchesSearch = !searchTerm || 
-        (property.property_name && property.property_name.toLowerCase().includes(searchTerm)) ||
+    const titleVal = (property.title || property.property_name || '').toLowerCase();
+    const locVal = (property.location || [property.address, property.barangay, property.city].filter(Boolean).join(', ')).toLowerCase();
+    const priceVal = Number(property.price ?? property.monthly_rent ?? 0);
+    const matchesSearch = !searchTerm ||
+        titleVal.includes(searchTerm) ||
+        locVal.includes(searchTerm) ||
         (property.type && property.type.toLowerCase().includes(searchTerm)) ||
-        (property.city && property.city.toLowerCase().includes(searchTerm)) ||
-        (property.barangay && property.barangay.toLowerCase().includes(searchTerm)) ||
-        (property.address && property.address.toLowerCase().includes(searchTerm)) ||
         (property.nearby_landmarks && property.nearby_landmarks.toLowerCase().includes(searchTerm));
 
     const matchesTypeSearch = !typeSearch || property.type === typeSearch;
-    const matchesPriceSearch = !priceSearch || property.monthly_rent <= parseInt(priceSearch);
+    const matchesPriceSearch = !priceSearch || priceVal <= parseInt(priceSearch, 10);
     const matchesType = !selectedType || property.type === selectedType;
 
     return matchesSearch && matchesTypeSearch && matchesPriceSearch && matchesType;
@@ -1039,12 +1034,12 @@ function filterProperties() {
     displayProperties(filtered);
 }
 
-document.querySelectorAll('.filter-btn').forEach(btn => {
+document.querySelectorAll('#home-content .filter-btn').forEach(btn => {
     btn.addEventListener('click', function() {
-    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('#home-content .filter-btn').forEach(b => b.classList.remove('active'));
     this.classList.add('active');
     selectedType = this.getAttribute('data-type');
-    filterProperties();
+    filterHomeProperties();
     });
 });
 
@@ -1073,71 +1068,220 @@ document.getElementById('property-modal').addEventListener('click', (e) => {
 
 // Authentication state
 let currentUser = null;
+let authListenerInitialized = false;
+
+/**
+ * Normalizes a Supabase public.profiles row + auth.user into a unified user object
+ * with both canonical schema fields (id, full_name, email, phone, role, status, is_verified)
+ * and backwards-compatible aliases (user_id, first_name, last_name, mobile).
+ */
+function normalizeUserProfile(profile, authUser = null) {
+    if (!profile && !authUser) return null;
+    const fullName = (profile?.full_name || authUser?.user_metadata?.full_name || '').trim();
+    const nameParts = fullName ? fullName.split(/\s+/) : ['User'];
+    const firstName = nameParts[0] || 'User';
+    const lastName = nameParts.slice(1).join(' ') || '';
+    const role = (profile?.role || authUser?.user_metadata?.role || 'tenant').toLowerCase();
+    const status = (profile?.status || 'active').toLowerCase();
+    const id = profile?.id || authUser?.id;
+    const email = profile?.email || authUser?.email || '';
+    const phone = profile?.phone || authUser?.user_metadata?.phone || '';
+
+    return {
+        id,
+        user_id: id,
+        full_name: fullName || email.split('@')[0] || 'User',
+        first_name: firstName,
+        last_name: lastName,
+        email,
+        phone,
+        mobile: phone,
+        role,
+        status,
+        is_verified: Boolean(profile?.is_verified),
+        created_at: profile?.created_at || authUser?.created_at || null,
+        updated_at: profile?.updated_at || null,
+    };
+}
+
+function getDashboardForRole(role) {
+    const normalized = (role || 'tenant').toLowerCase();
+    if (normalized === 'admin') return 'admin-dashboard';
+    if (normalized === 'landlord') return 'landlord-dashboard';
+    return 'tenant-dashboard';
+}
+
+function updateLandlordVerificationUI() {
+    const isUnverifiedLandlord = Boolean(
+        currentUser && currentUser.role === 'landlord' && !currentUser.is_verified
+    );
+
+    const dashBanner = document.getElementById('landlord-verification-banner');
+    const postBanner = document.getElementById('post-property-verification-banner');
+    const addBtn = document.getElementById('landlord-add-property-btn');
+    const postForm = document.getElementById('post-property-form');
+
+    if (dashBanner) {
+        dashBanner.classList.toggle('show', isUnverifiedLandlord);
+    }
+    if (postBanner) {
+        postBanner.classList.toggle('show', isUnverifiedLandlord);
+    }
+    if (addBtn) {
+        addBtn.disabled = isUnverifiedLandlord;
+        addBtn.title = isUnverifiedLandlord ? 'Awaiting admin verification before posting properties' : '';
+    }
+    if (postForm) {
+        const submitBtn = postForm.querySelector('button[type="submit"]');
+        if (submitBtn) {
+            submitBtn.disabled = isUnverifiedLandlord;
+            submitBtn.title = isUnverifiedLandlord ? 'Awaiting admin verification' : '';
+        }
+    }
+}
+
+async function applyAuthenticatedUser(session, profile) {
+    if (!session || !session.user) {
+        currentUser = null;
+        updateNavForLoggedInUser();
+        updateLandlordVerificationUI();
+        return null;
+    }
+
+    const normalized = normalizeUserProfile(profile, session.user);
+
+    if (normalized.status === 'suspended') {
+        if (window.authService) {
+            await window.authService.signOut();
+        }
+        currentUser = null;
+        updateNavForLoggedInUser();
+        showAuthAlert('login-alert', 'Your account has been suspended by an administrator. Please contact support.', 'error');
+        showToast('Your account is suspended. Please contact support.', 'error');
+        showPage('login');
+        return null;
+    }
+
+    currentUser = normalized;
+    updateNavForLoggedInUser();
+    updateLandlordVerificationUI();
+    return currentUser;
+}
 
 async function checkAuthState() {
-    // Check if user is stored in localStorage
-    const storedUser = localStorage.getItem('housingo_user');
-    if (storedUser) {
-    try {
-        currentUser = JSON.parse(storedUser);
-        updateNavForLoggedInUser();
-    } catch (error) {
-        console.error('Error parsing stored user:', error);
-        localStorage.removeItem('housingo_user');
+    if (!window.authService) {
+        console.error('❌ window.authService is not loaded. Check script order in index.html.');
+        return;
     }
+
+    try {
+        const session = await window.authService.getSession();
+        if (session?.user) {
+            const profile = await window.authService.getProfile(session.user.id);
+            await applyAuthenticatedUser(session, profile);
+        } else {
+            currentUser = null;
+            updateNavForLoggedInUser();
+            updateLandlordVerificationUI();
+        }
+    } catch (error) {
+        console.error('Error checking auth state:', error);
+        currentUser = null;
+        updateNavForLoggedInUser();
+    }
+
+    // Restore remembered email if saved
+    const rememberedEmail = localStorage.getItem('housingo_remember_email');
+    const loginEmailInput = document.getElementById('login-email');
+    const rememberMeBox = document.getElementById('remember-me');
+    if (rememberedEmail && loginEmailInput && !loginEmailInput.value) {
+        loginEmailInput.value = rememberedEmail;
+        if (rememberMeBox) rememberMeBox.checked = true;
+    }
+
+    // Subscribe once to Supabase Auth state changes for session persistence
+    if (!authListenerInitialized) {
+        authListenerInitialized = true;
+        window.authService.onAuthStateChange(async (event, session, profile) => {
+            if (event === 'SIGNED_OUT') {
+                currentUser = null;
+                updateNavForLoggedInUser();
+                updateLandlordVerificationUI();
+            } else if (session?.user) {
+                await applyAuthenticatedUser(session, profile);
+            }
+        });
     }
 }
 
 function updateNavForLoggedInUser() {
-    const navMenu = document.querySelector('nav ul');
+    const navMenuList = document.querySelector('#nav-menu ul');
     const profileDropdown = document.getElementById('user-profile-dropdown');
     const userNameDisplay = document.getElementById('user-name-display');
-    
+    const floatingChat = document.getElementById('floating-chat-button');
+
+    if (!navMenuList) {
+        console.error('❌ Required element #nav-menu ul not found.');
+        return;
+    }
+
     if (currentUser) {
-    const userType = currentUser.role;
-    const dashboardLink = userType === 'Admin' ? 'admin-dashboard' : 
-                            userType === 'Landlord' ? 'landlord-dashboard' : 'tenant-dashboard';
-    
-    // Hide regular nav items and show profile dropdown
-    navMenu.innerHTML = `
-        <li><a href="#" onclick="showPage('home'); return false;">Home</a></li>
-        <li><a href="#" onclick="showPage('browse-properties'); return false;">Browse Properties</a></li>
-        <li><a href="#" onclick="showPage('${dashboardLink}'); return false;">Dashboard</a></li>
-        <li><a href="#" onclick="showPage('about'); return false;">About Us</a></li>
-        <li><a href="#" onclick="showPage('contact'); return false;">Contact Us</a></li>
-        <li><a href="#" onclick="showPage('help'); return false;">Help</a></li>
-    `;
-    
-    // Show and update profile dropdown
-    profileDropdown.style.display = 'block';
-    userNameDisplay.textContent = `👤 ${currentUser.first_name} ${currentUser.last_name}`;
-    
-    // Load notifications count
-    loadNotificationCount();
+        const dashboardLink = getDashboardForRole(currentUser.role);
+        const roleBadge = currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1);
+
+        navMenuList.innerHTML = `
+            <li><a href="#" onclick="showPage('home'); return false;">Home</a></li>
+            <li><a href="#" onclick="showPage('browse-properties'); return false;">Browse Properties</a></li>
+            <li><a href="#" onclick="showPage('${dashboardLink}'); return false;">Dashboard</a></li>
+            <li><a href="#" onclick="showPage('about'); return false;">About Us</a></li>
+            <li><a href="#" onclick="showPage('contact'); return false;">Contact Us</a></li>
+            <li><a href="#" onclick="showPage('help'); return false;">Help</a></li>
+        `;
+
+        if (profileDropdown) profileDropdown.style.display = 'block';
+        if (userNameDisplay) userNameDisplay.textContent = `👤 ${currentUser.full_name} (${roleBadge})`;
+        if (floatingChat) floatingChat.style.display = 'block';
+
+        if (typeof loadNotificationCount === 'function') {
+            loadNotificationCount().catch(() => {});
+        }
     } else {
-    // Show default nav for non-logged in users
-    navMenu.innerHTML = `
-        <li><a href="#" onclick="showPage('home'); return false;">Home</a></li>
-        <li><a href="#" onclick="showPage('browse-properties'); return false;">Browse Properties</a></li>
-        <li><a href="#" onclick="showPage('about'); return false;">About Us</a></li>
-        <li><a href="#" onclick="showPage('login'); return false;">Log In</a></li>
-        <li><a href="#" onclick="showPage('register'); return false;">Register</a></li>
-        <li><a href="#" onclick="showPage('contact'); return false;">Contact Us</a></li>
-        <li><a href="#" onclick="showPage('help'); return false;">Help</a></li>
-    `;
-    
-    // Hide profile dropdown
-    profileDropdown.style.display = 'none';
+        navMenuList.innerHTML = `
+            <li><a href="#" onclick="showPage('home'); return false;">Home</a></li>
+            <li><a href="#" onclick="showPage('browse-properties'); return false;">Browse Properties</a></li>
+            <li><a href="#" onclick="showPage('about'); return false;">About Us</a></li>
+            <li><a href="#" onclick="showPage('login'); return false;">Log In</a></li>
+            <li><a href="#" onclick="showPage('register'); return false;">Register</a></li>
+            <li><a href="#" onclick="showPage('contact'); return false;">Contact Us</a></li>
+            <li><a href="#" onclick="showPage('help'); return false;">Help</a></li>
+        `;
+
+        if (profileDropdown) profileDropdown.style.display = 'none';
+        if (floatingChat) floatingChat.style.display = 'none';
     }
 }
 
 async function logout() {
-    currentUser = null;
-    localStorage.removeItem('housingo_user');
-    showToast('Logged out successfully!');
-    setTimeout(() => {
-    location.reload();
-    }, 1000);
+    try {
+        if (typeof stopMessagePolling === 'function') stopMessagePolling();
+        if (typeof disconnectStream === 'function') await disconnectStream();
+        if (typeof notifiedMessageIds !== 'undefined' && notifiedMessageIds?.clear) {
+            notifiedMessageIds.clear();
+        }
+        if (window.authService) {
+            await window.authService.signOut();
+        }
+    } catch (error) {
+        console.error('Logout error:', error);
+    } finally {
+        currentUser = null;
+        updateNavForLoggedInUser();
+        updateLandlordVerificationUI();
+        const dropdownMenu = document.getElementById('profile-dropdown-menu');
+        if (dropdownMenu) dropdownMenu.style.display = 'none';
+        showToast('Logged out successfully! See you again soon.', 'info');
+        showPage('home');
+    }
 }
 
 async function onConfigChange(config) {
@@ -1206,52 +1350,96 @@ document.querySelectorAll('nav a').forEach(link => {
     });
 });
 
-// Page navigation
+// Page navigation with role-based route guards
 function showPage(pageName) {
-    // Hide all pages
-    document.getElementById('home-page').style.display = 'none';
-    document.getElementById('home-content').style.display = 'none';
-    document.getElementById('about-page').style.display = 'none';
-    document.getElementById('login-page').style.display = 'none';
-    document.getElementById('register-page').style.display = 'none';
-    document.getElementById('contact-page').style.display = 'none';
-    document.getElementById('help-page').style.display = 'none';
-    document.getElementById('browse-properties-page').style.display = 'none';
-    document.getElementById('admin-dashboard-page').style.display = 'none';
-    document.getElementById('landlord-dashboard-page').style.display = 'none';
-    document.getElementById('tenant-dashboard-page').style.display = 'none';
-    document.getElementById('post-property-page').style.display = 'none';
-    document.getElementById('user-settings-page').style.display = 'none';
+    // Block suspended users from protected routes
+    const protectedPages = ['admin-dashboard', 'landlord-dashboard', 'tenant-dashboard', 'post-property', 'user-settings'];
+    if (protectedPages.includes(pageName)) {
+        if (!currentUser) {
+            showToast('Please log in to access this page.', 'warning');
+            pageName = 'login';
+        } else if (currentUser.status === 'suspended') {
+            showToast('Your account is suspended. Access denied.', 'error');
+            logout();
+            return;
+        } else if (pageName === 'admin-dashboard' && currentUser.role !== 'admin') {
+            showToast('Access denied: Admin privileges required.', 'error');
+            pageName = getDashboardForRole(currentUser.role);
+        } else if ((pageName === 'landlord-dashboard' || pageName === 'post-property') && !['landlord', 'admin'].includes(currentUser.role)) {
+            showToast('Access denied: Landlord account required.', 'error');
+            pageName = getDashboardForRole(currentUser.role);
+        } else if (pageName === 'tenant-dashboard' && !['tenant', 'admin'].includes(currentUser.role)) {
+            showToast('Access denied: Tenant account required.', 'error');
+            pageName = getDashboardForRole(currentUser.role);
+        }
+    }
+
+    // Redirect already-logged-in users away from login/register
+    if ((pageName === 'login' || pageName === 'register') && currentUser) {
+        pageName = getDashboardForRole(currentUser.role);
+    }
+
+    // Hide all pages safely
+    const pageIds = [
+        'home-page', 'home-content', 'about-page', 'login-page', 'register-page',
+        'contact-page', 'help-page', 'browse-properties-page', 'admin-dashboard-page',
+        'landlord-dashboard-page', 'tenant-dashboard-page', 'post-property-page', 'user-settings-page'
+    ];
+    pageIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.style.display = 'none';
+        } else {
+            console.error(`❌ Page container #${id} not found in DOM.`);
+        }
+    });
+
+    // Clear auth inline alerts when navigating to login/register
+    if (pageName === 'login') hideAuthAlert('login-alert');
+    if (pageName === 'register') hideAuthAlert('register-alert');
 
     // Show selected page
     if (pageName === 'home') {
-    document.getElementById('home-page').style.display = 'block';
-    document.getElementById('home-content').style.display = 'block';
+        const homePage = document.getElementById('home-page');
+        const homeContent = document.getElementById('home-content');
+        if (homePage) homePage.style.display = 'block';
+        if (homeContent) homeContent.style.display = 'block';
     } else {
-    document.getElementById(pageName + '-page').style.display = 'block';
+        const targetPage = document.getElementById(pageName + '-page');
+        if (!targetPage) {
+            console.error(`❌ Target page #${pageName}-page not found in DOM.`);
+            return;
+        }
+        targetPage.style.display = 'block';
     }
 
-    // Load dashboard data if needed
+    // Close profile dropdown on navigation
+    const dropdownMenu = document.getElementById('profile-dropdown-menu');
+    if (dropdownMenu) dropdownMenu.style.display = 'none';
+
+    // Load dashboard / page data
     if (pageName === 'admin-dashboard') {
-    loadAdminDashboard();
+        loadAdminDashboard();
     } else if (pageName === 'landlord-dashboard') {
-    loadLandlordDashboard();
+        updateLandlordVerificationUI();
+        loadLandlordDashboard();
     } else if (pageName === 'tenant-dashboard') {
-    loadTenantDashboard();
+        loadTenantDashboard();
     } else if (pageName === 'user-settings') {
-    loadUserSettings();
+        loadUserSettings();
     } else if (pageName === 'browse-properties') {
-    loadBrowseProperties();
+        loadBrowseProperties();
     } else if (pageName === 'post-property') {
-    loadPostPropertyForm();
+        updateLandlordVerificationUI();
+        loadPostPropertyForm();
     }
 
     // Scroll to top
-    window.scrollTo(0, 0);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 
     // Close mobile menu
-    hamburger.classList.remove('active');
-    navMenu.classList.remove('active');
+    if (hamburger) hamburger.classList.remove('active');
+    if (navMenu) navMenu.classList.remove('active');
 }
 
 async function uploadImageToImgBB(file) {
@@ -2615,144 +2803,327 @@ document.getElementById('property-images').addEventListener('change', function(e
     });
 });
 
-// Form handlers
+// ============================================================================
+// Auth UI Helpers & Form Handlers (Supabase Auth + public.profiles)
+// ============================================================================
+
+function showAuthAlert(elementId, message, type = 'error') {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    el.textContent = message;
+    el.className = `auth-alert show ${type}`;
+}
+
+function hideAuthAlert(elementId) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    el.textContent = '';
+    el.className = 'auth-alert';
+}
+
+function getFriendlyAuthError(error) {
+    const msg = (error?.message || String(error || 'Something went wrong')).trim();
+    const lower = msg.toLowerCase();
+    if (lower.includes('invalid login credentials')) {
+        return 'Incorrect email or password. Please double-check and try again.';
+    }
+    if (lower.includes('email not confirmed')) {
+        return 'Please confirm your email address first! Check your inbox (and spam folder) for the Supabase verification link.';
+    }
+    if (lower.includes('user already registered') || lower.includes('already been registered')) {
+        return 'An account with this email already exists. Try logging in instead!';
+    }
+    if (lower.includes('password should be at least')) {
+        return 'Password must be at least 6 characters long.';
+    }
+    if (lower.includes('rate limit')) {
+        return 'Too many attempts. Please wait a moment before trying again.';
+    }
+    return msg;
+}
+
+function wireAuthInteractiveControls() {
+    // 1. Login & Register form submit listeners
+    const loginForm = document.getElementById('login-form');
+    if (loginForm) {
+        loginForm.addEventListener('submit', handleLogin);
+    } else {
+        console.error('❌ Required form #login-form not found.');
+    }
+
+    const registerForm = document.getElementById('register-form');
+    if (registerForm) {
+        registerForm.addEventListener('submit', handleRegister);
+    } else {
+        console.error('❌ Required form #register-form not found.');
+    }
+
+    // 2. Show/Hide password toggles
+    document.querySelectorAll('[data-toggle-password]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const targetId = btn.getAttribute('data-toggle-password');
+            const input = document.getElementById(targetId);
+            if (!input) {
+                console.error(`❌ Password input #${targetId} not found.`);
+                return;
+            }
+            const isHidden = input.type === 'password';
+            input.type = isHidden ? 'text' : 'password';
+            btn.textContent = isHidden ? '🙈' : '👁️';
+        });
+    });
+
+    // 3. Interactive Role Selector cards on Register page
+    const roleSelect = document.getElementById('reg-usertype');
+    const roleCards = document.querySelectorAll('[data-role-card]');
+    roleCards.forEach(card => {
+        const activateRole = () => {
+            const roleVal = card.getAttribute('data-role-card');
+            roleCards.forEach(c => c.classList.remove('selected'));
+            card.classList.add('selected');
+            if (roleSelect) roleSelect.value = roleVal;
+        };
+        card.addEventListener('click', activateRole);
+        card.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                activateRole();
+            }
+        });
+    });
+
+    // 4. Live Password Strength & Match indicators
+    const regPass = document.getElementById('reg-password');
+    const regConfirm = document.getElementById('reg-confirm-password');
+    const strengthBar = document.getElementById('reg-password-strength-bar');
+    const strengthText = document.getElementById('reg-password-strength-text');
+    const matchText = document.getElementById('reg-password-match-text');
+
+    const updateStrength = () => {
+        if (!regPass || !strengthBar || !strengthText) return;
+        const val = regPass.value;
+        let score = 0;
+        if (val.length >= 6) score++;
+        if (val.length >= 10) score++;
+        if (/[A-Z]/.test(val) && /[a-z]/.test(val)) score++;
+        if (/\d/.test(val)) score++;
+        if (/[^A-Za-z0-9]/.test(val)) score++;
+
+        if (!val) {
+            strengthBar.style.width = '0%';
+            strengthText.textContent = 'Use at least 6 characters (mix letters & numbers for stronger security)';
+            strengthText.style.color = '#654321';
+        } else if (score <= 2) {
+            strengthBar.style.width = '35%';
+            strengthBar.style.backgroundColor = '#FF6B6B';
+            strengthText.textContent = 'Weak password — add numbers or uppercase letters';
+            strengthText.style.color = '#B42318';
+        } else if (score === 3) {
+            strengthBar.style.width = '70%';
+            strengthBar.style.backgroundColor = '#FFA500';
+            strengthText.textContent = 'Fair password — getting stronger!';
+            strengthText.style.color = '#B54708';
+        } else {
+            strengthBar.style.width = '100%';
+            strengthBar.style.backgroundColor = '#2E7D32';
+            strengthText.textContent = 'Strong password ✓';
+            strengthText.style.color = '#067647';
+        }
+    };
+
+    const updateMatch = () => {
+        if (!regPass || !regConfirm || !matchText) return;
+        if (!regConfirm.value) {
+            matchText.textContent = '';
+            return;
+        }
+        if (regPass.value === regConfirm.value) {
+            matchText.textContent = '✓ Passwords match';
+            matchText.style.color = '#067647';
+        } else {
+            matchText.textContent = '✗ Passwords do not match';
+            matchText.style.color = '#B42318';
+        }
+    };
+
+    if (regPass) {
+        regPass.addEventListener('input', () => {
+            updateStrength();
+            updateMatch();
+        });
+    }
+    if (regConfirm) {
+        regConfirm.addEventListener('input', updateMatch);
+    }
+}
+
 async function handleLogin(event) {
     event.preventDefault();
-    const email = document.getElementById('login-email').value;
-    const password = document.getElementById('login-password').value;
-    const submitBtn = event.target.querySelector('button[type="submit"]');
-    
+    hideAuthAlert('login-alert');
+
+    const emailEl = document.getElementById('login-email');
+    const passwordEl = document.getElementById('login-password');
+    const rememberEl = document.getElementById('remember-me');
+    const submitBtn = document.getElementById('login-submit-btn') || event.target.querySelector('button[type="submit"]');
+
+    if (!emailEl || !passwordEl) {
+        console.error('❌ Login inputs #login-email or #login-password not found.');
+        return;
+    }
+
+    const email = emailEl.value.trim();
+    const password = passwordEl.value;
+
+    if (!window.authService) {
+        showAuthAlert('login-alert', 'Authentication service is unavailable. Check your .env configuration.', 'error');
+        return;
+    }
+
     submitBtn.disabled = true;
-    submitBtn.textContent = 'Logging in...';
+    submitBtn.textContent = '⏳ Logging in...';
 
     try {
-    // Query users table directly with email and password
-    const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', email)
-        .eq('password', password)
-        .single();
+        const { session, profile } = await window.authService.signIn({ email, password });
 
-    if (userError || !userData) {
-        throw new Error('Invalid email or password');
-    }
+        if (rememberEl?.checked) {
+            localStorage.setItem('housingo_remember_email', email);
+        } else {
+            localStorage.removeItem('housingo_remember_email');
+        }
 
-    if (userData.status !== 'Active') {
-        throw new Error('Your account is not active. Please contact support.');
-    }
+        const user = await applyAuthenticatedUser(session, profile);
+        if (!user) return; // Suspended user already handled
 
-    currentUser = userData;
-    localStorage.setItem('housingo_user', JSON.stringify(userData));
-    showToast('Login successful! Welcome back!');
-    
-    setTimeout(() => {
-        const dashboardPage = userData.role === 'Admin' ? 'admin-dashboard' :
-                            userData.role === 'Landlord' ? 'landlord-dashboard' : 'tenant-dashboard';
-        showPage(dashboardPage);
-        updateNavForLoggedInUser();
-    }, 1000);
+        showAuthAlert('login-alert', `Welcome back, ${user.full_name}! Redirecting to your dashboard...`, 'success');
+        showToast(`Welcome back, ${user.full_name}! 🎉`, 'success');
 
+        const targetDashboard = getDashboardForRole(user.role);
+        setTimeout(() => {
+            event.target.reset();
+            if (rememberEl?.checked) emailEl.value = email;
+            showPage(targetDashboard);
+        }, 650);
     } catch (error) {
-    console.error('Login error:', error);
-    showToast('Login failed: ' + error.message);
-    submitBtn.disabled = false;
-    submitBtn.textContent = 'Log In';
+        console.error('Login error:', error);
+        const friendly = getFriendlyAuthError(error);
+        showAuthAlert('login-alert', friendly, 'error');
+        showToast(friendly, 'error');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '🔑 Log In';
     }
 }
 
 async function handleRegister(event) {
     event.preventDefault();
-    const firstName = document.getElementById('reg-firstname').value;
-    const lastName = document.getElementById('reg-lastname').value;
-    const email = document.getElementById('reg-email').value;
-    const mobile = document.getElementById('reg-mobile').value;
-    const userType = document.getElementById('reg-usertype').value;
-    const password = document.getElementById('reg-password').value;
-    const confirmPassword = document.getElementById('reg-confirm-password').value;
-    const submitBtn = event.target.querySelector('button[type="submit"]');
+    hideAuthAlert('register-alert');
 
+    const firstName = document.getElementById('reg-firstname')?.value.trim() || '';
+    const lastName = document.getElementById('reg-lastname')?.value.trim() || '';
+    const email = document.getElementById('reg-email')?.value.trim() || '';
+    const phone = document.getElementById('reg-mobile')?.value.trim() || '';
+    const role = (document.getElementById('reg-usertype')?.value || 'tenant').toLowerCase();
+    const password = document.getElementById('reg-password')?.value || '';
+    const confirmPassword = document.getElementById('reg-confirm-password')?.value || '';
+    const submitBtn = document.getElementById('register-submit-btn') || event.target.querySelector('button[type="submit"]');
+
+    if (!firstName || !lastName) {
+        showAuthAlert('register-alert', 'Please enter both your first name and last name.', 'error');
+        return;
+    }
+    if (password.length < 6) {
+        showAuthAlert('register-alert', 'Password must be at least 6 characters long.', 'error');
+        return;
+    }
     if (password !== confirmPassword) {
-    showToast('Passwords do not match!');
-    return;
+        showAuthAlert('register-alert', 'Passwords do not match. Please re-enter them.', 'error');
+        return;
+    }
+    if (!['tenant', 'landlord'].includes(role)) {
+        showAuthAlert('register-alert', 'Please select either Tenant or Landlord.', 'error');
+        return;
+    }
+    if (!window.authService) {
+        showAuthAlert('register-alert', 'Authentication service is unavailable. Check your .env configuration.', 'error');
+        return;
     }
 
     submitBtn.disabled = true;
-    submitBtn.textContent = 'Creating Account...';
+    submitBtn.textContent = '⏳ Creating Account...';
 
     try {
-    // Insert user directly into users table with password
-    const { data: userData, error: insertError } = await supabase
-        .from('users')
-        .insert([{
-        first_name: firstName,
-        last_name: lastName,
-        email: email,
-        password: password,
-        mobile: mobile,
-        role: userType,
-        status: 'Active'
-        }])
-        .select()
-        .single();
+        const fullName = `${firstName} ${lastName}`.trim();
+        const data = await window.authService.signUp({
+            email,
+            password,
+            fullName,
+            role,
+            phone,
+        });
 
-    if (insertError) throw insertError;
+        // Case 1: Supabase returned an active session immediately (email confirm disabled)
+        if (data?.session && data?.user) {
+            // Brief wait so handle_new_user trigger commits public.profiles row
+            await new Promise(resolve => setTimeout(resolve, 350));
+            const profile = await window.authService.getProfile(data.user.id);
+            const user = await applyAuthenticatedUser(data.session, profile);
 
-    // 🔔 Create welcome notification for new user
-    await createNotification(
-        userData.user_id,
-        'Welcome to HousinGo! 🏠',
-        `Hi ${firstName}! Welcome to HousinGo. Your ${userType.toLowerCase()} account has been created successfully. ${userType === 'Tenant' ? 'Start browsing properties to find your perfect home!' : 'You can now post your properties and connect with potential tenants.'}`
-    );
-
-    // 🔔 Notify all admins about new user registration
-    await notifyAllAdmins(
-        'New User Registration',
-        `${firstName} ${lastName} has registered as a ${userType} on HousinGo.`
-    );
-
-    showToast('Registration successful! You can now log in.');
-    
-    setTimeout(() => {
-        showPage('login');
-        document.getElementById('register-form').reset();
-    }, 2000);
-
+            const roleNote = role === 'landlord'
+                ? ' Your landlord account is pending admin verification before you can publish listings.'
+                : '';
+            showToast(`Welcome to HousinGo, ${firstName}!${roleNote}`, 'success');
+            document.getElementById('register-form').reset();
+            showPage(getDashboardForRole(user?.role || role));
+        } else {
+            // Case 2: Email confirmation required
+            showAuthAlert(
+                'register-alert',
+                `🎉 Account created for ${fullName}! Please check ${email} to verify your email address, then log in.`,
+                'success'
+            );
+            showToast('Account created! Please check your email to confirm, then log in.', 'success');
+            document.getElementById('register-form').reset();
+            setTimeout(() => {
+                const loginEmailEl = document.getElementById('login-email');
+                if (loginEmailEl) loginEmailEl.value = email;
+                showPage('login');
+            }, 2500);
+        }
     } catch (error) {
-    console.error('Registration error:', error);
-    if (error.message.includes('duplicate key')) {
-        showToast('This email is already registered. Please use a different email or log in.');
-    } else {
-        showToast('Registration failed: ' + error.message);
-    }
-    submitBtn.disabled = false;
-    submitBtn.textContent = 'Create Account';
+        console.error('Registration error:', error);
+        const friendly = getFriendlyAuthError(error);
+        showAuthAlert('register-alert', friendly, 'error');
+        showToast(friendly, 'error');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '🚀 Create Account';
     }
 }
 
 function handleContact(event) {
     event.preventDefault();
-    const name = document.getElementById('contact-name').value;
-    const mobile = document.getElementById('contact-mobile').value;
-    const email = document.getElementById('contact-email').value;
-    const subject = document.getElementById('contact-subject').value;
-    const message = document.getElementById('contact-message').value;
-
-    showToast('Thank you for your message! We will get back to you soon.');
-    document.getElementById('contact-form').reset();
+    showToast('Thank you for your message! We will get back to you soon.', 'success');
+    document.getElementById('contact-form')?.reset();
 }
 
 function socialLogin(platform) {
-    showToast(`${platform} login will be available soon!`);
+    showToast(`${platform} login will be available soon! Please use Email & Password for now.`, 'info');
 }
 
-function showToast(message) {
+function showToast(message, type = 'info') {
     const toast = document.createElement('div');
-    toast.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #ADD8E6; color: #8B4513; padding: 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); z-index: 3000; max-width: 350px; font-weight: 500;';
+    toast.className = `hg-toast ${type}`;
     toast.textContent = message;
     document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 4000);
+    setTimeout(() => {
+        toast.style.transition = 'opacity 0.25s ease, transform 0.25s ease';
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(20px)';
+        setTimeout(() => toast.remove(), 260);
+    }, 4000);
 }
+
+wireAuthInteractiveControls();
 
 function toggleFAQ(questionElement) {
     const faqItem = questionElement.parentElement;
@@ -5001,55 +5372,6 @@ async function startNewConversation(event) {
     }
 }
 
-// Update existing functions to include chat initialization
-async function handleLogin(event) {
-    event.preventDefault();
-    const email = document.getElementById('login-email').value;
-    const password = document.getElementById('login-password').value;
-    const submitBtn = event.target.querySelector('button[type="submit"]');
-    
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Logging in...';
-
-    try {
-    // Query users table directly with email and password
-    const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', email)
-        .eq('password', password)
-        .single();
-
-    if (userError || !userData) {
-        throw new Error('Invalid email or password');
-    }
-
-    if (userData.status !== 'Active') {
-        throw new Error('Your account is not active. Please contact support.');
-    }
-
-    currentUser = userData;
-    localStorage.setItem('housingo_user', JSON.stringify(userData));
-    showToast('Login successful! Welcome back!');
-    
-    // Initialize messaging after login
-    await initializeMessaging();
-    
-    setTimeout(() => {
-        const dashboardPage = userData.role === 'Admin' ? 'admin-dashboard' :
-                            userData.role === 'Landlord' ? 'landlord-dashboard' : 'tenant-dashboard';
-        showPage(dashboardPage);
-        updateNavForLoggedInUser();
-    }, 1000);
-
-    } catch (error) {
-    console.error('Login error:', error);
-    showToast('Login failed: ' + error.message);
-    submitBtn.disabled = false;
-    submitBtn.textContent = 'Log In';
-    }
-}
-
 // Request notification permissions
 async function requestNotificationPermission() {
     if ('Notification' in window && Notification.permission === 'default') {
@@ -5057,62 +5379,12 @@ async function requestNotificationPermission() {
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
         console.log('✅ Browser notifications enabled');
-        showToast('Browser notifications enabled! You\'ll receive alerts for new messages.');
+        showToast('Browser notifications enabled! You\'ll receive alerts for new messages.', 'info');
         } else {
         console.log('ℹ️ Browser notifications denied');
         }
     } catch (error) {
         console.log('ℹ️ Browser notifications not supported');
-    }
-    }
-}
-
-// Update checkAuthState to initialize chat
-async function checkAuthState() {
-    // Check if user is stored in localStorage
-    const storedUser = localStorage.getItem('housingo_user');
-    if (storedUser) {
-    try {
-        currentUser = JSON.parse(storedUser);
-        updateNavForLoggedInUser();
-        await initializeMessaging();
-        
-        // Request notification permission after a short delay
-        setTimeout(requestNotificationPermission, 2000);
-    } catch (error) {
-        console.error('Error parsing stored user:', error);
-        localStorage.removeItem('housingo_user');
-    }
-    }
-}
-
-// Update logout to disconnect messaging
-async function logout() {
-    // Stop message polling
-    stopMessagePolling();
-    
-    // Disconnect GetStream if connected
-    await disconnectStream();
-    
-    // Clear notification tracking
-    notifiedMessageIds.clear();
-    
-    currentUser = null;
-    localStorage.removeItem('housingo_user');
-    showToast('Logged out successfully!');
-    setTimeout(() => {
-    location.reload();
-    }, 1000);
-}
-
-async function disconnectStream() {
-    if (streamClient && isStreamConnected) {
-    try {
-        await streamClient.disconnectUser();
-        isStreamConnected = false;
-        console.log('✅ GetStream disconnected successfully');
-    } catch (error) {
-        console.error('Error disconnecting from GetStream:', error);
     }
     }
 }

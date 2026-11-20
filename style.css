@@ -810,3 +810,242 @@ footer {
     padding: 10px 14px !important;
     }
 }
+
+/* ============================================================================
+   Lively Auth, Role Cards, Alerts, Verification Banner & Toast Enhancements
+   ============================================================================ */
+
+@keyframes authFadeSlide {
+    from {
+        opacity: 0;
+        transform: translateY(14px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes toastPopIn {
+    from {
+        opacity: 0;
+        transform: translateX(30px) scale(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+    }
+}
+
+.auth-card {
+    animation: authFadeSlide 0.35s ease-out;
+    border-top: 5px solid #87CEEB;
+}
+
+.auth-badge {
+    display: inline-block;
+    background: linear-gradient(135deg, #ADD8E6 0%, #87CEEB 100%);
+    color: #8B4513;
+    padding: 6px 16px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    margin-bottom: 12px;
+}
+
+.auth-input-wrap {
+    position: relative;
+}
+
+.auth-input-wrap input {
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.auth-input-wrap input:focus {
+    outline: none;
+    border-color: #8B4513 !important;
+    box-shadow: 0 0 0 3px rgba(173, 216, 230, 0.55);
+}
+
+.password-toggle-btn {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 18px;
+    color: #8B4513;
+    padding: 4px 6px;
+    border-radius: 6px;
+    transition: background-color 0.2s;
+}
+
+.password-toggle-btn:hover {
+    background-color: #F5F5DC;
+}
+
+.role-selector-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-top: 6px;
+}
+
+.role-card {
+    border: 2px solid #ADD8E6;
+    background-color: #FAFAF5;
+    border-radius: 10px;
+    padding: 16px 14px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.22s ease;
+    color: #8B4513;
+}
+
+.role-card:hover {
+    border-color: #87CEEB;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(135, 206, 235, 0.35);
+}
+
+.role-card.selected {
+    border-color: #8B4513;
+    background: linear-gradient(135deg, #E8F6FB 0%, #D4EEF8 100%);
+    box-shadow: 0 4px 14px rgba(139, 69, 19, 0.14);
+}
+
+.role-card-icon {
+    font-size: 28px;
+    margin-bottom: 6px;
+}
+
+.role-card-title {
+    font-weight: 700;
+    font-size: 16px;
+    margin-bottom: 3px;
+}
+
+.role-card-desc {
+    font-size: 12px;
+    color: #654321;
+    line-height: 1.35;
+}
+
+.auth-alert {
+    display: none;
+    padding: 14px 16px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.5;
+    animation: authFadeSlide 0.25s ease-out;
+}
+
+.auth-alert.show {
+    display: block;
+}
+
+.auth-alert.error {
+    background-color: #FFF0F0;
+    border: 1.5px solid #FF6B6B;
+    color: #B42318;
+}
+
+.auth-alert.success {
+    background-color: #ECFDF3;
+    border: 1.5px solid #32CD32;
+    color: #067647;
+}
+
+.auth-alert.info {
+    background-color: #EFF8FF;
+    border: 1.5px solid #87CEEB;
+    color: #1849A9;
+}
+
+.strength-track {
+    height: 6px;
+    width: 100%;
+    background-color: #EAE6D6;
+    border-radius: 999px;
+    overflow: hidden;
+    margin-top: 8px;
+}
+
+.strength-fill {
+    height: 100%;
+    width: 0%;
+    border-radius: 999px;
+    transition: width 0.25s ease, background-color 0.25s ease;
+}
+
+.verification-banner {
+    display: none;
+    background: linear-gradient(135deg, #FFF8E1 0%, #FFECB3 100%);
+    border: 2px solid #FFB300;
+    border-radius: 10px;
+    padding: 18px 22px;
+    margin-bottom: 25px;
+    color: #7A4F01;
+    font-size: 15px;
+    line-height: 1.5;
+    box-shadow: 0 3px 10px rgba(255, 179, 0, 0.18);
+}
+
+.verification-banner.show {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+}
+
+.hg-toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 16px 22px;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+    z-index: 4000;
+    max-width: 380px;
+    font-weight: 600;
+    font-size: 14px;
+    line-height: 1.45;
+    animation: toastPopIn 0.28s ease-out;
+    border-left: 5px solid #8B4513;
+    background: #FFFFFF;
+    color: #8B4513;
+}
+
+.hg-toast.success {
+    border-left-color: #2E7D32;
+    background: #F0FFF4;
+    color: #1B5E20;
+}
+
+.hg-toast.error {
+    border-left-color: #D32F2F;
+    background: #FFF5F5;
+    color: #9B1C1C;
+}
+
+.hg-toast.warning {
+    border-left-color: #ED6C02;
+    background: #FFF8E1;
+    color: #7A4F01;
+}
+
+.hg-toast.info {
+    border-left-color: #0288D1;
+    background: #E8F6FB;
+    color: #0B4F6C;
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed !important;
+    transform: none !important;
+}

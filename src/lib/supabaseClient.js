@@ -1,62 +1,48 @@
 /**
  * HousinGo Supabase Client
  * Single client instance reading URL and anon key from environment variables.
- * Never use service_role key here.
+ * Never use the service_role key in frontend code.
  */
 
 function getEnvVar(key) {
-  // Check Vite / ESM import.meta.env if available
   if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[key]) {
     return import.meta.env[key];
   }
-  // Check window.__ENV__ (served by dev-server or Vercel static inject)
   if (typeof window !== 'undefined' && window.__ENV__ && window.__ENV__[key]) {
     return window.__ENV__[key];
   }
-  // Check process.env if available (bundler/node)
   if (typeof process !== 'undefined' && process.env && process.env[key]) {
     return process.env[key];
   }
   return '';
 }
 
-const supabaseUrl = getEnvVar('VITE_SUPABASE_URL') || 'https://myeqpxnpyurmxqtovdec.supabase.co';
-const supabaseAnonKey = getEnvVar('VITE_SUPABASE_ANON_KEY') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im15ZXFweG5weXVybXhxdG92ZGVjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI1MzA0MzgsImV4cCI6MjA3ODEwNjQzOH0.X5aSsAzjvHvaaiOjM9f_M7gajFOpobn3IX623WFUzBA';
+const supabaseUrl = getEnvVar('https://lqoeueckcyxvcnwbcnqm.supabase.co');
+const supabaseAnonKey = getEnvVar('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxxb2V1ZWNrY3l4dmNud2JjbnFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ3Mzg3MDQsImV4cCI6MjExMDMxNDcwNH0.DgeCFG9e1i3CDYOzhwcdME70YE1b5gN_EdAA9z2UJ70');
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn('⚠️ Supabase credentials missing. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env');
+  console.error(
+    '❌ Missing Supabase environment variables! Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file and run with `npm run dev`.'
+  );
 }
 
-// Support both window.supabase from CDN and ES module createClient
-let createClientFn = null;
-if (typeof window !== 'undefined' && window.supabase && typeof window.supabase.createClient === 'function') {
-  createClientFn = window.supabase.createClient.bind(window.supabase);
-}
-
-export async function getCreateClient() {
-  if (createClientFn) return createClientFn;
-  try {
-    const mod = await import('@supabase/supabase-js');
-    return mod.createClient;
-  } catch (err) {
-    if (typeof window !== 'undefined' && window.supabase?.createClient) {
-      return window.supabase.createClient.bind(window.supabase);
-    }
-    throw new Error('Supabase SDK not loaded. Ensure CDN script or npm package is present.');
-  }
-}
-
-// Global client instance
-export const supabase = (typeof window !== 'undefined' && window.supabase?.createClient)
-  ? window.supabase.createClient(supabaseUrl, supabaseAnonKey, {
+let client = null;
+if (supabaseUrl && supabaseAnonKey) {
+  if (typeof window !== 'undefined' && window.supabase && typeof window.supabase.createClient === 'function') {
+    client = window.supabase.createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
       },
-    })
-  : null;
+    });
+  } else {
+    console.error('❌ Supabase JS SDK (window.supabase) was not loaded before supabaseClient.js.');
+  }
+}
 
-if (typeof window !== 'undefined' && supabase) {
+export const supabase = client;
+
+if (typeof window !== 'undefined') {
   window.supabaseClient = supabase;
 }
