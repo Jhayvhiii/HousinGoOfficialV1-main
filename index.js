@@ -97,6 +97,8 @@ function encodePropertyDescription(plainText, meta = {}) {
         map_link: (meta.map_link || '').trim(),
         rules: (meta.rules || '').trim(),
         amenities: Array.isArray(meta.amenities) ? meta.amenities : [],
+        contact_name: (meta.contact_name || '').trim(),
+        contact_phone: (meta.contact_phone || '').trim(),
         lat: meta.lat !== undefined && meta.lat !== '' && !Number.isNaN(Number(meta.lat)) ? Number(meta.lat) : null,
         lng: meta.lng !== undefined && meta.lng !== '' && !Number.isNaN(Number(meta.lng)) ? Number(meta.lng) : null,
     };
@@ -1118,9 +1120,9 @@ async function openPropertyDetails(propertyId) {
             </div>
             ${rulesDetailHtml}
             <div style="background:#FAF8F5;border:1px solid #EAE5DC;padding:15px;border-radius:10px;margin-bottom:20px;">
-                <strong style="color:#2C1E16;">Landlord:</strong> ${escapeHtml(property.landlord?.full_name || 'Property Owner')}
+                <strong style="color:#2C1E16;">Landlord:</strong> ${escapeHtml(meta.contact_name || property.landlord?.full_name || 'Property Owner')}
                 ${property.landlord?.is_verified ? ' <span style="color:#2E7D32;font-weight:700;">✔ Verified</span>' : ''}
-                ${property.landlord?.phone ? `<br><strong style="color:#2C1E16;">Phone:</strong> ${escapeHtml(property.landlord.phone)}` : ''}
+                ${(meta.contact_phone || property.landlord?.phone) ? `<br><strong style="color:#2C1E16;">Phone:</strong> ${escapeHtml(meta.contact_phone || property.landlord?.phone)}` : ''}
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:26px;">
                 ${canEditThisProperty ? `<button class="btn" onclick="document.getElementById('property-modal').classList.remove('active'); openEditPropertyForm('${property.property_id}')" style="flex:1;min-width:160px;padding:12px;">✏️ Edit Property Details</button>` : ''}
@@ -1496,6 +1498,8 @@ async function openEditPropertyForm(propertyId) {
         setVal('property-description', cleanDesc);
         setVal('property-rules', meta.rules || '');
         setVal('property-availability-status', prop.availability_status || 'available');
+        setVal('contact-name', meta.contact_name || currentUser?.full_name || '');
+        setVal('contact-number', meta.contact_phone || currentUser?.phone || '');
         setVal('property-lat', meta.lat ?? '');
         setVal('property-lng', meta.lng ?? '');
 
@@ -1536,8 +1540,8 @@ function loadPostPropertyForm() {
     if (!currentUser) return;
     const cn = document.getElementById('contact-name');
     const cnum = document.getElementById('contact-number');
-    if (cn) cn.value = currentUser.full_name;
-    if (cnum) cnum.value = currentUser.phone || 'Not set';
+    if (cn && !cn.value) cn.value = currentUser.full_name || '';
+    if (cnum && !cnum.value) cnum.value = currentUser.phone || '';
     hideAuthAlert('post-property-alert');
     const latVal = document.getElementById('property-lat')?.value;
     const lngVal = document.getElementById('property-lng')?.value;
@@ -1567,6 +1571,8 @@ async function handlePostProperty(event) {
         map_link: document.getElementById('location-link')?.value || '',
         rules: document.getElementById('property-rules')?.value || '',
         amenities: checkedAmenities,
+        contact_name: document.getElementById('contact-name')?.value.trim() || '',
+        contact_phone: document.getElementById('contact-number')?.value.trim() || '',
         lat: document.getElementById('property-lat')?.value || '',
         lng: document.getElementById('property-lng')?.value || '',
     });
