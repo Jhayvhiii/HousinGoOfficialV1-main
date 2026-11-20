@@ -1,8 +1,35 @@
 /**
- * HousinGo Modular Page & Component Loader
- * Fetches all focused HTML partials from /pages and /components in parallel,
- * mounts them into index.html, and then boots index.js so all DOM elements exist.
+ * HousinGo Modular Bootstrap & Page Loader
+ * 1. Imports Supabase client and all services so they are GUARANTEED ready on window
+ * 2. Fetches all focused HTML partials from /pages and /components in parallel
+ * 3. Mounts them into index.html and boots index.js
  */
+
+import { getSupabaseClient } from './supabaseClient.js';
+import { authService } from '../services/authService.js';
+import { propertyService } from '../services/propertyService.js';
+import { applicationService } from '../services/applicationService.js';
+import { inquiryService } from '../services/inquiryService.js';
+import { reviewService } from '../services/reviewService.js';
+import { complaintService } from '../services/complaintService.js';
+import { adminService } from '../services/adminService.js';
+
+// Explicitly bind all services onto window BEFORE index.js ever runs
+if (typeof window !== 'undefined') {
+  try {
+    window.supabaseClient = getSupabaseClient();
+  } catch (err) {
+    console.error('❌ Supabase client init failed during bootstrap:', err);
+  }
+  window.getSupabaseClient = getSupabaseClient;
+  window.authService = authService;
+  window.propertyService = propertyService;
+  window.applicationService = applicationService;
+  window.inquiryService = inquiryService;
+  window.reviewService = reviewService;
+  window.complaintService = complaintService;
+  window.adminService = adminService;
+}
 
 const PAGE_PARTIALS = [
   'pages/home.html',
@@ -49,7 +76,7 @@ async function bootstrapHousinGo() {
     pagesRoot.innerHTML = pagesHtml.join('\n');
     modalsRoot.innerHTML = componentsHtml.join('\n');
 
-    // Load main application logic only AFTER all focused page partials are mounted
+    // Load main application logic only AFTER all services & HTML partials are ready
     const appScript = document.createElement('script');
     appScript.src = 'index.js';
     appScript.onerror = () => console.error('❌ Failed to load index.js');

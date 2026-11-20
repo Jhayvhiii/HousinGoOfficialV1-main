@@ -20,11 +20,17 @@ function getEnvVar(key) {
 let clientInstance = null;
 
 export function getSupabaseClient() {
-  if (clientInstance && typeof clientInstance.from === 'function') {
+  if (clientInstance && typeof clientInstance.from === 'function' && clientInstance.auth && typeof clientInstance.auth.signUp === 'function') {
     return clientInstance;
   }
 
-  if (typeof window !== 'undefined' && window.supabaseClient && typeof window.supabaseClient.from === 'function') {
+  if (
+    typeof window !== 'undefined' &&
+    window.supabaseClient &&
+    typeof window.supabaseClient.from === 'function' &&
+    window.supabaseClient.auth &&
+    typeof window.supabaseClient.auth.signUp === 'function'
+  ) {
     clientInstance = window.supabaseClient;
     return clientInstance;
   }
