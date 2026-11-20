@@ -85,3 +85,27 @@
   </div>
  </div>
 </div>
+
+<!-- File Complaint Modal -->
+<div id="complaint-modal" class="modal">
+ <div class="modal-content" style="max-width: 520px;">
+  <div class="modal-header">
+   <h2>🚨 File a Complaint</h2><button class="close-btn" onclick="closeComplaintModal()">×</button>
+  </div>
+  <div class="modal-body">
+   <form id="complaint-form" onsubmit="handleSubmitComplaint(event)">
+    <input type="hidden" id="complaint-property-id" value="">
+    <input type="hidden" id="complaint-reported-user-id" value="">
+    <p id="complaint-context-label" style="margin-bottom: 14px; color: #654321; font-size: 14px; font-weight: 600;"></p>
+    <div style="margin-bottom: 20px;">
+     <label for="complaint-reason" style="display: block; margin-bottom: 8px; font-weight: 600; color: #8B4513;">Describe the issue:</label>
+     <textarea id="complaint-reason" required rows="5" placeholder="Explain what happened (e.g. misleading listing, unresponsive landlord, policy violation)..." style="width: 100%; padding: 12px; border: 2px solid #ADD8E6; border-radius: 8px; font-size: 15px; color: #8B4513; resize: vertical;"></textarea>
+    </div>
+    <div style="display: flex; gap: 12px;">
+     <button type="button" class="btn-secondary" onclick="closeComplaintModal()" style="flex: 1; padding: 12px;">Cancel</button>
+     <button type="submit" id="complaint-submit-btn" class="btn" style="flex: 1; padding: 12px; background-color: #FF6B6B; color: white;">Submit Complaint</button>
+    </div>
+   </form>
+  </div>
+ </div>
+</div>

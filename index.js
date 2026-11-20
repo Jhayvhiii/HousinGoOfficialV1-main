@@ -1,2811 +1,95 @@
-/** 
- * @brief Shared Supabase client instance initialized by src/lib/supabaseClient.js.
- * @details Reads VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY from environment variables.
+/**
+ * HousinGo Main Application Controller
+ * Connects modular HTML pages (/pages/*.html, /components/modals.html)
+ * to the Supabase service layer (/src/services/*.js).
+ * Zero mock data, zero hardcoded credentials.
  */
-const supabase = window.supabaseClient;
-if (!supabase) {
-    console.error('❌ Supabase client not found on window.supabaseClient. Make sure /env.js and src/lib/supabaseClient.js are loaded.');
-}
-
 
 // ============================================================================
-// GetStream + Supabase Messaging Configuration Variables
+// Global State
 // ============================================================================
-
-/**
- * @brief Active Stream Chat client instance.
- * @details Starts as null and is initialized upon user login.
- */
-let streamClient = null;
-
-/**
- * @brief Stores the currently opened chat channel.
- */
-let currentChannel = null;
-
-/**
- * @brief List of conversations the logged-in user is part of.
- * @details Used for chat sidebar display.
- */
-let userConversations = [];
-
-/**
- * @brief Holds the selected user for starting a new chat.
- */
-let selectedRecipient = null;
-
-/**
- * @brief Tracks if Stream Chat is connected.
- * @details Prevents duplicate initialization.
- */
-let isStreamConnected = false;
-
-/**
- * @brief Interval ID for polling messages.
- * @details Used only when fallback (manual polling) is active.
- */
-let messagePollingInterval = null;
-
-/**
- * @brief Tracks the last timestamp when messages were checked.
- */
-let lastMessageCheck = new Date();
-
-
-// ============================================================================
-// Default UI / Branding Configuration
-// ============================================================================
-
-/**
- * @brief Global site configuration.
- * @details Controls theme, colors, and branding text across the website.
- */
-const defaultConfig = {
-    site_name: "HousinGo",               ///< Website name
-    tagline: "Your next home is just a click away.", ///< Site subtitle displayed in hero section
-    footer_text: "© 2025 HousinGo | All Rights Reserved", ///< Footer legal text
-    contact_email: "support@housingo.ph", ///< Support or business email
-
-    // Theme colors
-    primary_color: "#ADD8E6",            ///< Main brand color
-    text_color: "#8B4513",               ///< Primary text color
-    background_color: "#F5F5DC",         ///< Website background color
-    accent_color: "#87CEEB",             ///< Accent color for buttons and highlights
-    secondary_text_color: "#654321"      ///< Slightly darker text tone
-};
-
-
-// ============================================================================
-// Cached Data Stores
-// ============================================================================
-
-/**
- * @brief Cached list of all properties loaded from Supabase.
- */
-let allProperties = [];
-
-/**
- * @brief Cached list of amenities associated with properties.
- */
-let allAmenities = [];
-
-/**
- * @brief Cached list of image records for all properties.
- */
-let allImages = [];
-
-
-// ============================================================================
-// Amenity Icons
-// ============================================================================
-
-/**
- * @brief Mapping of amenity names to icon emojis.
- * @details Used for UI display in property cards & property details.
- */
-const amenityIcons = {
-    'Wi-Fi': '📶',                ///< Wireless internet
-    'Aircon': '❄️',              ///< Air conditioning
-    'Water Included': '💧',      ///< Water utilities included
-    'Electric Included': '⚡',    ///< Electricity utilities included
-    'Kitchen Access': '🍳',      ///< Tenants may use the kitchen
-    'Parking': '🚗',             ///< Parking available
-    'Private Bathroom': '🚿',    ///< Bathroom included inside the room
-    'Pet Friendly': '🐾'         ///< Pets are allowed
-};
-
-/**
- * @brief Loads properties, amenities, and images from Supabase.
- * 
- * @details 
- * This function:
- * - Shows a loading indicator
- * - Fetches all approved + available properties
- * - Fetches all amenities
- * - Fetches all property images
- * - Updates global caches (allProperties, allAmenities, allImages)
- * - Calls displayProperties() to render them
- * - Shows empty state if no properties exist
- *
- * @async
- * @function loadProperties
- * @returns {Promise<void>} Resolves when all UI updates and data fetching are complete.
- */
-async function loadProperties() {
-    try {
-        // UI Element references
-        const loadingEl = document.getElementById('loading');          ///< Loading spinner/section
-        const containerEl = document.getElementById('properties-container'); ///< Main grid container for properties
-        const emptyStateEl = document.getElementById('empty-state');   ///< Shown when no properties exist
-
-        // Initial UI state: show loading, hide others
-        loadingEl.style.display = 'block';
-        containerEl.style.display = 'none';
-        emptyStateEl.style.display = 'none';
-
-        /**
-         * @brief Fetch all approved + available properties.
-         * @details Includes landlord basic profile using Supabase relational select.
-         */
-        const { data: properties, error: propError } = await supabase
-            .from('properties')
-            .select(`
-                *,
-                landlord:users(
-                    user_id,
-                    first_name,
-                    last_name,
-                    email,
-                    mobile
-                )
-            `)
-            .eq('availability', 'Available')
-            .eq('status', 'Approved')
-            .order('created_at', { ascending: false });
-
-        if (propError) {
-            console.error('Properties error:', propError);
-            throw propError;
-        }
-
-        /**
-         * @brief Fetch all amenities for all properties.
-         */
-        const { data: amenities, error: amenError } = await supabase
-            .from('amenities')
-            .select('*');
-
-        if (amenError) {
-            console.error('Amenities error:', amenError);
-            throw amenError;
-        }
-
-        /**
-         * @brief Fetch all images for all properties.
-         */
-        const { data: images, error: imgError } = await supabase
-            .from('property_images')
-            .select('*');
-
-        if (imgError) {
-            console.error('Images error:', imgError);
-            throw imgError;
-        }
-
-        // Update cached global arrays
-        allProperties = properties || [];
-        allAmenities = amenities || [];
-        allImages = images || [];
-
-        // Render properties to UI
-        displayProperties(allProperties);
-
-        // Hide loading section
-        loadingEl.style.display = 'none';
-
-        // Show empty state or property grid
-        if (allProperties.length === 0) {
-            emptyStateEl.style.display = 'block';
-        } else {
-            containerEl.style.display = 'grid';
-        }
-
-    } catch (error) {
-        console.error('Error loading properties:', error);
-
-        // Show visible error message to user
-        document.getElementById('loading').innerHTML =
-            '<p>Error loading properties. Please refresh the page.</p>';
-    }
-}
-
-
-/**
- * @brief Retrieves a list of included amenities for a given property.
- *
- * @function getPropertyAmenities
- * @param {string} propertyId - UUID of the property.
- * @returns {Array<string>} A list of amenity names enabled for that property.
- *
- * @details
- * This checks the globally cached `allAmenities` array and returns only:
- * - amenities where `property_id` matches
- * - amenities where `is_included` is true
- */
-function getPropertyAmenities(propertyId) {
-    return allAmenities
-        .filter(a => a.property_id === propertyId && a.is_included)  // Keep only included amenities for this property
-        .map(a => a.amenity_name); // Return names only
-}
-
-/**
- * @brief Retrieves all image records for a property.
- *
- * @function getPropertyImages
- * @param {string} propertyId - UUID of the property.
- * @returns {Array<Object>} Array of image objects from `property_images` table.
- */
-function getPropertyImages(propertyId) {
-    return allImages.filter(img => img.property_id === propertyId); // Match property_id
-}
-
-/**
- * @brief Displays property cards on the page, supports homepage mode.
- *
- * @function displayProperties
- * @param {Array<Object>} properties - The list of property objects to display.
- * @param {boolean} [isHomePage=true] - If true, only show 6 random properties.
- *
- * @details
- * - Shows empty state if no properties exist.
- * - Builds each property card with:
- *   - image carousel (hover-based)
- *   - amenities
- *   - address, type, price
- *   - action buttons (View, Message)
- * - Uses `getPropertyAmenities()` and `getPropertyImages()` for data lookup.
- */
-function displayProperties(properties, isHomePage = true) {
-    const container = document.getElementById('properties-container');
-    const emptyState = document.getElementById('empty-state');
-
-    container.innerHTML = ''; // Clear existing cards
-
-    // If no properties found, show empty state
-    if (properties.length === 0) {
-        container.style.display = 'none';
-        emptyState.style.display = 'block';
-        return;
-    }
-
-    container.style.display = 'grid';
-    emptyState.style.display = 'none';
-
-    // If on homepage, show only 6 random properties
-    let displayProperties = properties;
-    if (isHomePage) {
-        const shuffled = [...properties].sort(() => 0.5 - Math.random()); // Shuffle list randomly
-        displayProperties = shuffled.slice(0, 6); // Show first 6
-    }
-
-    displayProperties.forEach(property => {
-        const amenities = getPropertyAmenities(property.property_id);  // Fetch amenities
-        const images = getPropertyImages(property.property_id);        // Fetch images
-
-        // Create property card
-        const card = document.createElement('div');
-        card.className = 'property-card';
-        card.onclick = () => showPropertyDetails(property); // Clicking card opens details modal
-
-        // Create amenities preview (max 4)
-        const amenitiesHTML = amenities.slice(0, 4).map(amenity => {
-            const icon = amenityIcons[amenity] || '✓';
-            return `<span class="amenity-tag">${icon} ${amenity}</span>`;
-        }).join('');
-
-        // Create the property main image or carousel
-        let imageHTML;
-        if (images.length > 0) {
-            // Build carousel of images with fade transitions
-            imageHTML = `
-                <div class="property-image-carousel" 
-                    style="position: relative; width: 100%; height: 250px; overflow: hidden;">
-                    
-                    ${images.map((img, index) => `
-                        <img src="${img.image_url}" alt="${property.type}"
-                            style="
-                                position: absolute; 
-                                top: 0; left: 0; 
-                                width: 100%; height: 100%; 
-                                object-fit: cover; 
-                                opacity: ${index === 0 ? 1 : 0};
-                                transition: opacity 0.5s ease-in-out;
-                            "
-                            data-image-index="${index}">
-                    `).join('')}
-
-                    <!-- Show "1/3" label if multiple images -->
-                    ${images.length > 1 ? `
-                        <div style="
-                            position: absolute; bottom: 10px; right: 10px;
-                            background: rgba(0,0,0,0.7);
-                            color: white; padding: 4px 8px;
-                            border-radius: 12px;
-                            font-size: 12px; font-weight: 600;">
-                            <span class="current-image">1</span>/${images.length}
-                        </div>
-                    ` : ''}
-                </div>
-            `;
-        } else {
-            // Fallback icon
-            imageHTML = '<div class="property-image">🏠</div>';
-        }
-
-        // Set complete card HTML
-        card.innerHTML = `
-            ${imageHTML}
-            <div class="property-content">
-                <span class="property-type">${property.type || 'Property'}</span>
-                <h3 class="property-title">${property.property_name || property.type || 'Property'}</h3>
-                <p class="property-location">📍 ${property.address || 'Address not specified'}</p>
-                <p class="property-price">₱${(property.monthly_rent || 0).toLocaleString()}/month</p>
-
-                <div class="amenities-list">
-                    ${amenitiesHTML}
-                    ${amenities.length > 4 ? `<span class="amenity-tag">+${amenities.length - 4} more</span>` : ''}
-                </div>
-
-                <div class="property-actions">
-                    <button class="btn-secondary" 
-                        onclick="event.stopPropagation(); viewDetails('${property.property_id}')">
-                        View
-                    </button>
-                    <button class="btn-secondary" 
-                        onclick="event.stopPropagation(); messageLandlordFromCard('${property.property_id}')">
-                        Message
-                    </button>
-                </div>
-            </div>
-        `;
-
-        // ---------------------------
-        // Add hover-based image carousel
-        // ---------------------------
-        if (images.length > 1) {
-            let carouselInterval;
-            let currentImageIndex = 0;
-
-            const carouselImages = card.querySelectorAll('.property-image-carousel img');
-            const currentImageSpan = card.querySelector('.current-image');
-
-            /**
-             * @brief Switches to the next image in the card carousel.
-             */
-            function nextImage() {
-                carouselImages[currentImageIndex].style.opacity = '0'; // Hide current
-                currentImageIndex = (currentImageIndex + 1) % images.length; // Move forward
-                carouselImages[currentImageIndex].style.opacity = '1'; // Show next
-
-                if (currentImageSpan) {
-                    currentImageSpan.textContent = currentImageIndex + 1; // Update "1/4"
-                }
-            }
-
-            // Start carousel on hover
-            card.addEventListener('mouseenter', () => {
-                carouselInterval = setInterval(nextImage, 2000);
-            });
-
-            // Stop carousel when mouse leaves
-            card.addEventListener('mouseleave', () => {
-                if (carouselInterval) {
-                    clearInterval(carouselInterval);
-                    carouselInterval = null;
-                }
-            });
-        }
-
-        // Append card to container
-        container.appendChild(card);
-    });
-}
-
-
-/**
- * @brief Opens the property details modal and displays full information.
- *
- * @function showPropertyDetails
- * @param {Object} property - The complete property object selected by the user.
- *
- * @details
- * This function:
- * - Builds a modal with dynamic HTML
- * - Generates a full image carousel (if multiple images)
- * - Displays property info, location, amenities, rules, and contact details
- * - Includes an application textarea + Apply button
- * - Starts auto–carousel when multiple images exist
- */
-function showPropertyDetails(property) {
-
-    // Get modal elements
-    const modal = document.getElementById('property-modal');
-    const modalBody = document.getElementById('modal-body');
-
-    // Fetch amenity list & images for this property
-    const amenities = getPropertyAmenities(property.property_id);
-    const images = getPropertyImages(property.property_id);
-
-    /**
-     * Build the list of amenities with icons
-     */
-    const amenitiesHTML = amenities
-        .map(amenity => {
-            const icon = amenityIcons[amenity] || '✓';
-            return `<div class="amenity-item">${icon} ${amenity}</div>`;
-        })
-        .join('');
-
-    /**
-     * Build fallback or static single-image display
-     */
-    const imagesHTML =
-        images.length > 0
-            ? images
-                  .map(
-                      img =>
-                          `<img src="${img.image_url}" alt="Property" style="width:100%; border-radius:8px; margin-bottom:15px;">`
-                  )
-                  .join('')
-            : '<div class="property-image" style="height:300px; font-size:100px;">🏠</div>';
-
-    // Build full modal content HTML
-    modalBody.innerHTML = `
-        <div class="detail-section">
-            ${
-                images.length > 1
-                    ? `
-            <!-- CAROUSEL block -->
-            <div style="position:relative; width:100%; margin-bottom:15px;">
-                <div class="modal-image-carousel" 
-                     style="position:relative; width:100%; height:400px; overflow:hidden; border-radius:8px;">
-
-                    ${images
-                        .map(
-                            (img, index) => `
-                        <img src="${img.image_url}" alt="Property"
-                            style="
-                                position:absolute; top:0; left:0;
-                                width:100%; height:100%;
-                                object-fit:cover;
-                                opacity:${index === 0 ? 1 : 0};
-                                transition: opacity 0.5s ease-in-out;
-                            "
-                            data-modal-image-index="${index}"
-                        >
-                    `
-                        )
-                        .join('')}
-
-                    <!-- Counter -->
-                    <div style="
-                        position:absolute; bottom:15px; right:15px;
-                        background:rgba(0,0,0,0.8);
-                        color:white; padding:8px 12px;
-                        border-radius:20px; font-size:14px;
-                        font-weight:600;">
-                        <span class="modal-current-image">1</span>/${images.length}
-                    </div>
-
-                    <!-- Nav buttons -->
-                    <button onclick="prevModalImage()" 
-                        style="position:absolute; left:15px; top:50%; transform:translateY(-50%);
-                               background:rgba(0,0,0,0.6); color:white; border:none;
-                               padding:12px 16px; border-radius:50%; cursor:pointer;
-                               font-size:18px; font-weight:bold;">‹</button>
-
-                    <button onclick="nextModalImage()" 
-                        style="position:absolute; right:15px; top:50%; transform:translateY(-50%);
-                               background:rgba(0,0,0,0.6); color:white; border:none;
-                               padding:12px 16px; border-radius:50%; cursor:pointer;
-                               font-size:18px; font-weight:bold;">›</button>
-                </div>
-            </div>`
-                    : imagesHTML
-            }
-        </div>
-
-        <!-- PROPERTY INFORMATION -->
-        <div class="detail-section">
-            <h3>Property Information</h3>
-            <div class="detail-grid">
-                <div class="detail-item">
-                    <div class="detail-label">Property Name</div>
-                    <div class="detail-value">${property.property_name || 'N/A'}</div>
-                </div>
-
-                <div class="detail-item">
-                    <div class="detail-label">Type</div>
-                    <div class="detail-value">${property.type || 'N/A'}</div>
-                </div>
-
-                <div class="detail-item">
-                    <div class="detail-label">Monthly Rent</div>
-                    <div class="detail-value">₱${(property.monthly_rent || 0).toLocaleString()}</div>
-                </div>
-
-                <div class="detail-item">
-                    <div class="detail-label">Available Slots</div>
-                    <div class="detail-value">${property.available_slots || 'N/A'}</div>
-                </div>
-
-                <div class="detail-item">
-                    <div class="detail-label">Minimum Stay</div>
-                    <div class="detail-value">${property.min_stay || 'N/A'}</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- LOCATION -->
-        <div class="detail-section">
-            <h3>Location</h3>
-            <div class="detail-grid">
-                <div class="detail-item">
-                    <div class="detail-label">Address</div>
-                    <div class="detail-value">${property.address || 'N/A'}</div>
-                </div>
-
-                <div class="detail-item">
-                    <div class="detail-label">Barangay</div>
-                    <div class="detail-value">${property.barangay || 'N/A'}</div>
-                </div>
-
-                <div class="detail-item">
-                    <div class="detail-label">City</div>
-                    <div class="detail-value">${property.city || 'N/A'}</div>
-                </div>
-
-                <div class="detail-item">
-                    <div class="detail-label">Nearby Landmarks</div>
-                    <div class="detail-value">${property.nearby_landmarks || 'N/A'}</div>
-                </div>
-
-                ${
-                    property.loc_link
-                        ? `
-                <div class="detail-item">
-                    <div class="detail-label">Location on Map</div>
-                    <div class="detail-value">
-                        <a href="${property.loc_link}" 
-                           target="_blank" 
-                           rel="noopener noreferrer"
-                           style="
-                              color:#ADD8E6; text-decoration:none; 
-                              font-weight:600; display:inline-flex; 
-                              align-items:center; gap:8px; padding:10px 16px;
-                              background-color:#F5F5DC; border-radius:8px;
-                              border:2px solid #ADD8E6; transition:all 0.3s;
-                              cursor:pointer; font-size:14px;"
-                           onmouseover="this.style.backgroundColor='#ADD8E6'; this.style.color='#8B4513'; this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.1)';"
-                           onmouseout="this.style.backgroundColor='#F5F5DC'; this.style.color='#ADD8E6'; this.style.transform='translateY(0)'; this.style.boxShadow='none';"
-                        >
-                            📍 View on Google Maps
-                        </a>
-                    </div>
-                </div>`
-                        : ''
-                }
-            </div>
-        </div>
-
-        <!-- AMENITIES -->
-        <div class="detail-section">
-            <h3>Amenities</h3>
-            <div class="amenities-grid">
-                ${amenitiesHTML || '<p>No amenities listed</p>'}
-            </div>
-        </div>
-
-        <!-- DESCRIPTION -->
-        <div class="detail-section">
-            <h3>Description</h3>
-            <p>${property.description || 'No description available'}</p>
-        </div>
-
-        <!-- RULES -->
-        <div class="detail-section">
-            <h3>Rules</h3>
-            <p>${property.rules || 'No rules specified'}</p>
-        </div>
-
-        <!-- CONTACT -->
-        <div class="detail-section">
-            <h3>Contact Information</h3>
-            <div class="detail-grid">
-
-                <div class="detail-item">
-                    <div class="detail-label">Contact Name</div>
-                    <div class="detail-value">${property.contact_name || 'N/A'}</div>
-                </div>
-
-                <div class="detail-item">
-                    <div class="detail-label">Contact Number</div>
-                    <div class="detail-value">${property.contact_number || 'N/A'}</div>
-                </div>
-
-                <div class="detail-item">
-                    <div class="detail-label">Move-in Date</div>
-                    <div class="detail-value">${property.move_in_date || 'N/A'}</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- APPLICATION AREA -->
-        <div style="margin-top:20px;">
-            <label for="application-notes" 
-                   style="display:block; margin-bottom:8px; font-weight:600; color:#8B4513;">
-                Application Notes (Optional)
-            </label>
-
-            <textarea id="application-notes" rows="3"
-                placeholder="Tell the landlord about yourself..."
-                style="
-                    width:100%; padding:12px; border:2px solid #ADD8E6;
-                    border-radius:8px; font-size:16px; color:#8B4513;
-                    resize:vertical; margin-bottom:15px;">
-            </textarea>
-
-            <button class="btn" style="width:100%;" 
-                onclick="applyForProperty('${property.property_id}')">
-                Apply for this Property
-            </button>
-        </div>
-    `;
-
-    // Show modal
-    modal.classList.add('active');
-
-    // Start carousel if multiple images exist
-    if (images.length > 1) startModalCarousel();
-}
-
-
-
-/** ============================
- *  Modal Carousel Variables
- *  ============================ */
-let modalCarouselInterval;       ///< Interval handler for auto-rotation
-let modalCurrentImageIndex = 0;  ///< Tracks which image is active
-
-
-
-/**
- * @brief Starts automatic rotation of images inside the modal.
- *
- * @function startModalCarousel
- * @details Fades images every 2 seconds with opacity transitions.
- */
-function startModalCarousel() {
-    const modalImages = document.querySelectorAll('.modal-image-carousel img');
-    const modalCurrentSpan = document.querySelector('.modal-current-image');
-
-    if (modalImages.length <= 1) return; // No carousel needed
-
-    modalCarouselInterval = setInterval(() => {
-        modalImages[modalCurrentImageIndex].style.opacity = '0'; // Hide current
-
-        modalCurrentImageIndex =
-            (modalCurrentImageIndex + 1) % modalImages.length; // Move forward
-
-        modalImages[modalCurrentImageIndex].style.opacity = '1'; // Show next
-
-        if (modalCurrentSpan) {
-            modalCurrentSpan.textContent = modalCurrentImageIndex + 1;
-        }
-    }, 2000);
-}
-
-/**
- * @brief Stops the modal image carousel.
- *
- * @function stopModalCarousel
- */
-function stopModalCarousel() {
-    if (modalCarouselInterval) {
-        clearInterval(modalCarouselInterval);
-        modalCarouselInterval = null;
-    }
-}
-
-/**
- * @brief Navigates to the next image manually.
- *
- * @function nextModalImage
- * @details Stops auto-rotation, moves to next image, restarts auto-rotation.
- */
-function nextModalImage() {
-    const modalImages = document.querySelectorAll('.modal-image-carousel img');
-    const modalCurrentSpan = document.querySelector('.modal-current-image');
-
-    if (modalImages.length <= 1) return;
-
-    stopModalCarousel();
-
-    modalImages[modalCurrentImageIndex].style.opacity = '0';
-    modalCurrentImageIndex =
-        (modalCurrentImageIndex + 1) % modalImages.length;
-    modalImages[modalCurrentImageIndex].style.opacity = '1';
-
-    if (modalCurrentSpan) {
-        modalCurrentSpan.textContent = modalCurrentImageIndex + 1;
-    }
-
-    startModalCarousel();
-}
-
-/**
- * @brief Navigates to the previous image manually.
- *
- * @function prevModalImage
- * @details Stops auto-rotation, moves backward, restarts auto-rotation.
- */
-function prevModalImage() {
-    const modalImages = document.querySelectorAll('.modal-image-carousel img');
-    const modalCurrentSpan = document.querySelector('.modal-current-image');
-
-    if (modalImages.length <= 1) return;
-
-    stopModalCarousel();
-
-    modalImages[modalCurrentImageIndex].style.opacity = '0';
-    modalCurrentImageIndex =
-        modalCurrentImageIndex === 0
-            ? modalImages.length - 1
-            : modalCurrentImageIndex - 1;
-
-    modalImages[modalCurrentImageIndex].style.opacity = '1';
-
-    if (modalCurrentSpan) {
-        modalCurrentSpan.textContent = modalCurrentImageIndex + 1;
-    }
-
-    startModalCarousel();
-}
-
-/**
- * @brief Finds a property by ID and opens the details modal.
- *
- * @function viewDetails
- * @param {string} propertyId - Unique property identifier.
- */
-function viewDetails(propertyId) {
-    const property = allProperties.find(p => p.property_id === propertyId);
-    if (property) showPropertyDetails(property);
-}
-
-
-function contactLandlord(propertyId) {
-    const property = allProperties.find(p => p.property_id === propertyId);
-    if (property && property.contact_number) {
-    const message = document.createElement('div');
-    message.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #ADD8E6; color: #8B4513; padding: 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); z-index: 3000; max-width: 300px;';
-    message.innerHTML = `
-        <strong>Contact Information</strong><br>
-        Name: ${property.contact_name || 'N/A'}<br>
-        Phone: ${property.contact_number}
-    `;
-    document.body.appendChild(message);
-    setTimeout(() => message.remove(), 5000);
-    }
-}
-
-function messageLandlordFromCard(propertyId) {
-    if (!currentUser) {
-    // Close any open modals first
-    document.getElementById('property-modal').classList.remove('active');
-    
-    // Show login redirect message
-    const loginRedirectDiv = document.createElement('div');
-    loginRedirectDiv.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 3000; display: flex; align-items: center; justify-content: center; padding: 20px;';
-    loginRedirectDiv.innerHTML = `
-        <div style="background: white; padding: 40px; border-radius: 12px; max-width: 400px; text-align: center;">
-        <h3 style="color: #8B4513; margin-bottom: 20px;">Login Required</h3>
-        <p style="margin-bottom: 30px; color: #654321;">You need to log in to message landlords. Would you like to go to the login page now?</p>
-        <div style="display: flex; gap: 15px;">
-            <button class="btn-secondary" onclick="this.closest('div[style*=fixed]').remove()" style="flex: 1; padding: 12px;">Cancel</button>
-            <button class="btn" onclick="redirectToLogin()" style="flex: 1; padding: 12px;">Go to Login</button>
-        </div>
-        </div>
-    `;
-    document.body.appendChild(loginRedirectDiv);
-    return;
-    }
-
-    const property = allProperties.find(p => p.property_id === propertyId);
-    if (property && property.landlord) {
-    const landlordName = `${property.landlord.first_name} ${property.landlord.last_name}`;
-    
-    // Set the recipient and show new message modal
-    selectedRecipient = {
-        userId: property.landlord.user_id,
-        name: landlordName,
-        email: property.landlord.email || '',
-        role: 'Landlord'
-    };
-    
-    document.getElementById('recipient-search').value = `${landlordName} (Landlord)`;
-    document.getElementById('initial-message').value = `Hi! I'm interested in your ${property.type} property in ${property.city}. Could we discuss the details?`;
-    
-    showNewMessageForm();
-    } else {
-    showToast('Unable to message landlord. Property information not available.');
-    }
-}
-
-async function applyForProperty(propertyId) {
-    if (!currentUser) {
-    // Close the property modal first
-    document.getElementById('property-modal').classList.remove('active');
-    stopModalCarousel();
-    modalCurrentImageIndex = 0;
-    
-    // Show login redirect message
-    const loginRedirectDiv = document.createElement('div');
-    loginRedirectDiv.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 3000; display: flex; align-items: center; justify-content: center; padding: 20px;';
-    loginRedirectDiv.innerHTML = `
-        <div style="background: white; padding: 40px; border-radius: 12px; max-width: 400px; text-align: center;">
-        <h3 style="color: #8B4513; margin-bottom: 20px;">Login Required</h3>
-        <p style="margin-bottom: 30px; color: #654321;">You need to log in to apply for this property. Would you like to go to the login page now?</p>
-        <div style="display: flex; gap: 15px;">
-            <button class="btn-secondary" onclick="this.closest('div[style*=fixed]').remove()" style="flex: 1; padding: 12px;">Cancel</button>
-            <button class="btn" onclick="redirectToLogin()" style="flex: 1; padding: 12px;">Go to Login</button>
-        </div>
-        </div>
-    `;
-    document.body.appendChild(loginRedirectDiv);
-    return;
-    }
-
-    if (currentUser.role !== 'Tenant') {
-    showToast('Only tenants can apply for properties');
-    return;
-    }
-
-    try {
-    const notes = document.getElementById('application-notes').value.trim();
-    
-    // Check if already applied
-    const { data: existingApplication, error: checkError } = await supabase
-        .from('property_applicants')
-        .select('*')
-        .eq('tenant_id', currentUser.user_id)
-        .eq('property_id', propertyId)
-        .single();
-
-    if (existingApplication) {
-        showToast('You have already applied for this property');
-        return;
-    }
-
-    // Get property and landlord details
-    const { data: property, error: propError } = await supabase
-        .from('properties')
-        .select(`
-        *,
-        landlord:users(
-            user_id,
-            first_name,
-            last_name
-        )
-        `)
-        .eq('property_id', propertyId)
-        .single();
-
-    if (propError) throw propError;
-
-    // Create application
-    const { data, error } = await supabase
-        .from('property_applicants')
-        .insert([{
-        tenant_id: currentUser.user_id,
-        property_id: propertyId,
-        message: notes || null,
-        status: 'Pending'
-        }])
-        .select()
-        .single();
-
-    if (error) throw error;
-
-    // 🔔 Create notification for tenant - application submitted
-    await createNotification(
-        currentUser.user_id,
-        'Application Submitted Successfully',
-        `Your application for the ${property.type} property in ${property.city} has been submitted. The landlord will review your application and get back to you soon.`
-    );
-
-    // 🔔 Create notification for landlord - new application received
-    await createNotification(
-        property.landlord.user_id,
-        'New Property Application Received',
-        `${currentUser.first_name} ${currentUser.last_name} has applied for your ${property.type} property in ${property.city}. Review their application in your dashboard.`
-    );
-
-    showToast('Application submitted successfully! The landlord will review your application.');
-    document.getElementById('property-modal').classList.remove('active');
-    
-    } catch (error) {
-    console.error('Application error:', error);
-    showToast('Failed to submit application: ' + error.message);
-    }
-}
-
-let selectedType = '';
-
-function performHeroSearch() {
-    // Get search values from hero section
-    const searchTerm = document.getElementById('search-input').value.toLowerCase();
-    const typeSearch = document.getElementById('type-search').value;
-    const priceSearch = document.getElementById('price-search').value;
-
-    // Navigate to browse properties page
-    showPage('browse-properties');
-
-    // Wait for page to load, then apply search filters
-    setTimeout(() => {
-    // Set the search values in browse properties page
-    const browseSearchInput = document.getElementById('browse-search-input');
-    const browseSortSelect = document.getElementById('browse-sort');
-    
-    if (browseSearchInput) {
-        browseSearchInput.value = document.getElementById('search-input').value;
-    }
-
-    // Set the property type filter if selected
-    if (typeSearch) {
-        selectedBrowseType = typeSearch;
-        
-        // Update filter button states
-        document.querySelectorAll('[data-browse-type]').forEach(btn => {
-        btn.classList.remove('active');
-        btn.style.backgroundColor = '#F5F5DC';
-        btn.style.borderColor = '#ADD8E6';
-        });
-        
-        const targetBtn = document.querySelector(`[data-browse-type="${typeSearch}"]`);
-        if (targetBtn) {
-        targetBtn.classList.add('active');
-        targetBtn.style.backgroundColor = '#ADD8E6';
-        targetBtn.style.borderColor = '#87CEEB';
-        }
-    }
-
-    // Apply the search filters
-    filterBrowseProperties();
-    
-    // Show success message
-    const totalResults = browseProperties.filter(property => {
-        const matchesSearch = !searchTerm || 
-        (property.property_name && property.property_name.toLowerCase().includes(searchTerm)) ||
-        (property.type && property.type.toLowerCase().includes(searchTerm)) ||
-        (property.city && property.city.toLowerCase().includes(searchTerm)) ||
-        (property.barangay && property.barangay.toLowerCase().includes(searchTerm)) ||
-        (property.address && property.address.toLowerCase().includes(searchTerm)) ||
-        (property.nearby_landmarks && property.nearby_landmarks.toLowerCase().includes(searchTerm)) ||
-        (property.description && property.description.toLowerCase().includes(searchTerm));
-
-        const matchesType = !typeSearch || property.type === typeSearch;
-        const matchesPrice = !priceSearch || property.monthly_rent <= parseInt(priceSearch);
-
-        return matchesSearch && matchesType && matchesPrice;
-    }).length;
-
-    if (searchTerm || typeSearch || priceSearch) {
-        showToast(`Found ${totalResults} properties matching your search criteria!`);
-    }
-    }, 300);
-}
-
-function filterHomeProperties() {
-    const searchEl = document.getElementById('search-input');
-    const typeEl = document.getElementById('type-search');
-    const priceEl = document.getElementById('price-search');
-    const searchTerm = searchEl ? searchEl.value.toLowerCase() : '';
-    const typeSearch = typeEl ? typeEl.value : '';
-    const priceSearch = priceEl ? priceEl.value : '';
-
-    let filtered = allProperties.filter(property => {
-    const titleVal = (property.title || property.property_name || '').toLowerCase();
-    const locVal = (property.location || [property.address, property.barangay, property.city].filter(Boolean).join(', ')).toLowerCase();
-    const priceVal = Number(property.price ?? property.monthly_rent ?? 0);
-    const matchesSearch = !searchTerm ||
-        titleVal.includes(searchTerm) ||
-        locVal.includes(searchTerm) ||
-        (property.type && property.type.toLowerCase().includes(searchTerm)) ||
-        (property.nearby_landmarks && property.nearby_landmarks.toLowerCase().includes(searchTerm));
-
-    const matchesTypeSearch = !typeSearch || property.type === typeSearch;
-    const matchesPriceSearch = !priceSearch || priceVal <= parseInt(priceSearch, 10);
-    const matchesType = !selectedType || property.type === selectedType;
-
-    return matchesSearch && matchesTypeSearch && matchesPriceSearch && matchesType;
-    });
-
-    displayProperties(filtered);
-}
-
-document.querySelectorAll('#home-content .filter-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-    document.querySelectorAll('#home-content .filter-btn').forEach(b => b.classList.remove('active'));
-    this.classList.add('active');
-    selectedType = this.getAttribute('data-type');
-    filterHomeProperties();
-    });
-});
-
-document.getElementById('search-btn').addEventListener('click', performHeroSearch);
-document.getElementById('search-input').addEventListener('keyup', (e) => {
-    if (e.key === 'Enter') {
-    performHeroSearch();
-    }
-});
-document.getElementById('type-search').addEventListener('change', performHeroSearch);
-document.getElementById('price-search').addEventListener('change', performHeroSearch);
-
-document.getElementById('close-modal').addEventListener('click', () => {
-    stopModalCarousel();
-    modalCurrentImageIndex = 0;
-    document.getElementById('property-modal').classList.remove('active');
-});
-
-document.getElementById('property-modal').addEventListener('click', (e) => {
-    if (e.target.id === 'property-modal') {
-    stopModalCarousel();
-    modalCurrentImageIndex = 0;
-    document.getElementById('property-modal').classList.remove('active');
-    }
-});
-
-// Authentication state
 let currentUser = null;
 let authListenerInitialized = false;
-
-/**
- * Normalizes a Supabase public.profiles row + auth.user into a unified user object
- * with both canonical schema fields (id, full_name, email, phone, role, status, is_verified)
- * and backwards-compatible aliases (user_id, first_name, last_name, mobile).
- */
-function normalizeUserProfile(profile, authUser = null) {
-    if (!profile && !authUser) return null;
-    const fullName = (profile?.full_name || authUser?.user_metadata?.full_name || '').trim();
-    const nameParts = fullName ? fullName.split(/\s+/) : ['User'];
-    const firstName = nameParts[0] || 'User';
-    const lastName = nameParts.slice(1).join(' ') || '';
-    const role = (profile?.role || authUser?.user_metadata?.role || 'tenant').toLowerCase();
-    const status = (profile?.status || 'active').toLowerCase();
-    const id = profile?.id || authUser?.id;
-    const email = profile?.email || authUser?.email || '';
-    const phone = profile?.phone || authUser?.user_metadata?.phone || '';
-
-    return {
-        id,
-        user_id: id,
-        full_name: fullName || email.split('@')[0] || 'User',
-        first_name: firstName,
-        last_name: lastName,
-        email,
-        phone,
-        mobile: phone,
-        role,
-        status,
-        is_verified: Boolean(profile?.is_verified),
-        created_at: profile?.created_at || authUser?.created_at || null,
-        updated_at: profile?.updated_at || null,
-    };
-}
-
-function getDashboardForRole(role) {
-    const normalized = (role || 'tenant').toLowerCase();
-    if (normalized === 'admin') return 'admin-dashboard';
-    if (normalized === 'landlord') return 'landlord-dashboard';
-    return 'tenant-dashboard';
-}
-
-function updateLandlordVerificationUI() {
-    const isUnverifiedLandlord = Boolean(
-        currentUser && currentUser.role === 'landlord' && !currentUser.is_verified
-    );
-
-    const dashBanner = document.getElementById('landlord-verification-banner');
-    const postBanner = document.getElementById('post-property-verification-banner');
-    const addBtn = document.getElementById('landlord-add-property-btn');
-    const postForm = document.getElementById('post-property-form');
-
-    if (dashBanner) {
-        dashBanner.classList.toggle('show', isUnverifiedLandlord);
-    }
-    if (postBanner) {
-        postBanner.classList.toggle('show', isUnverifiedLandlord);
-    }
-    if (addBtn) {
-        addBtn.disabled = isUnverifiedLandlord;
-        addBtn.title = isUnverifiedLandlord ? 'Awaiting admin verification before posting properties' : '';
-    }
-    if (postForm) {
-        const submitBtn = postForm.querySelector('button[type="submit"]');
-        if (submitBtn) {
-            submitBtn.disabled = isUnverifiedLandlord;
-            submitBtn.title = isUnverifiedLandlord ? 'Awaiting admin verification' : '';
-        }
-    }
-}
-
-async function applyAuthenticatedUser(session, profile) {
-    if (!session || !session.user) {
-        currentUser = null;
-        updateNavForLoggedInUser();
-        updateLandlordVerificationUI();
-        return null;
-    }
-
-    const normalized = normalizeUserProfile(profile, session.user);
-
-    if (normalized.status === 'suspended') {
-        if (window.authService) {
-            await window.authService.signOut();
-        }
-        currentUser = null;
-        updateNavForLoggedInUser();
-        showAuthAlert('login-alert', 'Your account has been suspended by an administrator. Please contact support.', 'error');
-        showToast('Your account is suspended. Please contact support.', 'error');
-        showPage('login');
-        return null;
-    }
-
-    currentUser = normalized;
-    updateNavForLoggedInUser();
-    updateLandlordVerificationUI();
-    return currentUser;
-}
-
-async function checkAuthState() {
-    if (!window.authService) {
-        console.error('❌ window.authService is not loaded. Check script order in index.html.');
-        return;
-    }
-
-    try {
-        const session = await window.authService.getSession();
-        if (session?.user) {
-            const profile = await window.authService.getProfile(session.user.id);
-            await applyAuthenticatedUser(session, profile);
-        } else {
-            currentUser = null;
-            updateNavForLoggedInUser();
-            updateLandlordVerificationUI();
-        }
-    } catch (error) {
-        console.error('Error checking auth state:', error);
-        currentUser = null;
-        updateNavForLoggedInUser();
-    }
-
-    // Restore remembered email if saved
-    const rememberedEmail = localStorage.getItem('housingo_remember_email');
-    const loginEmailInput = document.getElementById('login-email');
-    const rememberMeBox = document.getElementById('remember-me');
-    if (rememberedEmail && loginEmailInput && !loginEmailInput.value) {
-        loginEmailInput.value = rememberedEmail;
-        if (rememberMeBox) rememberMeBox.checked = true;
-    }
-
-    // Subscribe once to Supabase Auth state changes for session persistence
-    if (!authListenerInitialized) {
-        authListenerInitialized = true;
-        window.authService.onAuthStateChange(async (event, session, profile) => {
-            if (event === 'SIGNED_OUT') {
-                currentUser = null;
-                updateNavForLoggedInUser();
-                updateLandlordVerificationUI();
-            } else if (session?.user) {
-                await applyAuthenticatedUser(session, profile);
-            }
-        });
-    }
-}
-
-function updateNavForLoggedInUser() {
-    const navMenuList = document.querySelector('#nav-menu ul');
-    const profileDropdown = document.getElementById('user-profile-dropdown');
-    const userNameDisplay = document.getElementById('user-name-display');
-    const floatingChat = document.getElementById('floating-chat-button');
-
-    if (!navMenuList) {
-        console.error('❌ Required element #nav-menu ul not found.');
-        return;
-    }
-
-    if (currentUser) {
-        const dashboardLink = getDashboardForRole(currentUser.role);
-        const roleBadge = currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1);
-
-        navMenuList.innerHTML = `
-            <li><a href="#" onclick="showPage('home'); return false;">Home</a></li>
-            <li><a href="#" onclick="showPage('browse-properties'); return false;">Browse Properties</a></li>
-            <li><a href="#" onclick="showPage('${dashboardLink}'); return false;">Dashboard</a></li>
-            <li><a href="#" onclick="showPage('about'); return false;">About Us</a></li>
-            <li><a href="#" onclick="showPage('contact'); return false;">Contact Us</a></li>
-            <li><a href="#" onclick="showPage('help'); return false;">Help</a></li>
-        `;
-
-        if (profileDropdown) profileDropdown.style.display = 'block';
-        if (userNameDisplay) userNameDisplay.textContent = `👤 ${currentUser.full_name} (${roleBadge})`;
-        if (floatingChat) floatingChat.style.display = 'block';
-
-        if (typeof loadNotificationCount === 'function') {
-            loadNotificationCount().catch(() => {});
-        }
-    } else {
-        navMenuList.innerHTML = `
-            <li><a href="#" onclick="showPage('home'); return false;">Home</a></li>
-            <li><a href="#" onclick="showPage('browse-properties'); return false;">Browse Properties</a></li>
-            <li><a href="#" onclick="showPage('about'); return false;">About Us</a></li>
-            <li><a href="#" onclick="showPage('login'); return false;">Log In</a></li>
-            <li><a href="#" onclick="showPage('register'); return false;">Register</a></li>
-            <li><a href="#" onclick="showPage('contact'); return false;">Contact Us</a></li>
-            <li><a href="#" onclick="showPage('help'); return false;">Help</a></li>
-        `;
-
-        if (profileDropdown) profileDropdown.style.display = 'none';
-        if (floatingChat) floatingChat.style.display = 'none';
-    }
-}
-
-async function logout() {
-    try {
-        if (typeof stopMessagePolling === 'function') stopMessagePolling();
-        if (typeof disconnectStream === 'function') await disconnectStream();
-        if (typeof notifiedMessageIds !== 'undefined' && notifiedMessageIds?.clear) {
-            notifiedMessageIds.clear();
-        }
-        if (window.authService) {
-            await window.authService.signOut();
-        }
-    } catch (error) {
-        console.error('Logout error:', error);
-    } finally {
-        currentUser = null;
-        updateNavForLoggedInUser();
-        updateLandlordVerificationUI();
-        const dropdownMenu = document.getElementById('profile-dropdown-menu');
-        if (dropdownMenu) dropdownMenu.style.display = 'none';
-        showToast('Logged out successfully! See you again soon.', 'info');
-        showPage('home');
-    }
-}
-
-async function onConfigChange(config) {
-    document.getElementById('site-name').textContent = config.site_name || defaultConfig.site_name;
-    document.getElementById('site-name-hero').textContent = config.site_name || defaultConfig.site_name;
-    document.getElementById('tagline').textContent = config.tagline || defaultConfig.tagline;
-    document.getElementById('footer-copyright').textContent = config.footer_text || defaultConfig.footer_text;
-    document.getElementById('contact-email').textContent = config.contact_email || defaultConfig.contact_email;
-
-    const primaryColor = config.primary_color || defaultConfig.primary_color;
-    const textColor = config.text_color || defaultConfig.text_color;
-    const backgroundColor = config.background_color || defaultConfig.background_color;
-    const accentColor = config.accent_color || defaultConfig.accent_color;
-    const secondaryTextColor = config.secondary_text_color || defaultConfig.secondary_text_color;
-
-    document.documentElement.style.setProperty('--primary-color', primaryColor);
-    document.documentElement.style.setProperty('--text-color', textColor);
-    document.documentElement.style.setProperty('--background-color', backgroundColor);
-    document.documentElement.style.setProperty('--accent-color', accentColor);
-    document.documentElement.style.setProperty('--secondary-text-color', secondaryTextColor);
-
-    document.body.style.backgroundColor = backgroundColor;
-    document.body.style.color = textColor;
-
-    const headers = document.querySelectorAll('header, footer, .hero');
-    headers.forEach(el => {
-    if (el.classList.contains('hero')) {
-        el.style.background = `linear-gradient(135deg, ${primaryColor} 0%, ${accentColor} 100%)`;
-    } else {
-        el.style.backgroundColor = primaryColor;
-    }
-    });
-
-    const buttons = document.querySelectorAll('.btn');
-    buttons.forEach(btn => {
-    btn.style.backgroundColor = primaryColor;
-    btn.style.color = textColor;
-    });
-
-    const propertyTypes = document.querySelectorAll('.property-type');
-    propertyTypes.forEach(el => {
-    el.style.backgroundColor = primaryColor;
-    el.style.color = textColor;
-    });
-
-    const propertyPrices = document.querySelectorAll('.property-price');
-    propertyPrices.forEach(el => {
-    el.style.color = primaryColor;
-    });
-}
-
-// Hamburger menu functionality
-const hamburger = document.getElementById('hamburger');
-const navMenu = document.getElementById('nav-menu');
-
-hamburger.addEventListener('click', () => {
-    hamburger.classList.toggle('active');
-    navMenu.classList.toggle('active');
-});
-
-// Close menu when clicking on a link
-document.querySelectorAll('nav a').forEach(link => {
-    link.addEventListener('click', () => {
-    hamburger.classList.remove('active');
-    navMenu.classList.remove('active');
-    });
-});
-
-// Page navigation with role-based route guards
-function showPage(pageName) {
-    // Block suspended users from protected routes
-    const protectedPages = ['admin-dashboard', 'landlord-dashboard', 'tenant-dashboard', 'post-property', 'user-settings'];
-    if (protectedPages.includes(pageName)) {
-        if (!currentUser) {
-            showToast('Please log in to access this page.', 'warning');
-            pageName = 'login';
-        } else if (currentUser.status === 'suspended') {
-            showToast('Your account is suspended. Access denied.', 'error');
-            logout();
-            return;
-        } else if (pageName === 'admin-dashboard' && currentUser.role !== 'admin') {
-            showToast('Access denied: Admin privileges required.', 'error');
-            pageName = getDashboardForRole(currentUser.role);
-        } else if ((pageName === 'landlord-dashboard' || pageName === 'post-property') && !['landlord', 'admin'].includes(currentUser.role)) {
-            showToast('Access denied: Landlord account required.', 'error');
-            pageName = getDashboardForRole(currentUser.role);
-        } else if (pageName === 'tenant-dashboard' && !['tenant', 'admin'].includes(currentUser.role)) {
-            showToast('Access denied: Tenant account required.', 'error');
-            pageName = getDashboardForRole(currentUser.role);
-        }
-    }
-
-    // Redirect already-logged-in users away from login/register
-    if ((pageName === 'login' || pageName === 'register') && currentUser) {
-        pageName = getDashboardForRole(currentUser.role);
-    }
-
-    // Hide all pages safely
-    const pageIds = [
-        'home-page', 'home-content', 'about-page', 'login-page', 'register-page',
-        'contact-page', 'help-page', 'browse-properties-page', 'admin-dashboard-page',
-        'landlord-dashboard-page', 'tenant-dashboard-page', 'post-property-page', 'user-settings-page'
-    ];
-    pageIds.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-            el.style.display = 'none';
-        } else {
-            console.error(`❌ Page container #${id} not found in DOM.`);
-        }
-    });
-
-    // Clear auth inline alerts when navigating to login/register
-    if (pageName === 'login') hideAuthAlert('login-alert');
-    if (pageName === 'register') hideAuthAlert('register-alert');
-
-    // Show selected page
-    if (pageName === 'home') {
-        const homePage = document.getElementById('home-page');
-        const homeContent = document.getElementById('home-content');
-        if (homePage) homePage.style.display = 'block';
-        if (homeContent) homeContent.style.display = 'block';
-    } else {
-        const targetPage = document.getElementById(pageName + '-page');
-        if (!targetPage) {
-            console.error(`❌ Target page #${pageName}-page not found in DOM.`);
-            return;
-        }
-        targetPage.style.display = 'block';
-    }
-
-    // Close profile dropdown on navigation
-    const dropdownMenu = document.getElementById('profile-dropdown-menu');
-    if (dropdownMenu) dropdownMenu.style.display = 'none';
-
-    // Load dashboard / page data
-    if (pageName === 'admin-dashboard') {
-        loadAdminDashboard();
-    } else if (pageName === 'landlord-dashboard') {
-        updateLandlordVerificationUI();
-        loadLandlordDashboard();
-    } else if (pageName === 'tenant-dashboard') {
-        loadTenantDashboard();
-    } else if (pageName === 'user-settings') {
-        loadUserSettings();
-    } else if (pageName === 'browse-properties') {
-        loadBrowseProperties();
-    } else if (pageName === 'post-property') {
-        updateLandlordVerificationUI();
-        loadPostPropertyForm();
-    }
-
-    // Scroll to top
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-
-    // Close mobile menu
-    if (hamburger) hamburger.classList.remove('active');
-    if (navMenu) navMenu.classList.remove('active');
-}
-
-async function uploadImageToImgBB(file) {
-    const formData = new FormData();
-    formData.append('key', '047e5bac8e19759cc1c884e08ba14b07');
-    formData.append('image', file);
-
-    const response = await fetch('https://api.imgbb.com/1/upload', {
-    method: 'POST',
-    body: formData
-    });
-
-    const data = await response.json();
-    if (data.success) {
-    return data.data.url;
-    } else {
-    throw new Error('Image upload failed');
-    }
-}
-
-async function handlePostProperty(event) {
-    event.preventDefault();
-    
-    if (!currentUser || currentUser.role !== 'Landlord') {
-    showToast('Only landlords can post properties');
-    return;
-    }
-
-    const form = event.target;
-    const submitBtn = form.querySelector('button[type="submit"]');
-    const isEditMode = form.dataset.editMode === 'true';
-    const propertyId = form.dataset.propertyId;
-
-    submitBtn.disabled = true;
-    submitBtn.textContent = isEditMode ? 'Updating...' : 'Publishing...';
-
-    try {
-    const propertyData = {
-        landlord_id: currentUser.user_id,
-        property_name: document.getElementById('property-name').value,
-        type: document.getElementById('property-type').value,
-        monthly_rent: parseInt(document.getElementById('monthly-rent').value),
-        available_slots: parseInt(document.getElementById('available-slots').value),
-        address: document.getElementById('property-address').value,
-        barangay: document.getElementById('property-barangay').value,
-        city: document.getElementById('property-city').value,
-        nearby_landmarks: document.getElementById('nearby-landmarks').value,
-        loc_link: document.getElementById('location-link').value,
-        description: document.getElementById('property-description').value,
-        rules: document.getElementById('property-rules').value,
-        contact_name: document.getElementById('contact-name').value,
-        contact_number: document.getElementById('contact-number').value,
-        move_in_date: document.getElementById('move-in-date').value,
-        min_stay: document.getElementById('min-stay').value,
-        availability: 'Available'
-    };
-
-    let property;
-    if (isEditMode) {
-        console.log('=== UPDATE PROPERTY DEBUG ===');
-        console.log('🔄 Starting property update...');
-        console.log('Property ID:', propertyId);
-        console.log('Current User ID:', currentUser.user_id);
-        
-        // 1️⃣ Verify property ownership first
-        const { data: fromDB, error: checkError } = await supabase
-        .from('properties')
-        .select('*')
-        .eq('property_id', propertyId)
-        .eq('landlord_id', currentUser.user_id)
-        .single();
-        
-        console.log('✅ Existing property verification from DB:', fromDB);
-        console.log('❌ Verification error:', checkError);
-        
-        if (checkError || !fromDB) {
-        throw new Error('Property not found or you do not have permission to edit it');
-        }
-        
-        const existingProperty = fromDB;
-        
-        // 2️⃣ Prepare update data - keep existing status unless it was rejected
-        const updateData = {
-        property_name: propertyData.property_name,
-        type: propertyData.type,
-        monthly_rent: propertyData.monthly_rent,
-        available_slots: propertyData.available_slots,
-        address: propertyData.address,
-        barangay: propertyData.barangay,
-        city: propertyData.city,
-        nearby_landmarks: propertyData.nearby_landmarks,
-        description: propertyData.description,
-        rules: propertyData.rules,
-        contact_name: propertyData.contact_name,
-        contact_number: propertyData.contact_number,
-        move_in_date: propertyData.move_in_date,
-        min_stay: propertyData.min_stay,
-        loc_link: propertyData.loc_link,
-        availability: propertyData.availability,
-        // Keep existing status unless it was rejected (then set to pending for re-review)
-        status: existingProperty.status === 'Rejected' ? 'Pending' : existingProperty.status
-        };
-        
-        console.log('📝 Update data mapped from form:', updateData);
-        
-        // 3️⃣ Perform the update with proper UUID handling and ownership verification
-        const { data, error } = await supabase
-        .from('properties')
-        .update(updateData)
-        .eq('property_id', propertyId)
-        .eq('landlord_id', currentUser.user_id)
-        .select()
-        .single();
-
-        console.log('✅ Update response data:', data);
-        console.log('❌ Update error:', error);
-
-        if (error) {
-        console.error('❌ Update failed with error:', JSON.stringify(error, null, 2));
-        throw error;
-        }
-        
-        if (!data) {
-        throw new Error('Property update failed - no data returned or permission denied');
-        }
-        
-        property = data;
-        console.log('✅ Property updated successfully!');
-        console.log('Updated property:', property);
-        
-        // 🔔 Create notification for landlord - property updated
-        await createNotification(
-        currentUser.user_id,
-        'Property Updated Successfully',
-        `Your ${property.type} property in ${property.city} has been updated successfully. ${property.status === 'Pending' ? 'It has been resubmitted for admin review.' : 'Changes are now live.'}`
-        );
-
-        // 🔔 Notify admins if property was resubmitted for review
-        if (existingProperty.status === 'Rejected' && property.status === 'Pending') {
-        await notifyAllAdmins(
-            'Property Resubmitted for Review',
-            `${currentUser.first_name} ${currentUser.last_name} has updated and resubmitted their ${property.type} property in ${property.city} for review.`
-        );
-        }
-        
-        console.log('=== END UPDATE PROPERTY DEBUG ===');
-    } else {
-        // Create new property
-        console.log('🆕 Creating new property...');
-        propertyData.status = 'Pending';
-        propertyData.created_at = new Date().toISOString();
-        
-        const { data, error: propError } = await supabase
-        .from('properties')
-        .insert([propertyData])
-        .select()
-        .single();
-
-        if (propError) throw propError;
-        property = data;
-        console.log('✅ New property created successfully!');
-
-        // 🔔 Create notification for landlord - property posted
-        await createNotification(
-        currentUser.user_id,
-        'Property Posted Successfully',
-        `Your ${property.type} property in ${property.city} has been submitted for review. You'll be notified once it's approved by our admin team.`
-        );
-
-        // 🔔 Create notification for all admins - new property to review
-        await notifyAllAdmins(
-        'New Property Pending Review',
-        `${currentUser.first_name} ${currentUser.last_name} posted a new ${property.type} property in ${property.city} that needs approval.`
-        );
-    }
-
-    // Upload new images if any
-    const imageFiles = document.getElementById('property-images').files;
-    if (imageFiles.length > 0) {
-        submitBtn.textContent = `Uploading images (0/${imageFiles.length})...`;
-        
-        for (let i = 0; i < Math.min(imageFiles.length, 10); i++) {
-        try {
-            const imageUrl = await uploadImageToImgBB(imageFiles[i]);
-            
-            const { error: imgError } = await supabase
-            .from('property_images')
-            .insert([{
-                property_id: property.property_id,
-                image_url: imageUrl
-            }]);
-
-            if (imgError) throw imgError;
-            
-            submitBtn.textContent = `Uploading images (${i + 1}/${imageFiles.length})...`;
-        } catch (imgError) {
-            console.error('Image upload error:', imgError);
-            showToast(`Warning: Failed to upload image ${i + 1}`);
-        }
-        }
-    }
-
-    // Update amenities - delete existing ones first to prevent duplicates
-    console.log('=== AMENITIES UPDATE DEBUG ===');
-    console.log('🗑️ Deleting existing amenities for property:', property.property_id);
-    
-    const { error: deleteAmenError } = await supabase
-        .from('amenities')
-        .delete()
-        .eq('property_id', property.property_id);
-
-    if (deleteAmenError) {
-        console.error('❌ Error deleting existing amenities:', deleteAmenError);
-        throw deleteAmenError;
-    }
-    
-    console.log('✅ Existing amenities deleted successfully');
-
-    // Insert new amenities
-    const amenityCheckboxes = document.querySelectorAll('input[name="amenity"]:checked');
-    const amenities = Array.from(amenityCheckboxes).map(cb => ({
-        property_id: property.property_id,
-        amenity_name: cb.value,
-        is_included: true
-    }));
-
-    console.log('📝 New amenities to insert:', amenities);
-
-    if (amenities.length > 0) {
-        const { data: insertedAmenities, error: amenError } = await supabase
-        .from('amenities')
-        .insert(amenities)
-        .select();
-
-        if (amenError) {
-        console.error('❌ Error inserting amenities:', amenError);
-        throw amenError;
-        }
-        
-        console.log('✅ New amenities inserted successfully:', insertedAmenities);
-    } else {
-        console.log('ℹ️ No amenities selected - skipping insert');
-    }
-    
-    console.log('=== END AMENITIES UPDATE DEBUG ===');
-
-    showToast(isEditMode ? 'Property updated successfully!' : 'Property posted successfully! Waiting for admin approval.');
-    
-    // Refresh the properties data
-    await loadProperties();
-    
-    setTimeout(() => {
-        showPage('landlord-dashboard');
-        
-        // Reset form completely
-        form.reset();
-        form.dataset.editMode = 'false';
-        form.dataset.propertyId = '';
-        
-        // Clear image preview
-        document.getElementById('image-preview').innerHTML = '';
-        
-        // Clear file input
-        document.getElementById('property-images').value = '';
-        
-        // Uncheck all amenity checkboxes
-        document.querySelectorAll('input[name="amenity"]').forEach(cb => cb.checked = false);
-        
-        // Reset form UI
-        document.querySelector('#post-property-page h1').textContent = 'Post New Property';
-        submitBtn.textContent = 'Publish Property';
-        submitBtn.disabled = false;
-    }, 2000);
-
-    } catch (error) {
-    console.error('Post property error:', error);
-    showToast('Failed to ' + (isEditMode ? 'update' : 'post') + ' property: ' + error.message);
-    submitBtn.disabled = false;
-    submitBtn.textContent = isEditMode ? 'Update Property' : 'Publish Property';
-    }
-}
-
-// Admin Dashboard Pagination and Filtering
-let adminUsers = [];
-let adminProperties = [];
-let currentUserPage = 1;
-let currentPropertyPage = 1;
-let usersPerPage = 5;
-let propertiesPerPage = 5;
-let userSearchTerm = '';
-let propertySearchTerm = '';
-let userRoleFilter = '';
-let userStatusFilter = '';
-let propertyTypeFilter = '';
-let propertyStatusFilter = '';
-
-async function loadAdminDashboard() {
-    try {
-    const { data: properties } = await supabase.from('properties').select(`
-        *,
-        landlord:users(
-        user_id,
-        first_name,
-        last_name,
-        email,
-        mobile
-        )
-    `);
-    const { data: users } = await supabase.from('users').select('*');
-    
-    adminUsers = users || [];
-    adminProperties = properties || [];
-    
-    document.getElementById('admin-total-properties').textContent = properties?.length || 0;
-    document.getElementById('admin-total-users').textContent = users?.length || 0;
-    document.getElementById('admin-pending-properties').textContent = 
-        properties?.filter(p => p.status === 'Pending').length || 0;
-
-    // Enhanced User Management with Search, Filters, and Pagination
-    displayUserManagement();
-
-    // Property Management with Search, Filters, and Pagination
-    displayPropertyManagement();
-    } catch (error) {
-    console.error('Error loading admin dashboard:', error);
-    }
-}
-
-function displayUserManagement() {
-    const usersList = document.getElementById('admin-users-list');
-    
-    // Filter users based on search and filters
-    let filteredUsers = adminUsers.filter(user => {
-    const matchesSearch = !userSearchTerm || 
-        user.first_name.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
-        user.last_name.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
-        user.email.toLowerCase().includes(userSearchTerm.toLowerCase());
-    
-    const matchesRole = !userRoleFilter || user.role === userRoleFilter;
-    const matchesStatus = !userStatusFilter || user.status === userStatusFilter;
-    
-    return matchesSearch && matchesRole && matchesStatus;
-    });
-
-    // Calculate pagination
-    const totalUsers = filteredUsers.length;
-    const totalPages = Math.ceil(totalUsers / usersPerPage);
-    const startIndex = (currentUserPage - 1) * usersPerPage;
-    const endIndex = startIndex + usersPerPage;
-    const paginatedUsers = filteredUsers.slice(startIndex, endIndex);
-
-    // Generate search and filter controls
-    const controlsHTML = `
-    <div style="background-color: #FFFFFF; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 2px solid #ADD8E6;">
-        <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px; align-items: end;">
-        <div>
-            <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #8B4513;">Search Users</label>
-            <input type="text" id="user-search-input" placeholder="Search by name or email..." value="${userSearchTerm}" style="width: 100%; padding: 10px; border: 2px solid #ADD8E6; border-radius: 6px; font-size: 14px;">
-        </div>
-        <div>
-            <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #8B4513;">Role</label>
-            <select id="user-role-filter" style="width: 100%; padding: 10px; border: 2px solid #ADD8E6; border-radius: 6px; font-size: 14px;">
-            <option value="">All Roles</option>
-            <option value="Admin" ${userRoleFilter === 'Admin' ? 'selected' : ''}>Admin</option>
-            <option value="Landlord" ${userRoleFilter === 'Landlord' ? 'selected' : ''}>Landlord</option>
-            <option value="Tenant" ${userRoleFilter === 'Tenant' ? 'selected' : ''}>Tenant</option>
-            </select>
-        </div>
-        <div>
-            <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #8B4513;">Status</label>
-            <select id="user-status-filter" style="width: 100%; padding: 10px; border: 2px solid #ADD8E6; border-radius: 6px; font-size: 14px;">
-            <option value="">All Status</option>
-            <option value="Active" ${userStatusFilter === 'Active' ? 'selected' : ''}>Active</option>
-            <option value="Inactive" ${userStatusFilter === 'Inactive' ? 'selected' : ''}>Inactive</option>
-            </select>
-        </div>
-        <div>
-            <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #8B4513;">Per Page</label>
-            <select id="users-per-page" style="width: 100%; padding: 10px; border: 2px solid #ADD8E6; border-radius: 6px; font-size: 14px;">
-            <option value="5" ${usersPerPage === 5 ? 'selected' : ''}>5</option>
-            <option value="10" ${usersPerPage === 10 ? 'selected' : ''}>10</option>
-            <option value="20" ${usersPerPage === 20 ? 'selected' : ''}>20</option>
-            <option value="50" ${usersPerPage === 50 ? 'selected' : ''}>50</option>
-            </select>
-        </div>
-        </div>
-        <div style="display: flex; gap: 10px;">
-        <button class="btn" onclick="filterUsers()" style="padding: 10px 20px; font-size: 14px;">🔍 Search</button>
-        <button class="btn-secondary" onclick="clearUserFilters()" style="padding: 10px 20px; font-size: 14px;">🗑️ Clear</button>
-        </div>
-    </div>
-    `;
-
-    // Generate pagination controls
-    const paginationHTML = totalPages > 1 ? `
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; padding: 15px; background-color: #F5F5DC; border-radius: 8px;">
-        <div style="color: #8B4513; font-weight: 600;">
-        Showing ${startIndex + 1}-${Math.min(endIndex, totalUsers)} of ${totalUsers} users
-        </div>
-        <div style="display: flex; gap: 5px; align-items: center;">
-        <button class="btn-secondary" onclick="changeUserPage(${currentUserPage - 1})" ${currentUserPage === 1 ? 'disabled' : ''} style="padding: 8px 12px; font-size: 14px;">‹ Previous</button>
-        ${Array.from({length: Math.min(5, totalPages)}, (_, i) => {
-            const pageNum = Math.max(1, Math.min(totalPages - 4, currentUserPage - 2)) + i;
-            if (pageNum <= totalPages) {
-            return `<button class="btn${pageNum === currentUserPage ? '' : '-secondary'}" onclick="changeUserPage(${pageNum})" style="padding: 8px 12px; font-size: 14px; min-width: 40px;">${pageNum}</button>`;
-            }
-            return '';
-        }).join('')}
-        <button class="btn-secondary" onclick="changeUserPage(${currentUserPage + 1})" ${currentUserPage === totalPages ? 'disabled' : ''} style="padding: 8px 12px; font-size: 14px;">Next ›</button>
-        </div>
-    </div>
-    ` : '';
-
-    // Group users by status for better organization
-    const activeUsers = paginatedUsers.filter(u => u.status === 'Active');
-    const inactiveUsers = paginatedUsers.filter(u => u.status === 'Inactive');
-
-    const generateUserCard = (user, statusColor, statusBg) => `
-    <div style="background-color: ${statusBg}; border: 2px solid ${statusColor}; padding: 20px; border-radius: 8px; margin-bottom: 15px;">
-        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
-        <div>
-            <h4 style="color: #8B4513; margin-bottom: 10px;">${user.first_name} ${user.last_name}</h4>
-            <p><strong>Email:</strong> ${user.email}</p>
-            <p><strong>Mobile:</strong> ${user.mobile || 'N/A'}</p>
-            <p><strong>Type:</strong> ${user.role}</p>
-            <p><strong>Joined:</strong> ${user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}</p>
-        </div>
-        <span style="background-color: ${statusColor}; color: white; padding: 5px 12px; border-radius: 15px; font-size: 12px; font-weight: 600;">${user.status}</span>
-        </div>
-        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-        <button class="btn-secondary" onclick="resetUserPassword('${user.user_id}', '${user.first_name} ${user.last_name}')" style="flex: 1; min-width: 120px; padding: 10px; font-size: 14px; background-color: #FFA500; color: white; border-color: #FFA500;">🔑 Reset Password</button>
-        <button class="btn-secondary" onclick="toggleUserStatus('${user.user_id}', '${user.status}', '${user.first_name} ${user.last_name}')" style="flex: 1; min-width: 120px; padding: 10px; font-size: 14px; background-color: ${user.status === 'Active' ? '#FF6B6B' : '#32CD32'}; color: white; border-color: ${user.status === 'Active' ? '#FF6B6B' : '#32CD32'};">${user.status === 'Active' ? '🚫 Deactivate' : '✅ Activate'}</button>
-        <button class="btn" onclick="messageUser('${user.user_id}', '${user.first_name} ${user.last_name}')" style="flex: 1; min-width: 120px; padding: 10px; font-size: 14px;">💬 Message</button>
-        </div>
-    </div>
-    `;
-
-    // Generate user list
-    let usersHTML = '';
-    
-    if (userStatusFilter) {
-    // Show filtered status only
-    usersHTML = paginatedUsers.length > 0 ? paginatedUsers.map(user => {
-        const statusColors = {
-        'Active': { color: '#32CD32', bg: '#F0FFF0' },
-        'Inactive': { color: '#FF6B6B', bg: '#FFE4E1' }
-        };
-        const colors = statusColors[user.status] || { color: '#8B4513', bg: '#F5F5DC' };
-        return generateUserCard(user, colors.color, colors.bg);
-    }).join('') : '<p style="text-align: center; color: #8B4513; padding: 40px;">No users found matching your criteria</p>';
-    } else {
-    // Show all statuses with sections
-    if (activeUsers.length > 0) {
-        usersHTML += `
-        <div style="margin-bottom: 40px;">
-            <h3 style="color: #8B4513; margin-bottom: 20px; font-size: 20px; border-bottom: 2px solid #ADD8E6; padding-bottom: 10px;">✅ Active Users (${activeUsers.length})</h3>
-            ${activeUsers.map(user => generateUserCard(user, '#32CD32', '#F0FFF0')).join('')}
-        </div>
-        `;
-    }
-    
-    if (inactiveUsers.length > 0) {
-        usersHTML += `
-        <div style="margin-bottom: 40px;">
-            <h3 style="color: #8B4513; margin-bottom: 20px; font-size: 20px; border-bottom: 2px solid #ADD8E6; padding-bottom: 10px;">❌ Inactive Users (${inactiveUsers.length})</h3>
-            ${inactiveUsers.map(user => generateUserCard(user, '#FF6B6B', '#FFE4E1')).join('')}
-        </div>
-        `;
-    }
-    
-    if (paginatedUsers.length === 0) {
-        usersHTML = '<p style="text-align: center; color: #8B4513; padding: 40px;">No users found matching your criteria</p>';
-    }
-    }
-
-    usersList.innerHTML = controlsHTML + usersHTML + paginationHTML;
-}
-
-function displayPropertyManagement() {
-    const propertiesList = document.getElementById('admin-properties-list');
-    
-    // Filter properties based on search and filters
-    let filteredProperties = adminProperties.filter(prop => {
-    const matchesSearch = !propertySearchTerm || 
-        (prop.property_name && prop.property_name.toLowerCase().includes(propertySearchTerm.toLowerCase())) ||
-        (prop.type && prop.type.toLowerCase().includes(propertySearchTerm.toLowerCase())) ||
-        (prop.city && prop.city.toLowerCase().includes(propertySearchTerm.toLowerCase())) ||
-        (prop.barangay && prop.barangay.toLowerCase().includes(propertySearchTerm.toLowerCase())) ||
-        (prop.address && prop.address.toLowerCase().includes(propertySearchTerm.toLowerCase())) ||
-        (prop.nearby_landmarks && prop.nearby_landmarks.toLowerCase().includes(propertySearchTerm.toLowerCase())) ||
-        (prop.description && prop.description.toLowerCase().includes(propertySearchTerm.toLowerCase())) ||
-        (prop.landlord && (prop.landlord.first_name + ' ' + prop.landlord.last_name).toLowerCase().includes(propertySearchTerm.toLowerCase())) ||
-        (prop.landlord && prop.landlord.email && prop.landlord.email.toLowerCase().includes(propertySearchTerm.toLowerCase()));
-    
-    const matchesType = !propertyTypeFilter || prop.type === propertyTypeFilter;
-    const matchesStatus = !propertyStatusFilter || prop.status === propertyStatusFilter;
-    
-    return matchesSearch && matchesType && matchesStatus;
-    });
-
-    // Calculate pagination
-    const totalProperties = filteredProperties.length;
-    const totalPages = Math.ceil(totalProperties / propertiesPerPage);
-    const startIndex = (currentPropertyPage - 1) * propertiesPerPage;
-    const endIndex = startIndex + propertiesPerPage;
-    const paginatedProperties = filteredProperties.slice(startIndex, endIndex);
-
-    // Generate search and filter controls
-    const controlsHTML = `
-    <div style="background-color: #FFFFFF; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 2px solid #ADD8E6;">
-        <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px; align-items: end;">
-        <div>
-            <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #8B4513;">Search Properties</label>
-            <input type="text" id="property-search-input" placeholder="Search by type, city, address, or landlord..." value="${propertySearchTerm}" style="width: 100%; padding: 10px; border: 2px solid #ADD8E6; border-radius: 6px; font-size: 14px;">
-        </div>
-        <div>
-            <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #8B4513;">Type</label>
-            <select id="property-type-filter" style="width: 100%; padding: 10px; border: 2px solid #ADD8E6; border-radius: 6px; font-size: 14px;">
-            <option value="">All Types</option>
-            <option value="Bed Spacer" ${propertyTypeFilter === 'Bed Spacer' ? 'selected' : ''}>Bed Spacer</option>
-            <option value="Single Room" ${propertyTypeFilter === 'Single Room' ? 'selected' : ''}>Single Room</option>
-            <option value="Boarding House" ${propertyTypeFilter === 'Boarding House' ? 'selected' : ''}>Boarding House</option>
-            <option value="Studio Type" ${propertyTypeFilter === 'Studio Type' ? 'selected' : ''}>Studio Type</option>
-            <option value="Single Family" ${propertyTypeFilter === 'Single Family' ? 'selected' : ''}>Single Family</option>
-            </select>
-        </div>
-        <div>
-            <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #8B4513;">Status</label>
-            <select id="property-status-filter" style="width: 100%; padding: 10px; border: 2px solid #ADD8E6; border-radius: 6px; font-size: 14px;">
-            <option value="">All Status</option>
-            <option value="Pending" ${propertyStatusFilter === 'Pending' ? 'selected' : ''}>Pending</option>
-            <option value="Approved" ${propertyStatusFilter === 'Approved' ? 'selected' : ''}>Approved</option>
-            <option value="Rejected" ${propertyStatusFilter === 'Rejected' ? 'selected' : ''}>Rejected</option>
-            <option value="Suspended" ${propertyStatusFilter === 'Suspended' ? 'selected' : ''}>Suspended</option>
-            </select>
-        </div>
-        <div>
-            <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #8B4513;">Per Page</label>
-            <select id="properties-per-page" style="width: 100%; padding: 10px; border: 2px solid #ADD8E6; border-radius: 6px; font-size: 14px;">
-            <option value="5" ${propertiesPerPage === 5 ? 'selected' : ''}>5</option>
-            <option value="10" ${propertiesPerPage === 10 ? 'selected' : ''}>10</option>
-            <option value="20" ${propertiesPerPage === 20 ? 'selected' : ''}>20</option>
-            <option value="50" ${propertiesPerPage === 50 ? 'selected' : ''}>50</option>
-            </select>
-        </div>
-        </div>
-        <div style="display: flex; gap: 10px;">
-        <button class="btn" onclick="filterProperties()" style="padding: 10px 20px; font-size: 14px;">🔍 Search</button>
-        <button class="btn-secondary" onclick="clearPropertyFilters()" style="padding: 10px 20px; font-size: 14px;">🗑️ Clear</button>
-        </div>
-    </div>
-    `;
-
-    // Generate pagination controls
-    const paginationHTML = totalPages > 1 ? `
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; padding: 15px; background-color: #F5F5DC; border-radius: 8px;">
-        <div style="color: #8B4513; font-weight: 600;">
-        Showing ${startIndex + 1}-${Math.min(endIndex, totalProperties)} of ${totalProperties} properties
-        </div>
-        <div style="display: flex; gap: 5px; align-items: center;">
-        <button class="btn-secondary" onclick="changePropertyPage(${currentPropertyPage - 1})" ${currentPropertyPage === 1 ? 'disabled' : ''} style="padding: 8px 12px; font-size: 14px;">‹ Previous</button>
-        ${Array.from({length: Math.min(5, totalPages)}, (_, i) => {
-            const pageNum = Math.max(1, Math.min(totalPages - 4, currentPropertyPage - 2)) + i;
-            if (pageNum <= totalPages) {
-            return `<button class="btn${pageNum === currentPropertyPage ? '' : '-secondary'}" onclick="changePropertyPage(${pageNum})" style="padding: 8px 12px; font-size: 14px; min-width: 40px;">${pageNum}</button>`;
-            }
-            return '';
-        }).join('')}
-        <button class="btn-secondary" onclick="changePropertyPage(${currentPropertyPage + 1})" ${currentPropertyPage === totalPages ? 'disabled' : ''} style="padding: 8px 12px; font-size: 14px;">Next ›</button>
-        </div>
-    </div>
-    ` : '';
-
-    // Group properties by status for better organization
-    const pendingProperties = paginatedProperties.filter(p => p.status === 'Pending');
-    const approvedProperties = paginatedProperties.filter(p => p.status === 'Approved');
-    const rejectedProperties = paginatedProperties.filter(p => p.status === 'Rejected');
-    const suspendedProperties = paginatedProperties.filter(p => p.status === 'Suspended');
-
-    const generatePropertyCard = (prop, statusColor, statusBg) => `
-    <div style="background-color: ${statusBg}; border: 2px solid ${statusColor}; padding: 20px; border-radius: 8px; margin-bottom: 15px;">
-        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
-        <div>
-            <h4 style="color: #8B4513; margin-bottom: 10px;">${prop.property_name || prop.type} - ${prop.city}</h4>
-            <p><strong>Address:</strong> ${prop.address}</p>
-            <p><strong>Landlord:</strong> ${prop.landlord.first_name} ${prop.landlord.last_name}</p>
-            <p><strong>Contact:</strong> ${prop.landlord.email} | ${prop.landlord.mobile || 'N/A'}</p>
-            <p><strong>Rent:</strong> ₱${prop.monthly_rent?.toLocaleString()}/month</p>
-            <p><strong>Submitted:</strong> ${new Date(prop.created_at).toLocaleDateString()}</p>
-        </div>
-        <span style="background-color: ${statusColor}; color: white; padding: 5px 12px; border-radius: 15px; font-size: 12px; font-weight: 600;">${prop.status}</span>
-        </div>
-        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-        <button class="btn" onclick="viewPropertyDetails('${prop.property_id}')" style="flex: 1; min-width: 120px; padding: 10px; font-size: 14px;">👁️ View Details</button>
-        ${prop.status === 'Pending' ? `
-            <button class="btn" onclick="approveProperty('${prop.property_id}')" style="flex: 1; min-width: 120px; padding: 10px; font-size: 14px; background-color: #32CD32;">✅ Approve</button>
-            <button class="btn-secondary" onclick="rejectProperty('${prop.property_id}')" style="flex: 1; min-width: 120px; padding: 10px; font-size: 14px; background-color: #FF6B6B; color: white;">❌ Reject</button>
-        ` : prop.status === 'Approved' ? `
-            <button class="btn-secondary" onclick="suspendProperty('${prop.property_id}')" style="flex: 1; min-width: 120px; padding: 10px; font-size: 14px; background-color: #FFA500; color: white;">⏸️ Suspend</button>
-        ` : ''}
-        <button class="btn" onclick="messageUser('${prop.landlord.user_id}', '${prop.landlord.first_name} ${prop.landlord.last_name}')" style="flex: 1; min-width: 120px; padding: 10px; font-size: 14px;">💬 Contact Landlord</button>
-        </div>
-    </div>
-    `;
-
-    let propertiesHTML = '';
-    
-    if (propertyStatusFilter) {
-    // Show filtered status only
-    propertiesHTML = paginatedProperties.length > 0 ? paginatedProperties.map(prop => {
-        const statusColors = {
-        'Pending': { color: '#FFA500', bg: '#FFF8DC' },
-        'Approved': { color: '#32CD32', bg: '#F0FFF0' },
-        'Rejected': { color: '#FF6B6B', bg: '#FFE4E1' },
-        'Suspended': { color: '#FF8C00', bg: '#FFF8DC' }
-        };
-        const colors = statusColors[prop.status] || { color: '#8B4513', bg: '#F5F5DC' };
-        return generatePropertyCard(prop, colors.color, colors.bg);
-    }).join('') : '<p style="text-align: center; color: #8B4513; padding: 40px;">No properties found matching your criteria</p>';
-    } else {
-    // Show all statuses with sections
-    if (pendingProperties.length > 0) {
-        propertiesHTML += `
-        <div style="margin-bottom: 40px;">
-            <h3 style="color: #8B4513; margin-bottom: 20px; font-size: 20px; border-bottom: 2px solid #ADD8E6; padding-bottom: 10px;">🔍 Pending Approval (${pendingProperties.length})</h3>
-            ${pendingProperties.map(prop => generatePropertyCard(prop, '#FFA500', '#FFF8DC')).join('')}
-        </div>
-        `;
-    }
-    
-    if (approvedProperties.length > 0) {
-        propertiesHTML += `
-        <div style="margin-bottom: 40px;">
-            <h3 style="color: #8B4513; margin-bottom: 20px; font-size: 20px; border-bottom: 2px solid #ADD8E6; padding-bottom: 10px;">✅ Approved Properties (${approvedProperties.length})</h3>
-            ${approvedProperties.map(prop => generatePropertyCard(prop, '#32CD32', '#F0FFF0')).join('')}
-        </div>
-        `;
-    }
-    
-    if (rejectedProperties.length > 0) {
-        propertiesHTML += `
-        <div style="margin-bottom: 40px;">
-            <h3 style="color: #8B4513; margin-bottom: 20px; font-size: 20px; border-bottom: 2px solid #ADD8E6; padding-bottom: 10px;">❌ Rejected Properties (${rejectedProperties.length})</h3>
-            ${rejectedProperties.map(prop => generatePropertyCard(prop, '#FF6B6B', '#FFE4E1')).join('')}
-        </div>
-        `;
-    }
-    
-    if (suspendedProperties.length > 0) {
-        propertiesHTML += `
-        <div style="margin-bottom: 40px;">
-            <h3 style="color: #8B4513; margin-bottom: 20px; font-size: 20px; border-bottom: 2px solid #ADD8E6; padding-bottom: 10px;">⏸️ Suspended Properties (${suspendedProperties.length})</h3>
-            ${suspendedProperties.map(prop => generatePropertyCard(prop, '#FF8C00', '#FFF8DC')).join('')}
-        </div>
-        `;
-    }
-    
-    if (paginatedProperties.length === 0) {
-        propertiesHTML = '<p style="text-align: center; color: #8B4513; padding: 40px;">No properties found matching your criteria</p>';
-    }
-    }
-
-    propertiesList.innerHTML = controlsHTML + propertiesHTML + paginationHTML;
-}
-
-// User Management Functions
-function filterUsers() {
-    userSearchTerm = document.getElementById('user-search-input').value.trim();
-    userRoleFilter = document.getElementById('user-role-filter').value;
-    userStatusFilter = document.getElementById('user-status-filter').value;
-    usersPerPage = parseInt(document.getElementById('users-per-page').value);
-    currentUserPage = 1; // Reset to first page
-    displayUserManagement();
-}
-
-function clearUserFilters() {
-    userSearchTerm = '';
-    userRoleFilter = '';
-    userStatusFilter = '';
-    usersPerPage = 5;
-    currentUserPage = 1;
-    displayUserManagement();
-}
-
-function changeUserPage(page) {
-    const filteredUsers = adminUsers.filter(user => {
-    const matchesSearch = !userSearchTerm || 
-        user.first_name.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
-        user.last_name.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
-        user.email.toLowerCase().includes(userSearchTerm.toLowerCase());
-    
-    const matchesRole = !userRoleFilter || user.role === userRoleFilter;
-    const matchesStatus = !userStatusFilter || user.status === userStatusFilter;
-    
-    return matchesSearch && matchesRole && matchesStatus;
-    });
-    
-    const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
-    
-    if (page >= 1 && page <= totalPages) {
-    currentUserPage = page;
-    displayUserManagement();
-    }
-}
-
-// Property Management Functions
-function filterProperties() {
-    propertySearchTerm = document.getElementById('property-search-input').value.trim();
-    propertyTypeFilter = document.getElementById('property-type-filter').value;
-    propertyStatusFilter = document.getElementById('property-status-filter').value;
-    propertiesPerPage = parseInt(document.getElementById('properties-per-page').value);
-    currentPropertyPage = 1; // Reset to first page
-    displayPropertyManagement();
-}
-
-function clearPropertyFilters() {
-    propertySearchTerm = '';
-    propertyTypeFilter = '';
-    propertyStatusFilter = '';
-    propertiesPerPage = 5;
-    currentPropertyPage = 1;
-    displayPropertyManagement();
-}
-
-function changePropertyPage(page) {
-    const filteredProperties = adminProperties.filter(prop => {
-    const matchesSearch = !propertySearchTerm || 
-        prop.type.toLowerCase().includes(propertySearchTerm.toLowerCase()) ||
-        prop.city.toLowerCase().includes(propertySearchTerm.toLowerCase()) ||
-        prop.address.toLowerCase().includes(propertySearchTerm.toLowerCase()) ||
-        (prop.landlord.first_name + ' ' + prop.landlord.last_name).toLowerCase().includes(propertySearchTerm.toLowerCase());
-    
-    const matchesType = !propertyTypeFilter || prop.type === propertyTypeFilter;
-    const matchesStatus = !propertyStatusFilter || prop.status === propertyStatusFilter;
-    
-    return matchesSearch && matchesType && matchesStatus;
-    });
-    
-    const totalPages = Math.ceil(filteredProperties.length / propertiesPerPage);
-    
-    if (page >= 1 && page <= totalPages) {
-    currentPropertyPage = page;
-    displayPropertyManagement();
-    }
-}
-
-async function loadLandlordDashboard() {
-    if (!currentUser) return;
-
-    try {
-    const { data: properties } = await supabase
-        .from('properties')
-        .select('*')
-        .eq('landlord_id', currentUser.user_id);
-
-    const total = properties?.length || 0;
-    const available = properties?.filter(p => p.availability === 'Available').length || 0;
-    const occupied = properties?.filter(p => p.availability === 'Occupied').length || 0;
-
-    document.getElementById('landlord-total-properties').textContent = total;
-    document.getElementById('landlord-available-properties').textContent = available;
-    document.getElementById('landlord-occupied-properties').textContent = occupied;
-
-    const propertiesList = document.getElementById('landlord-properties-list');
-    propertiesList.innerHTML = properties?.map(prop => `
-        <div style="background-color: #F5F5DC; padding: 20px; border-radius: 8px; margin-bottom: 15px;">
-        <h4 style="color: #8B4513; margin-bottom: 10px;">${prop.property_name || prop.type} - ${prop.city}</h4>
-        <p><strong>Address:</strong> ${prop.address}</p>
-        <p><strong>Rent:</strong> ₱${prop.monthly_rent?.toLocaleString()}/month</p>
-        <p><strong>Status:</strong> ${prop.status}</p>
-        <p><strong>Availability:</strong> ${prop.availability}</p>
-        <div style="display: flex; gap: 10px; margin-top: 15px;">
-            <button class="btn" onclick="editProperty('${prop.property_id}')" style="flex: 1; padding: 10px;">✏️ Edit</button>
-            <button class="btn-secondary" onclick="deleteProperty('${prop.property_id}')" style="flex: 1; padding: 10px; background-color: #FFB6C1; border-color: #FF69B4;">🗑️ Delete</button>
-            <button class="btn" onclick="viewApplicants('${prop.property_id}')" style="flex: 1; padding: 10px;">👥 View Applicants</button>
-            ${prop.availability === 'Occupied' ? `
-            <button class="btn" onclick="messageTenant('${prop.property_id}')" style="flex: 1; padding: 10px;">💬 Message Tenant</button>
-            ` : ''}
-        </div>
-        </div>
-    `).join('') || '<p>No properties posted yet. Click "Add New Property" to get started!</p>';
-    } catch (error) {
-    console.error('Error loading landlord dashboard:', error);
-    }
-}
-
-async function loadTenantDashboard() {
-    if (!currentUser) return;
-
-    try {
-    // Load applied properties with property and landlord details
-    const { data: applications, error: appError } = await supabase
-        .from('property_applicants')
-        .select(`
-        *,
-        property:properties(
-            *,
-            landlord:users(
-            user_id,
-            first_name,
-            last_name,
-            email,
-            mobile
-            )
-        )
-        `)
-        .eq('tenant_id', currentUser.user_id)
-        .order('application_date', { ascending: false });
-
-    if (appError) throw appError;
-
-    const appliedPropertiesHTML = applications?.length > 0 ? applications.map(app => `
-        <div style="background-color: #F5F5DC; padding: 20px; border-radius: 8px; margin-bottom: 15px;">
-        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
-            <div>
-            <h4 style="color: #8B4513; margin-bottom: 5px;">${app.property.property_name || app.property.type} - ${app.property.city}</h4>
-            <p style="margin-bottom: 5px;"><strong>Address:</strong> ${app.property.address}</p>
-            <p style="margin-bottom: 5px;"><strong>Rent:</strong> ₱${app.property.monthly_rent?.toLocaleString()}/month</p>
-            <p style="margin-bottom: 5px;"><strong>Landlord:</strong> ${app.property.landlord.first_name} ${app.property.landlord.last_name}</p>
-            <p style="margin-bottom: 10px;"><strong>Applied:</strong> ${new Date(app.application_date).toLocaleDateString()}</p>
-            </div>
-            <span style="background-color: ${app.status === 'Pending' ? '#FFA500' : app.status === 'Approved' ? '#32CD32' : '#FF6B6B'}; color: white; padding: 5px 12px; border-radius: 15px; font-size: 12px; font-weight: 600;">${app.status}</span>
-        </div>
-        ${app.message ? `
-            <div style="background-color: #FFFFFF; padding: 15px; border-radius: 6px; margin-bottom: 15px;">
-            <strong style="color: #8B4513;">Your Application Message:</strong>
-            <p style="margin-top: 8px; line-height: 1.5;">${app.message}</p>
-            </div>
-        ` : ''}
-        <div style="display: flex; gap: 10px;">
-            <button class="btn" onclick="viewAppliedProperty('${app.property.property_id}')" style="flex: 1; padding: 8px; font-size: 14px;">👁️ View Property</button>
-            ${app.status === 'Pending' ? `
-            <button class="btn-secondary" onclick="cancelApplication('${app.applicant_id}')" style="flex: 1; padding: 8px; font-size: 14px; background-color: #FF6B6B; color: white;">❌ Cancel</button>
-            ` : ''}
-            <button class="btn" onclick="messageLandlord('${app.property.landlord.user_id}', '${app.property.landlord.first_name}', '${app.property.property_id}')" style="flex: 1; padding: 8px; font-size: 14px;">💬 Message</button>
-        </div>
-        </div>
-    `).join('') : '<p style="text-align: center; color: #8B4513; font-size: 18px; padding: 40px;">No applications yet. Browse properties and apply for your next home!</p>';
-
-    document.getElementById('tenant-saved-properties').innerHTML = appliedPropertiesHTML;
-    document.getElementById('tenant-reviews').innerHTML = '<p>No reviews yet.</p>';
-    document.getElementById('tenant-history').innerHTML = '<p>No rental history yet.</p>';
-
-    } catch (error) {
-    console.error('Error loading tenant dashboard:', error);
-    document.getElementById('tenant-saved-properties').innerHTML = '<p>Error loading applications. Please refresh the page.</p>';
-    }
-}
-
-async function approveProperty(propertyId) {
-    try {
-    // Get property details first
-    const { data: property, error: propError } = await supabase
-        .from('properties')
-        .select(`
-        *,
-        landlord:users(
-            user_id,
-            first_name,
-            last_name,
-            email
-        )
-        `)
-        .eq('property_id', propertyId)
-        .single();
-
-    if (propError) throw propError;
-
-    const { error } = await supabase
-        .from('properties')
-        .update({ status: 'Approved' })
-        .eq('property_id', propertyId);
-
-    if (error) throw error;
-
-    // 🔔 Create notification for landlord - property approved
-    await createNotification(
-        property.landlord.user_id,
-        'Property Approved! 🎉',
-        `Great news! Your ${property.type} property in ${property.city} has been approved and is now live on HousinGo. Tenants can now view and apply for your property.`
-    );
-
-    showToast('Property approved successfully!');
-    loadAdminDashboard();
-    } catch (error) {
-    console.error('Error approving property:', error);
-    showToast('Failed to approve property');
-    }
-}
-
-async function editProperty(propertyId) {
-    try {
-    console.log('=== EDIT PROPERTY DEBUG ===');
-    console.log('Loading property data for edit:', propertyId);
-    console.log('Current user:', currentUser);
-    
-    // 1️⃣ Get property data from database with proper UUID handling
-    const { data: fromDB, error: propError } = await supabase
-        .from('properties')
-        .select('*')
-        .eq('property_id', propertyId)
-        .eq('landlord_id', currentUser.user_id) // Ensure user owns the property
-        .single();
-
-    if (propError) {
-        console.error('Property fetch error:', propError);
-        throw propError;
-    }
-
-    if (!fromDB) {
-        throw new Error('Property not found or you do not have permission to edit it');
-    }
-
-    console.log('✅ Property data loaded successfully from DB:', fromDB);
-
-    // 2️⃣ Get amenities for this property
-    const { data: amenities, error: amenError } = await supabase
-        .from('amenities')
-        .select('*')
-        .eq('property_id', propertyId);
-
-    if (amenError) {
-        console.error('Amenities fetch error:', amenError);
-        throw amenError;
-    }
-
-    console.log('✅ Amenities loaded successfully:', amenities);
-
-    // 3️⃣ Get images for this property
-    const { data: images, error: imgError } = await supabase
-        .from('property_images')
-        .select('*')
-        .eq('property_id', propertyId);
-
-    if (imgError) {
-        console.error('Images fetch error:', imgError);
-        throw imgError;
-    }
-
-    console.log('✅ Images loaded successfully:', images);
-    console.log('=== END EDIT PROPERTY DEBUG ===');
-
-    // 4️⃣ Navigate to edit form
-    showPage('post-property');
-
-    setTimeout(() => {
-        // Clear all amenity checkboxes first
-        document.querySelectorAll('input[name="amenity"]').forEach(cb => cb.checked = false);
-
-        // 5️⃣ Populate form fields with existing data from fromDB
-        document.getElementById('property-name').value = fromDB.property_name || '';
-        document.getElementById('property-type').value = fromDB.type || '';
-        document.getElementById('monthly-rent').value = fromDB.monthly_rent || '';
-        document.getElementById('available-slots').value = fromDB.available_slots || '';
-        document.getElementById('property-address').value = fromDB.address || '';
-        document.getElementById('property-barangay').value = fromDB.barangay || '';
-        document.getElementById('property-city').value = fromDB.city || '';
-        document.getElementById('nearby-landmarks').value = fromDB.nearby_landmarks || '';
-        document.getElementById('location-link').value = fromDB.loc_link || '';
-        document.getElementById('property-description').value = fromDB.description || '';
-        document.getElementById('property-rules').value = fromDB.rules || '';
-        
-        // Auto-fill contact info from current landlord profile (always use current user data)
-        const contactName = `${currentUser.first_name} ${currentUser.last_name}`;
-        const contactNumber = currentUser.mobile || '';
-        document.getElementById('contact-name').value = contactName;
-        document.getElementById('contact-number').value = contactNumber;
-        
-        document.getElementById('move-in-date').value = fromDB.move_in_date || '';
-        document.getElementById('min-stay').value = fromDB.min_stay || '';
-
-        // 6️⃣ Check existing amenities
-        amenities.forEach(amenity => {
-        const checkbox = document.querySelector(`input[name="amenity"][value="${amenity.amenity_name}"]`);
-        if (checkbox && amenity.is_included) {
-            checkbox.checked = true;
-            console.log('✅ Checked amenity:', amenity.amenity_name);
-        }
-        });
-
-        // 7️⃣ Display existing images
-        const imagePreview = document.getElementById('image-preview');
-        imagePreview.innerHTML = '';
-        images.forEach((img, index) => {
-        const imgDiv = document.createElement('div');
-        imgDiv.style.cssText = 'position: relative; border-radius: 8px; overflow: hidden; border: 2px solid #ADD8E6;';
-        imgDiv.innerHTML = `
-            <img src="${img.image_url}" style="width: 100%; height: 120px; object-fit: cover;">
-            <div style="position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,0.6); color: white; padding: 3px 8px; border-radius: 4px; font-size: 12px;">${index + 1}</div>
-            <button type="button" onclick="removeExistingImage('${img.image_id}')" style="position: absolute; bottom: 5px; right: 5px; background: rgba(255,0,0,0.8); color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">Remove</button>
-        `;
-        imagePreview.appendChild(imgDiv);
-        });
-
-        // 8️⃣ Set form to edit mode
-        const form = document.getElementById('post-property-form');
-        form.dataset.editMode = 'true';
-        form.dataset.propertyId = propertyId;
-        
-        const submitBtn = form.querySelector('button[type="submit"]');
-        submitBtn.textContent = 'Update Property';
-
-        document.querySelector('#post-property-page h1').textContent = 'Edit Property';
-        
-        console.log('✅ Form populated and ready for editing');
-    }, 100);
-
-    } catch (error) {
-    console.error('❌ Error loading property for edit:', error);
-    showToast('Failed to load property details: ' + error.message);
-    }
-}
-
-async function removeExistingImage(imageId) {
-    try {
-    const { error } = await supabase
-        .from('property_images')
-        .delete()
-        .eq('image_id', imageId);
-
-    if (error) throw error;
-
-    showToast('Image removed successfully');
-    
-    // Remove the image from preview
-    event.target.closest('div[style*="position: relative"]').remove();
-    } catch (error) {
-    console.error('Error removing image:', error);
-    showToast('Failed to remove image');
-    }
-}
-
-async function deleteProperty(propertyId) {
-    const confirmDiv = document.createElement('div');
-    confirmDiv.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 3000; display: flex; align-items: center; justify-content: center;';
-    confirmDiv.innerHTML = `
-    <div style="background: white; padding: 40px; border-radius: 12px; max-width: 400px; text-align: center;">
-        <h3 style="color: #8B4513; margin-bottom: 20px;">Delete Property?</h3>
-        <p style="margin-bottom: 30px; color: #654321;">Are you sure you want to delete this property? This action cannot be undone.</p>
-        <div style="display: flex; gap: 15px;">
-        <button class="btn-secondary" onclick="this.closest('div[style*=fixed]').remove()" style="flex: 1; padding: 12px;">Cancel</button>
-        <button class="btn" onclick="confirmDeleteProperty('${propertyId}')" style="flex: 1; padding: 12px; background-color: #FF6B6B;">Delete</button>
-        </div>
-    </div>
-    `;
-    document.body.appendChild(confirmDiv);
-}
-
-async function confirmDeleteProperty(propertyId) {
-    try {
-    document.querySelector('div[style*="position: fixed"]')?.remove();
-
-    await supabase.from('amenities').delete().eq('property_id', propertyId);
-    await supabase.from('property_images').delete().eq('property_id', propertyId);
-
-    const { error } = await supabase
-        .from('properties')
-        .delete()
-        .eq('property_id', propertyId);
-
-    if (error) throw error;
-
-    showToast('Property deleted successfully!');
-    loadLandlordDashboard();
-    } catch (error) {
-    console.error('Error deleting property:', error);
-    showToast('Failed to delete property');
-    }
-}
-
-function messageTenant(propertyId) {
-    const messageDiv = document.createElement('div');
-    messageDiv.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 3000; display: flex; align-items: center; justify-content: center; padding: 20px;';
-    messageDiv.innerHTML = `
-    <div style="background: white; padding: 40px; border-radius: 12px; max-width: 500px; width: 100%;">
-        <h3 style="color: #8B4513; margin-bottom: 20px;">Message Tenant</h3>
-        <form onsubmit="sendTenantMessage(event, '${propertyId}')">
-        <div style="margin-bottom: 20px;">
-            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #8B4513;">Subject</label>
-            <input type="text" id="message-subject" required style="width: 100%; padding: 12px; border: 2px solid #ADD8E6; border-radius: 8px; font-size: 16px; color: #8B4513;">
-        </div>
-        <div style="margin-bottom: 20px;">
-            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #8B4513;">Message</label>
-            <textarea id="message-content" required rows="5" style="width: 100%; padding: 12px; border: 2px solid #ADD8E6; border-radius: 8px; font-size: 16px; color: #8B4513; resize: vertical; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;"></textarea>
-        </div>
-        <div style="display: flex; gap: 15px;">
-            <button type="button" class="btn-secondary" onclick="this.closest('div[style*=fixed]').remove()" style="flex: 1; padding: 12px;">Cancel</button>
-            <button type="submit" class="btn" style="flex: 1; padding: 12px;">Send Message</button>
-        </div>
-        </form>
-    </div>
-    `;
-    document.body.appendChild(messageDiv);
-}
-
-function sendTenantMessage(event, propertyId) {
-    event.preventDefault();
-    const subject = document.getElementById('message-subject').value;
-    const content = document.getElementById('message-content').value;
-    
-    showToast('Message sent to tenant successfully!');
-    document.querySelector('div[style*="position: fixed"]')?.remove();
-}
-
-async function viewApplicants(propertyId) {
-    try {
-    // Get property details
-    const { data: property, error: propError } = await supabase
-        .from('properties')
-        .select('*')
-        .eq('property_id', propertyId)
-        .single();
-
-    if (propError) throw propError;
-
-    // Get applicants with tenant details
-    const { data: applicants, error: appError } = await supabase
-        .from('property_applicants')
-        .select(`
-        *,
-        tenant:users(
-            user_id,
-            first_name,
-            last_name,
-            email,
-            mobile
-        )
-        `)
-        .eq('property_id', propertyId)
-        .order('application_date', { ascending: false });
-
-    if (appError) throw appError;
-
-    const applicantsModal = document.createElement('div');
-    applicantsModal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 3000; display: flex; align-items: center; justify-content: center; padding: 20px; overflow-y: auto;';
-    
-    const applicantsHTML = applicants?.length > 0 ? applicants.map(app => `
-        <div style="background-color: #F5F5DC; padding: 20px; border-radius: 8px; margin-bottom: 15px;">
-        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
-            <div>
-            <h4 style="color: #8B4513; margin-bottom: 5px;">${app.tenant.first_name} ${app.tenant.last_name}</h4>
-            <p style="margin-bottom: 5px;"><strong>Email:</strong> ${app.tenant.email}</p>
-            <p style="margin-bottom: 5px;"><strong>Mobile:</strong> ${app.tenant.mobile}</p>
-            <p style="margin-bottom: 10px;"><strong>Applied:</strong> ${new Date(app.application_date).toLocaleDateString()}</p>
-            </div>
-            <span style="background-color: ${app.status === 'Pending' ? '#FFA500' : app.status === 'Approved' ? '#32CD32' : '#FF6B6B'}; color: white; padding: 5px 12px; border-radius: 15px; font-size: 12px; font-weight: 600;">${app.status}</span>
-        </div>
-        ${app.message ? `
-            <div style="background-color: #FFFFFF; padding: 15px; border-radius: 6px; margin-bottom: 15px;">
-            <strong style="color: #8B4513;">Application Message:</strong>
-            <p style="margin-top: 8px; line-height: 1.5;">${app.message}</p>
-            </div>
-        ` : ''}
-        ${app.status === 'Pending' ? `
-            <div style="display: flex; gap: 10px;">
-            <button class="btn" onclick="updateApplicationStatus('${app.applicant_id}', 'Approved')" style="flex: 1; padding: 8px; font-size: 14px; background-color: #32CD32;">✅ Approve</button>
-            <button class="btn-secondary" onclick="updateApplicationStatus('${app.applicant_id}', 'Rejected')" style="flex: 1; padding: 8px; font-size: 14px; background-color: #FF6B6B; color: white;">❌ Reject</button>
-            <button class="btn" onclick="contactApplicant('${app.tenant.mobile}', '${app.tenant.first_name}')" style="flex: 1; padding: 8px; font-size: 14px;">📞 Contact</button>
-            </div>
-        ` : `
-            <button class="btn" onclick="contactApplicant('${app.tenant.mobile}', '${app.tenant.first_name}')" style="width: 100%; padding: 8px; font-size: 14px;">📞 Contact</button>
-        `}
-        </div>
-    `).join('') : '<p style="text-align: center; color: #8B4513; font-size: 18px; padding: 40px;">No applications yet for this property.</p>';
-
-    applicantsModal.innerHTML = `
-        <div style="background: white; border-radius: 12px; max-width: 800px; width: 100%; max-height: 90%; overflow-y: auto;">
-        <div style="background-color: #ADD8E6; padding: 20px; display: flex; justify-content: space-between; align-items: center; border-radius: 12px 12px 0 0;">
-            <h2 style="color: #8B4513; margin: 0;">Applicants for ${property.property_name || property.type} - ${property.city}</h2>
-            <button onclick="this.closest('div[style*=fixed]').remove()" style="background: none; border: none; font-size: 30px; color: #8B4513; cursor: pointer; line-height: 1;">&times;</button>
-        </div>
-        <div style="padding: 30px;">
-            <div style="margin-bottom: 20px;">
-            <p><strong>Property:</strong> ${property.address}</p>
-            <p><strong>Rent:</strong> ₱${property.monthly_rent?.toLocaleString()}/month</p>
-            <p><strong>Total Applications:</strong> ${applicants?.length || 0}</p>
-            </div>
-            ${applicantsHTML}
-        </div>
-        </div>
-    `;
-
-    document.body.appendChild(applicantsModal);
-
-    } catch (error) {
-    console.error('Error loading applicants:', error);
-    showToast('Failed to load applicants: ' + error.message);
-    }
-}
-
-async function updateApplicationStatus(applicantId, newStatus) {
-    try {
-    // Get application details first
-    const { data: application, error: appError } = await supabase
-        .from('property_applicants')
-        .select(`
-        *,
-        tenant:users(
-            user_id,
-            first_name,
-            last_name
-        ),
-        property:properties(
-            property_id,
-            type,
-            city,
-            address,
-            landlord_id
-        )
-        `)
-        .eq('applicant_id', applicantId)
-        .single();
-
-    if (appError) throw appError;
-
-    const { error } = await supabase
-        .from('property_applicants')
-        .update({ status: newStatus })
-        .eq('applicant_id', applicantId);
-
-    if (error) throw error;
-
-    // 🔔 Create notification for tenant - application status update
-    if (newStatus === 'Approved') {
-        await createNotification(
-        application.tenant.user_id,
-        'Application Approved! 🎉',
-        `Congratulations! Your application for the ${application.property.type} property in ${application.property.city} has been approved. The landlord will contact you soon with next steps.`
-        );
-    } else if (newStatus === 'Rejected') {
-        await createNotification(
-        application.tenant.user_id,
-        'Application Update',
-        `Your application for the ${application.property.type} property in ${application.property.city} was not selected this time. Keep looking - there are many other great properties available!`
-        );
-    }
-
-    showToast(`Application ${newStatus.toLowerCase()} successfully!`);
-    
-    // Refresh the applicants view
-    document.querySelector('div[style*="position: fixed"]')?.remove();
-    
-    } catch (error) {
-    console.error('Error updating application status:', error);
-    showToast('Failed to update application status');
-    }
-}
-
-function contactApplicant(mobile, firstName) {
-    const contactModal = document.createElement('div');
-    contactModal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 3500; display: flex; align-items: center; justify-content: center; padding: 20px;';
-    contactModal.innerHTML = `
-    <div style="background: white; padding: 40px; border-radius: 12px; max-width: 400px; text-align: center;">
-        <h3 style="color: #8B4513; margin-bottom: 20px;">Contact ${firstName}</h3>
-        <p style="margin-bottom: 20px; color: #654321;">Mobile Number:</p>
-        <p style="font-size: 24px; font-weight: bold; color: #8B4513; margin-bottom: 30px; background-color: #F5F5DC; padding: 15px; border-radius: 8px;">${mobile}</p>
-        <button class="btn" onclick="this.closest('div[style*=fixed]').remove()" style="width: 100%; padding: 12px;">Close</button>
-    </div>
-    `;
-    document.body.appendChild(contactModal);
-}
-
-// Load Post Property Form with auto-filled contact info
-async function loadPostPropertyForm() {
-    if (!currentUser || currentUser.role !== 'Landlord') {
-    showToast('Only landlords can post properties');
-    showPage('home');
-    return;
-    }
-
-    try {
-    // Get the latest landlord data from database to ensure we have current info
-    const { data: landlordData, error } = await supabase
-        .from('users')
-        .select('user_id, first_name, last_name, mobile')
-        .eq('user_id', currentUser.user_id)
-        .single();
-
-    if (error) {
-        console.error('Error fetching landlord data:', error);
-        // Fallback to stored user data
-        autoFillContactInfo(currentUser);
-        return;
-    }
-
-    // Update current user data with latest from database
-    currentUser.first_name = landlordData.first_name;
-    currentUser.last_name = landlordData.last_name;
-    currentUser.mobile = landlordData.mobile;
-    
-    // Update localStorage with latest data
-    localStorage.setItem('housingo_user', JSON.stringify(currentUser));
-
-    // Auto-fill with fresh data
-    autoFillContactInfo(landlordData);
-
-    } catch (error) {
-    console.error('Error loading landlord data:', error);
-    // Fallback to stored user data
-    autoFillContactInfo(currentUser);
-    }
-}
-
-function autoFillContactInfo(userData) {
-    // Auto-fill contact information from landlord profile
-    const contactName = `${userData.first_name || ''} ${userData.last_name || ''}`.trim();
-    const contactNumber = userData.mobile || '';
-
-    // Set values immediately
-    const contactNameField = document.getElementById('contact-name');
-    const contactNumberField = document.getElementById('contact-number');
-    
-    if (contactNameField) {
-    contactNameField.value = contactName;
-    }
-    if (contactNumberField) {
-    contactNumberField.value = contactNumber;
-    }
-
-    // Show helpful message if mobile number is missing
-    if (!contactNumber) {
-    showToast('Please update your mobile number in your profile settings for better contact experience.');
-    }
-
-    // Also set up the form to auto-fill whenever the page is shown (backup)
-    setTimeout(() => {
-    if (contactNameField) {
-        contactNameField.value = contactName;
-    }
-    if (contactNumberField) {
-        contactNumberField.value = contactNumber;
-    }
-    }, 100);
-
-    console.log('✅ Contact info auto-filled:', { contactName, contactNumber });
-}
-
-// Image upload preview
-document.getElementById('property-images').addEventListener('change', function(e) {
-    const files = Array.from(e.target.files);
-    const previewContainer = document.getElementById('image-preview');
-    previewContainer.innerHTML = '';
-
-    if (files.length > 10) {
-    showToast('Maximum 10 images allowed. Only first 10 will be uploaded.');
-    e.target.files = Array.from(files).slice(0, 10);
-    }
-
-    files.slice(0, 10).forEach((file, index) => {
-    const reader = new FileReader();
-    reader.onload = function(event) {
-        const imgDiv = document.createElement('div');
-        imgDiv.style.cssText = 'position: relative; border-radius: 8px; overflow: hidden; border: 2px solid #ADD8E6;';
-        imgDiv.innerHTML = `
-        <img src="${event.target.result}" style="width: 100%; height: 120px; object-fit: cover;">
-        <div style="position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,0.6); color: white; padding: 3px 8px; border-radius: 4px; font-size: 12px;">${index + 1}</div>
-        `;
-        previewContainer.appendChild(imgDiv);
-    };
-    reader.readAsDataURL(file);
-    });
-});
+let cachedAvailableProperties = [];
+let selectedHomeKeyword = '';
+let currentModalImages = [];
+let modalCurrentImageIndex = 0;
+let activeConversations = [];
+let selectedConversationUserId = null;
+let selectedConversationPropertyId = null;
+let selectedNewRecipient = null;
+let editingExistingImageUrls = [];
+let streamClient = null;
+let isStreamConnected = false;
 
 // ============================================================================
-// Auth UI Helpers & Form Handlers (Supabase Auth + public.profiles)
+// Utility Helpers
 // ============================================================================
+function escapeHtml(str) {
+    return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function formatPeso(amount) {
+    const num = Number(amount || 0);
+    return `₱${num.toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+}
+
+function formatDate(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function formatDateTime(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function renderStars(rating) {
+    const r = Math.round(Number(rating || 0));
+    return '★'.repeat(Math.max(0, Math.min(5, r))) + '☆'.repeat(Math.max(0, 5 - Math.min(5, r)));
+}
+
+function statusBadgeHtml(status) {
+    const s = String(status || '').toLowerCase();
+    const map = {
+        available:   { bg: '#E8F5E9', color: '#1B5E20' },
+        active:      { bg: '#E8F5E9', color: '#1B5E20' },
+        approved:    { bg: '#E8F5E9', color: '#1B5E20' },
+        resolved:    { bg: '#E8F5E9', color: '#1B5E20' },
+        pending:     { bg: '#FFF8E1', color: '#B54708' },
+        occupied:    { bg: '#FFF8E1', color: '#B54708' },
+        under_review:{ bg: '#E3F2FD', color: '#0D47A1' },
+        open:        { bg: '#FFF0F0', color: '#B42318' },
+        rejected:    { bg: '#FFF0F0', color: '#B42318' },
+        suspended:   { bg: '#FFF0F0', color: '#B42318' },
+        removed:     { bg: '#FFF0F0', color: '#B42318' },
+        hidden:      { bg: '#ECEFF1', color: '#455A64' },
+        cancelled:   { bg: '#ECEFF1', color: '#455A64' },
+        dismissed:   { bg: '#ECEFF1', color: '#455A64' },
+    };
+    const style = map[s] || { bg: '#F5F5DC', color: '#8B4513' };
+    return `<span style="display:inline-block;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700;text-transform:capitalize;background:${style.bg};color:${style.color};">${escapeHtml(s.replace(/_/g, ' '))}</span>`;
+}
+
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `hg-toast ${type}`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+        toast.style.transition = 'opacity 0.25s ease, transform 0.25s ease';
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(20px)';
+        setTimeout(() => toast.remove(), 260);
+    }, 4000);
+}
 
 function showAuthAlert(elementId, message, type = 'error') {
     const el = document.getElementById(elementId);
@@ -2824,139 +108,288 @@ function hideAuthAlert(elementId) {
 function getFriendlyAuthError(error) {
     const msg = (error?.message || String(error || 'Something went wrong')).trim();
     const lower = msg.toLowerCase();
-    if (lower.includes('invalid login credentials')) {
-        return 'Incorrect email or password. Please double-check and try again.';
-    }
-    if (lower.includes('email not confirmed')) {
-        return 'Please confirm your email address first! Check your inbox (and spam folder) for the Supabase verification link.';
-    }
-    if (lower.includes('user already registered') || lower.includes('already been registered')) {
-        return 'An account with this email already exists. Try logging in instead!';
-    }
-    if (lower.includes('password should be at least')) {
-        return 'Password must be at least 6 characters long.';
-    }
-    if (lower.includes('rate limit')) {
-        return 'Too many attempts. Please wait a moment before trying again.';
-    }
+    if (lower.includes('invalid login credentials')) return 'Incorrect email or password. Please try again.';
+    if (lower.includes('email not confirmed')) return 'Please confirm your email address first via the link sent to your inbox.';
+    if (lower.includes('already registered') || lower.includes('already been registered')) return 'An account with this email already exists. Try logging in instead.';
+    if (lower.includes('password should be at least')) return 'Password must be at least 6 characters long.';
+    if (lower.includes('rate limit')) return 'Too many attempts. Please wait a moment and try again.';
     return msg;
 }
 
-function wireAuthInteractiveControls() {
-    // 1. Login & Register form submit listeners
-    const loginForm = document.getElementById('login-form');
-    if (loginForm) {
-        loginForm.addEventListener('submit', handleLogin);
-    } else {
-        console.error('❌ Required form #login-form not found.');
-    }
+// ============================================================================
+// Authentication, Session Persistence & Role Guards
+// ============================================================================
+function normalizeUserProfile(profile, authUser = null) {
+    if (!profile && !authUser) return null;
+    const fullName = (profile?.full_name || authUser?.user_metadata?.full_name || '').trim();
+    const parts = fullName ? fullName.split(/\s+/) : ['User'];
+    const role = (profile?.role || authUser?.user_metadata?.role || 'tenant').toLowerCase();
+    const status = (profile?.status || 'active').toLowerCase();
+    const id = profile?.id || authUser?.id;
+    const email = profile?.email || authUser?.email || '';
+    const phone = profile?.phone || authUser?.user_metadata?.phone || '';
 
-    const registerForm = document.getElementById('register-form');
-    if (registerForm) {
-        registerForm.addEventListener('submit', handleRegister);
-    } else {
-        console.error('❌ Required form #register-form not found.');
-    }
-
-    // 2. Show/Hide password toggles
-    document.querySelectorAll('[data-toggle-password]').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const targetId = btn.getAttribute('data-toggle-password');
-            const input = document.getElementById(targetId);
-            if (!input) {
-                console.error(`❌ Password input #${targetId} not found.`);
-                return;
-            }
-            const isHidden = input.type === 'password';
-            input.type = isHidden ? 'text' : 'password';
-            btn.textContent = isHidden ? '🙈' : '👁️';
-        });
-    });
-
-    // 3. Interactive Role Selector cards on Register page
-    const roleSelect = document.getElementById('reg-usertype');
-    const roleCards = document.querySelectorAll('[data-role-card]');
-    roleCards.forEach(card => {
-        const activateRole = () => {
-            const roleVal = card.getAttribute('data-role-card');
-            roleCards.forEach(c => c.classList.remove('selected'));
-            card.classList.add('selected');
-            if (roleSelect) roleSelect.value = roleVal;
-        };
-        card.addEventListener('click', activateRole);
-        card.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                activateRole();
-            }
-        });
-    });
-
-    // 4. Live Password Strength & Match indicators
-    const regPass = document.getElementById('reg-password');
-    const regConfirm = document.getElementById('reg-confirm-password');
-    const strengthBar = document.getElementById('reg-password-strength-bar');
-    const strengthText = document.getElementById('reg-password-strength-text');
-    const matchText = document.getElementById('reg-password-match-text');
-
-    const updateStrength = () => {
-        if (!regPass || !strengthBar || !strengthText) return;
-        const val = regPass.value;
-        let score = 0;
-        if (val.length >= 6) score++;
-        if (val.length >= 10) score++;
-        if (/[A-Z]/.test(val) && /[a-z]/.test(val)) score++;
-        if (/\d/.test(val)) score++;
-        if (/[^A-Za-z0-9]/.test(val)) score++;
-
-        if (!val) {
-            strengthBar.style.width = '0%';
-            strengthText.textContent = 'Use at least 6 characters (mix letters & numbers for stronger security)';
-            strengthText.style.color = '#654321';
-        } else if (score <= 2) {
-            strengthBar.style.width = '35%';
-            strengthBar.style.backgroundColor = '#FF6B6B';
-            strengthText.textContent = 'Weak password — add numbers or uppercase letters';
-            strengthText.style.color = '#B42318';
-        } else if (score === 3) {
-            strengthBar.style.width = '70%';
-            strengthBar.style.backgroundColor = '#FFA500';
-            strengthText.textContent = 'Fair password — getting stronger!';
-            strengthText.style.color = '#B54708';
-        } else {
-            strengthBar.style.width = '100%';
-            strengthBar.style.backgroundColor = '#2E7D32';
-            strengthText.textContent = 'Strong password ✓';
-            strengthText.style.color = '#067647';
-        }
+    return {
+        id,
+        user_id: id,
+        full_name: fullName || email.split('@')[0] || 'User',
+        first_name: parts[0] || 'User',
+        last_name: parts.slice(1).join(' ') || '',
+        email,
+        phone,
+        mobile: phone,
+        role,
+        status,
+        is_verified: Boolean(profile?.is_verified),
+        created_at: profile?.created_at || null,
     };
+}
 
-    const updateMatch = () => {
-        if (!regPass || !regConfirm || !matchText) return;
-        if (!regConfirm.value) {
-            matchText.textContent = '';
-            return;
-        }
-        if (regPass.value === regConfirm.value) {
-            matchText.textContent = '✓ Passwords match';
-            matchText.style.color = '#067647';
-        } else {
-            matchText.textContent = '✗ Passwords do not match';
-            matchText.style.color = '#B42318';
-        }
-    };
+function getDashboardForRole(role) {
+    const r = (role || 'tenant').toLowerCase();
+    if (r === 'admin') return 'admin-dashboard';
+    if (r === 'landlord') return 'landlord-dashboard';
+    return 'tenant-dashboard';
+}
 
-    if (regPass) {
-        regPass.addEventListener('input', () => {
-            updateStrength();
-            updateMatch();
-        });
+function updateLandlordVerificationUI() {
+    const isUnverified = Boolean(currentUser && currentUser.role === 'landlord' && !currentUser.is_verified);
+    const dashBanner = document.getElementById('landlord-verification-banner');
+    const postBanner = document.getElementById('post-property-verification-banner');
+    const addBtn = document.getElementById('landlord-add-property-btn');
+    const submitBtn = document.getElementById('post-property-submit-btn');
+
+    if (dashBanner) dashBanner.classList.toggle('show', isUnverified);
+    if (postBanner) postBanner.classList.toggle('show', isUnverified);
+    if (addBtn) {
+        addBtn.disabled = isUnverified;
+        addBtn.title = isUnverified ? 'Awaiting admin verification' : '';
     }
-    if (regConfirm) {
-        regConfirm.addEventListener('input', updateMatch);
+    if (submitBtn) {
+        submitBtn.disabled = isUnverified;
+        submitBtn.title = isUnverified ? 'Awaiting admin verification' : '';
     }
 }
 
+async function applyAuthenticatedUser(session, profile) {
+    if (!session || !session.user) {
+        currentUser = null;
+        updateNavForLoggedInUser();
+        updateLandlordVerificationUI();
+        return null;
+    }
+
+    const normalized = normalizeUserProfile(profile, session.user);
+    if (normalized.status === 'suspended') {
+        await window.authService?.signOut();
+        currentUser = null;
+        updateNavForLoggedInUser();
+        showAuthAlert('login-alert', 'Your account has been suspended by an administrator.', 'error');
+        showToast('Your account is suspended. Please contact support.', 'error');
+        showPage('login');
+        return null;
+    }
+
+    currentUser = normalized;
+    updateNavForLoggedInUser();
+    updateLandlordVerificationUI();
+    initOptionalStreamClient(session).catch(() => {});
+    return currentUser;
+}
+
+async function checkAuthState() {
+    if (!window.authService) {
+        console.error('❌ window.authService is not loaded.');
+        return;
+    }
+
+    try {
+        const session = await window.authService.getSession();
+        if (session?.user) {
+            const profile = await window.authService.getProfile(session.user.id);
+            await applyAuthenticatedUser(session, profile);
+        } else {
+            currentUser = null;
+            updateNavForLoggedInUser();
+            updateLandlordVerificationUI();
+        }
+    } catch (error) {
+        console.error('Error restoring session:', error);
+        currentUser = null;
+        updateNavForLoggedInUser();
+    }
+
+    const remembered = localStorage.getItem('housingo_remember_email');
+    const loginEmail = document.getElementById('login-email');
+    const rememberBox = document.getElementById('remember-me');
+    if (remembered && loginEmail && !loginEmail.value) {
+        loginEmail.value = remembered;
+        if (rememberBox) rememberBox.checked = true;
+    }
+
+    if (!authListenerInitialized) {
+        authListenerInitialized = true;
+        window.authService.onAuthStateChange(async (event, session, profile) => {
+            if (event === 'SIGNED_OUT') {
+                currentUser = null;
+                updateNavForLoggedInUser();
+                updateLandlordVerificationUI();
+            } else if (session?.user) {
+                await applyAuthenticatedUser(session, profile);
+            }
+        });
+    }
+}
+
+function updateNavForLoggedInUser() {
+    const navList = document.querySelector('#nav-menu ul');
+    const profileDropdown = document.getElementById('user-profile-dropdown');
+    const userNameDisplay = document.getElementById('user-name-display');
+    const floatingChat = document.getElementById('floating-chat-button');
+
+    if (!navList) {
+        console.error('❌ #nav-menu ul not found.');
+        return;
+    }
+
+    if (currentUser) {
+        const dash = getDashboardForRole(currentUser.role);
+        const roleLabel = currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1);
+        navList.innerHTML = `
+            <li><a href="#" onclick="showPage('home'); return false;">Home</a></li>
+            <li><a href="#" onclick="showPage('browse-properties'); return false;">Browse Properties</a></li>
+            <li><a href="#" onclick="showPage('${dash}'); return false;">Dashboard</a></li>
+            <li><a href="#" onclick="showPage('about'); return false;">About Us</a></li>
+            <li><a href="#" onclick="showPage('contact'); return false;">Contact Us</a></li>
+            <li><a href="#" onclick="showPage('help'); return false;">Help</a></li>
+        `;
+        if (profileDropdown) profileDropdown.style.display = 'block';
+        if (userNameDisplay) userNameDisplay.textContent = `👤 ${currentUser.full_name} (${roleLabel})`;
+        if (floatingChat) floatingChat.style.display = 'block';
+    } else {
+        navList.innerHTML = `
+            <li><a href="#" onclick="showPage('home'); return false;">Home</a></li>
+            <li><a href="#" onclick="showPage('browse-properties'); return false;">Browse Properties</a></li>
+            <li><a href="#" onclick="showPage('about'); return false;">About Us</a></li>
+            <li><a href="#" onclick="showPage('login'); return false;">Log In</a></li>
+            <li><a href="#" onclick="showPage('register'); return false;">Register</a></li>
+            <li><a href="#" onclick="showPage('contact'); return false;">Contact Us</a></li>
+            <li><a href="#" onclick="showPage('help'); return false;">Help</a></li>
+        `;
+        if (profileDropdown) profileDropdown.style.display = 'none';
+        if (floatingChat) floatingChat.style.display = 'none';
+    }
+}
+
+async function logout() {
+    try {
+        if (streamClient && isStreamConnected) {
+            await streamClient.disconnectUser().catch(() => {});
+            isStreamConnected = false;
+        }
+        await window.authService?.signOut();
+    } catch (error) {
+        console.error('Logout error:', error);
+    } finally {
+        currentUser = null;
+        updateNavForLoggedInUser();
+        updateLandlordVerificationUI();
+        const dd = document.getElementById('profile-dropdown-menu');
+        if (dd) dd.style.display = 'none';
+        showToast('Logged out successfully!', 'info');
+        showPage('home');
+    }
+}
+
+function goToDashboard() {
+    if (!currentUser) return showPage('login');
+    showPage(getDashboardForRole(currentUser.role));
+}
+
+function toggleProfileDropdown() {
+    const menu = document.getElementById('profile-dropdown-menu');
+    if (!menu) return console.error('❌ #profile-dropdown-menu not found.');
+    menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+}
+
+// ============================================================================
+// Page Router & Route Guards
+// ============================================================================
+function showPage(pageName) {
+    const protectedPages = ['admin-dashboard', 'landlord-dashboard', 'tenant-dashboard', 'post-property', 'user-settings'];
+    if (protectedPages.includes(pageName)) {
+        if (!currentUser) {
+            showToast('Please log in to access this page.', 'warning');
+            pageName = 'login';
+        } else if (currentUser.status === 'suspended') {
+            showToast('Your account is suspended.', 'error');
+            logout();
+            return;
+        } else if (pageName === 'admin-dashboard' && currentUser.role !== 'admin') {
+            showToast('Admin access required.', 'error');
+            pageName = getDashboardForRole(currentUser.role);
+        } else if ((pageName === 'landlord-dashboard' || pageName === 'post-property') && !['landlord', 'admin'].includes(currentUser.role)) {
+            showToast('Landlord access required.', 'error');
+            pageName = getDashboardForRole(currentUser.role);
+        } else if (pageName === 'tenant-dashboard' && !['tenant', 'admin'].includes(currentUser.role)) {
+            showToast('Tenant access required.', 'error');
+            pageName = getDashboardForRole(currentUser.role);
+        }
+    }
+
+    if ((pageName === 'login' || pageName === 'register') && currentUser) {
+        pageName = getDashboardForRole(currentUser.role);
+    }
+
+    const allPageIds = [
+        'home-page', 'home-content', 'about-page', 'login-page', 'register-page',
+        'contact-page', 'help-page', 'browse-properties-page', 'admin-dashboard-page',
+        'landlord-dashboard-page', 'tenant-dashboard-page', 'post-property-page', 'user-settings-page'
+    ];
+    allPageIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+        else console.error(`❌ Page container #${id} not found.`);
+    });
+
+    if (pageName === 'login') hideAuthAlert('login-alert');
+    if (pageName === 'register') hideAuthAlert('register-alert');
+
+    if (pageName === 'home') {
+        const hp = document.getElementById('home-page');
+        const hc = document.getElementById('home-content');
+        if (hp) hp.style.display = 'block';
+        if (hc) hc.style.display = 'block';
+    } else {
+        const target = document.getElementById(`${pageName}-page`);
+        if (!target) {
+            console.error(`❌ Target page #${pageName}-page not found.`);
+            return;
+        }
+        target.style.display = 'block';
+    }
+
+    const dd = document.getElementById('profile-dropdown-menu');
+    if (dd) dd.style.display = 'none';
+    const hamburger = document.getElementById('hamburger');
+    const navMenu = document.getElementById('nav-menu');
+    if (hamburger) hamburger.classList.remove('active');
+    if (navMenu) navMenu.classList.remove('active');
+
+    if (pageName === 'home') loadHomeProperties();
+    else if (pageName === 'browse-properties') loadBrowseProperties();
+    else if (pageName === 'tenant-dashboard') loadTenantDashboard();
+    else if (pageName === 'landlord-dashboard') { updateLandlordVerificationUI(); loadLandlordDashboard(); }
+    else if (pageName === 'post-property') { updateLandlordVerificationUI(); loadPostPropertyForm(); }
+    else if (pageName === 'admin-dashboard') loadAdminDashboard();
+    else if (pageName === 'user-settings') loadUserSettings();
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ============================================================================
+// Auth Form Handlers (Login, Register, Settings)
+// ============================================================================
 async function handleLogin(event) {
     event.preventDefault();
     hideAuthAlert('login-alert');
@@ -2964,45 +397,32 @@ async function handleLogin(event) {
     const emailEl = document.getElementById('login-email');
     const passwordEl = document.getElementById('login-password');
     const rememberEl = document.getElementById('remember-me');
-    const submitBtn = document.getElementById('login-submit-btn') || event.target.querySelector('button[type="submit"]');
+    const submitBtn = document.getElementById('login-submit-btn');
 
-    if (!emailEl || !passwordEl) {
-        console.error('❌ Login inputs #login-email or #login-password not found.');
-        return;
-    }
+    if (!emailEl || !passwordEl) return console.error('❌ Login inputs not found.');
 
     const email = emailEl.value.trim();
     const password = passwordEl.value;
-
-    if (!window.authService) {
-        showAuthAlert('login-alert', 'Authentication service is unavailable. Check your .env configuration.', 'error');
-        return;
-    }
 
     submitBtn.disabled = true;
     submitBtn.textContent = '⏳ Logging in...';
 
     try {
         const { session, profile } = await window.authService.signIn({ email, password });
-
-        if (rememberEl?.checked) {
-            localStorage.setItem('housingo_remember_email', email);
-        } else {
-            localStorage.removeItem('housingo_remember_email');
-        }
+        if (rememberEl?.checked) localStorage.setItem('housingo_remember_email', email);
+        else localStorage.removeItem('housingo_remember_email');
 
         const user = await applyAuthenticatedUser(session, profile);
-        if (!user) return; // Suspended user already handled
+        if (!user) return;
 
-        showAuthAlert('login-alert', `Welcome back, ${user.full_name}! Redirecting to your dashboard...`, 'success');
+        showAuthAlert('login-alert', `Welcome back, ${user.full_name}! Redirecting...`, 'success');
         showToast(`Welcome back, ${user.full_name}! 🎉`, 'success');
 
-        const targetDashboard = getDashboardForRole(user.role);
         setTimeout(() => {
             event.target.reset();
             if (rememberEl?.checked) emailEl.value = email;
-            showPage(targetDashboard);
-        }, 650);
+            showPage(getDashboardForRole(user.role));
+        }, 550);
     } catch (error) {
         console.error('Login error:', error);
         const friendly = getFriendlyAuthError(error);
@@ -3025,72 +445,39 @@ async function handleRegister(event) {
     const role = (document.getElementById('reg-usertype')?.value || 'tenant').toLowerCase();
     const password = document.getElementById('reg-password')?.value || '';
     const confirmPassword = document.getElementById('reg-confirm-password')?.value || '';
-    const submitBtn = document.getElementById('register-submit-btn') || event.target.querySelector('button[type="submit"]');
+    const submitBtn = document.getElementById('register-submit-btn');
 
-    if (!firstName || !lastName) {
-        showAuthAlert('register-alert', 'Please enter both your first name and last name.', 'error');
-        return;
-    }
-    if (password.length < 6) {
-        showAuthAlert('register-alert', 'Password must be at least 6 characters long.', 'error');
-        return;
-    }
-    if (password !== confirmPassword) {
-        showAuthAlert('register-alert', 'Passwords do not match. Please re-enter them.', 'error');
-        return;
-    }
-    if (!['tenant', 'landlord'].includes(role)) {
-        showAuthAlert('register-alert', 'Please select either Tenant or Landlord.', 'error');
-        return;
-    }
-    if (!window.authService) {
-        showAuthAlert('register-alert', 'Authentication service is unavailable. Check your .env configuration.', 'error');
-        return;
-    }
+    if (!firstName || !lastName) return showAuthAlert('register-alert', 'Please enter your first and last name.', 'error');
+    if (password.length < 6) return showAuthAlert('register-alert', 'Password must be at least 6 characters.', 'error');
+    if (password !== confirmPassword) return showAuthAlert('register-alert', 'Passwords do not match.', 'error');
+    if (!['tenant', 'landlord'].includes(role)) return showAuthAlert('register-alert', 'Please choose Tenant or Landlord.', 'error');
 
     submitBtn.disabled = true;
     submitBtn.textContent = '⏳ Creating Account...';
 
     try {
         const fullName = `${firstName} ${lastName}`.trim();
-        const data = await window.authService.signUp({
-            email,
-            password,
-            fullName,
-            role,
-            phone,
-        });
+        const data = await window.authService.signUp({ email, password, fullName, role, phone });
 
-        // Case 1: Supabase returned an active session immediately (email confirm disabled)
         if (data?.session && data?.user) {
-            // Brief wait so handle_new_user trigger commits public.profiles row
-            await new Promise(resolve => setTimeout(resolve, 350));
+            await new Promise(r => setTimeout(r, 350));
             const profile = await window.authService.getProfile(data.user.id);
             const user = await applyAuthenticatedUser(data.session, profile);
-
-            const roleNote = role === 'landlord'
-                ? ' Your landlord account is pending admin verification before you can publish listings.'
-                : '';
-            showToast(`Welcome to HousinGo, ${firstName}!${roleNote}`, 'success');
-            document.getElementById('register-form').reset();
+            showToast(`Welcome to HousinGo, ${firstName}!`, 'success');
+            document.getElementById('register-form')?.reset();
             showPage(getDashboardForRole(user?.role || role));
         } else {
-            // Case 2: Email confirmation required
-            showAuthAlert(
-                'register-alert',
-                `🎉 Account created for ${fullName}! Please check ${email} to verify your email address, then log in.`,
-                'success'
-            );
-            showToast('Account created! Please check your email to confirm, then log in.', 'success');
-            document.getElementById('register-form').reset();
+            showAuthAlert('register-alert', `🎉 Account created! Please check ${email} to verify your email, then log in.`, 'success');
+            showToast('Account created! Please check your email to confirm.', 'success');
+            document.getElementById('register-form')?.reset();
             setTimeout(() => {
-                const loginEmailEl = document.getElementById('login-email');
-                if (loginEmailEl) loginEmailEl.value = email;
+                const loginEmail = document.getElementById('login-email');
+                if (loginEmail) loginEmail.value = email;
                 showPage('login');
-            }, 2500);
+            }, 2200);
         }
     } catch (error) {
-        console.error('Registration error:', error);
+        console.error('Register error:', error);
         const friendly = getFriendlyAuthError(error);
         showAuthAlert('register-alert', friendly, 'error');
         showToast(friendly, 'error');
@@ -3100,2824 +487,1389 @@ async function handleRegister(event) {
     }
 }
 
-function handleContact(event) {
-    event.preventDefault();
-    showToast('Thank you for your message! We will get back to you soon.', 'success');
-    document.getElementById('contact-form')?.reset();
-}
-
-function socialLogin(platform) {
-    showToast(`${platform} login will be available soon! Please use Email & Password for now.`, 'info');
-}
-
-function showToast(message, type = 'info') {
-    const toast = document.createElement('div');
-    toast.className = `hg-toast ${type}`;
-    toast.textContent = message;
-    document.body.appendChild(toast);
-    setTimeout(() => {
-        toast.style.transition = 'opacity 0.25s ease, transform 0.25s ease';
-        toast.style.opacity = '0';
-        toast.style.transform = 'translateX(20px)';
-        setTimeout(() => toast.remove(), 260);
-    }, 4000);
-}
-
-wireAuthInteractiveControls();
-
-function toggleFAQ(questionElement) {
-    const faqItem = questionElement.parentElement;
-    const answer = faqItem.querySelector('.faq-answer');
-    const icon = questionElement.querySelector('.faq-icon');
-    const isOpen = answer.style.maxHeight && answer.style.maxHeight !== '0px';
-
-    if (isOpen) {
-    answer.style.maxHeight = '0';
-    icon.style.transform = 'rotate(0deg)';
-    questionElement.style.backgroundColor = '';
-    } else {
-    answer.style.maxHeight = answer.scrollHeight + 'px';
-    icon.style.transform = 'rotate(180deg)';
-    questionElement.style.backgroundColor = 'rgba(173, 216, 230, 0.3)';
-    }
-}
-
-if (window.elementSdk) {
-    window.elementSdk.init({
-    defaultConfig,
-    onConfigChange,
-    mapToCapabilities: (config) => ({
-        recolorables: [
-        {
-            get: () => config.background_color || defaultConfig.background_color,
-            set: (value) => {
-            config.background_color = value;
-            window.elementSdk.setConfig({ background_color: value });
-            }
-        },
-        {
-            get: () => config.primary_color || defaultConfig.primary_color,
-            set: (value) => {
-            config.primary_color = value;
-            window.elementSdk.setConfig({ primary_color: value });
-            }
-        },
-        {
-            get: () => config.text_color || defaultConfig.text_color,
-            set: (value) => {
-            config.text_color = value;
-            window.elementSdk.setConfig({ text_color: value });
-            }
-        },
-        {
-            get: () => config.accent_color || defaultConfig.accent_color,
-            set: (value) => {
-            config.accent_color = value;
-            window.elementSdk.setConfig({ accent_color: value });
-            }
-        },
-        {
-            get: () => config.secondary_text_color || defaultConfig.secondary_text_color,
-            set: (value) => {
-            config.secondary_text_color = value;
-            window.elementSdk.setConfig({ secondary_text_color: value });
-            }
-        }
-        ],
-        borderables: [],
-        fontEditable: undefined,
-        fontSizeable: undefined
-    }),
-    mapToEditPanelValues: (config) => new Map([
-        ["site_name", config.site_name || defaultConfig.site_name],
-        ["tagline", config.tagline || defaultConfig.tagline],
-        ["footer_text", config.footer_text || defaultConfig.footer_text],
-        ["contact_email", config.contact_email || defaultConfig.contact_email]
-    ])
-    });
-}
-
-async function viewAppliedProperty(propertyId) {
-    const property = allProperties.find(p => p.property_id === propertyId);
-    if (property) {
-    showPropertyDetails(property);
-    } else {
-    // If property not in current list, fetch it
-    try {
-        const { data: propertyData, error } = await supabase
-        .from('properties')
-        .select('*')
-        .eq('property_id', propertyId)
-        .single();
-
-        if (error) throw error;
-        if (propertyData) {
-        showPropertyDetails(propertyData);
-        }
-    } catch (error) {
-        console.error('Error loading property:', error);
-        showToast('Failed to load property details');
-    }
-    }
-}
-
-async function cancelApplication(applicantId) {
-    const confirmDiv = document.createElement('div');
-    confirmDiv.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 3000; display: flex; align-items: center; justify-content: center;';
-    confirmDiv.innerHTML = `
-    <div style="background: white; padding: 40px; border-radius: 12px; max-width: 400px; text-align: center;">
-        <h3 style="color: #8B4513; margin-bottom: 20px;">Cancel Application?</h3>
-        <p style="margin-bottom: 30px; color: #654321;">Are you sure you want to cancel this application? This action cannot be undone.</p>
-        <div style="display: flex; gap: 15px;">
-        <button class="btn-secondary" onclick="this.closest('div[style*=fixed]').remove()" style="flex: 1; padding: 12px;">Keep Application</button>
-        <button class="btn" onclick="confirmCancelApplication('${applicantId}')" style="flex: 1; padding: 12px; background-color: #FF6B6B;">Cancel Application</button>
-        </div>
-    </div>
-    `;
-    document.body.appendChild(confirmDiv);
-}
-
-async function confirmCancelApplication(applicantId) {
-    try {
-    document.querySelector('div[style*="position: fixed"]')?.remove();
-
-    const { error } = await supabase
-        .from('property_applicants')
-        .delete()
-        .eq('applicant_id', applicantId);
-
-    if (error) throw error;
-
-    showToast('Application cancelled successfully!');
-    loadTenantDashboard(); // Refresh the dashboard
-    } catch (error) {
-    console.error('Error cancelling application:', error);
-    showToast('Failed to cancel application');
-    }
-}
-
-function messageLandlord(landlordId, landlordName, propertyId) {
-    const messageDiv = document.createElement('div');
-    messageDiv.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 3000; display: flex; align-items: center; justify-content: center; padding: 20px;';
-    messageDiv.innerHTML = `
-    <div style="background: white; padding: 40px; border-radius: 12px; max-width: 500px; width: 100%;">
-        <h3 style="color: #8B4513; margin-bottom: 20px;">Message ${landlordName}</h3>
-        <form onsubmit="sendLandlordMessage(event, '${landlordId}', '${propertyId}')">
-        <div style="margin-bottom: 20px;">
-            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #8B4513;">Subject</label>
-            <input type="text" id="landlord-message-subject" required style="width: 100%; padding: 12px; border: 2px solid #ADD8E6; border-radius: 8px; font-size: 16px; color: #8B4513;">
-        </div>
-        <div style="margin-bottom: 20px;">
-            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #8B4513;">Message</label>
-            <textarea id="landlord-message-content" required rows="5" style="width: 100%; padding: 12px; border: 2px solid #ADD8E6; border-radius: 8px; font-size: 16px; color: #8B4513; resize: vertical; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;"></textarea>
-        </div>
-        <div style="display: flex; gap: 15px;">
-            <button type="button" class="btn-secondary" onclick="this.closest('div[style*=fixed]').remove()" style="flex: 1; padding: 12px;">Cancel</button>
-            <button type="submit" class="btn" style="flex: 1; padding: 12px;">Send Message</button>
-        </div>
-        </form>
-    </div>
-    `;
-    document.body.appendChild(messageDiv);
-}
-
-function sendLandlordMessage(event, landlordId, propertyId) {
-    event.preventDefault();
-    const subject = document.getElementById('landlord-message-subject').value;
-    const content = document.getElementById('landlord-message-content').value;
-    
-    showToast('Message sent to landlord successfully!');
-    document.querySelector('div[style*="position: fixed"]')?.remove();
-}
-
-function redirectToLogin() {
-    // Close any open modals
-    document.querySelector('div[style*="position: fixed"]')?.remove();
-    
-    // Navigate to login page
-    showPage('login');
-    
-    // Show a helpful message
-    showToast('Please log in to apply for properties and access more features!');
-}
-
-// User Settings Functions
 function loadUserSettings() {
-    if (!currentUser) {
-    showPage('login');
-    return;
-    }
-
-    // Populate form fields with current user data
-    document.getElementById('settings-firstname').value = currentUser.first_name || '';
-    document.getElementById('settings-lastname').value = currentUser.last_name || '';
-    document.getElementById('settings-email').value = currentUser.email || '';
-    document.getElementById('settings-mobile').value = currentUser.mobile || '';
-    document.getElementById('settings-role').value = currentUser.role || '';
+    if (!currentUser) return;
+    const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+    setVal('settings-firstname', currentUser.first_name);
+    setVal('settings-lastname', currentUser.last_name);
+    setVal('settings-email', currentUser.email);
+    setVal('settings-mobile', currentUser.phone);
+    setVal('settings-role', `${currentUser.role.toUpperCase()}${currentUser.role === 'landlord' ? (currentUser.is_verified ? ' (Verified)' : ' (Pending Verification)') : ''}`);
+    const emailEl = document.getElementById('settings-email');
+    if (emailEl) emailEl.readOnly = true;
 }
 
 async function handleUpdateProfile(event) {
     event.preventDefault();
-    
-    if (!currentUser) {
-    showToast('Please log in to update your profile');
-    return;
-    }
+    if (!currentUser) return;
+    const first = document.getElementById('settings-firstname')?.value.trim() || '';
+    const last = document.getElementById('settings-lastname')?.value.trim() || '';
+    const phone = document.getElementById('settings-mobile')?.value.trim() || '';
+    const btn = event.target.querySelector('button[type="submit"]');
 
-    const submitBtn = event.target.querySelector('button[type="submit"]');
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Updating...';
-
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
     try {
-    const updateData = {
-        first_name: document.getElementById('settings-firstname').value,
-        last_name: document.getElementById('settings-lastname').value,
-        email: document.getElementById('settings-email').value,
-        mobile: document.getElementById('settings-mobile').value
-    };
-
-    const { data, error } = await supabase
-        .from('users')
-        .update(updateData)
-        .eq('user_id', currentUser.user_id)
-        .select()
-        .single();
-
-    if (error) throw error;
-
-    // Update current user and localStorage
-    currentUser = { ...currentUser, ...updateData };
-    localStorage.setItem('housingo_user', JSON.stringify(currentUser));
-    
-    // Update navigation display
-    updateNavForLoggedInUser();
-
-    showToast('Profile updated successfully!');
-    
+        const updated = await window.authService.updateProfile(currentUser.id, {
+            full_name: `${first} ${last}`.trim(),
+            phone,
+        });
+        currentUser = normalizeUserProfile(updated, { id: currentUser.id, email: currentUser.email });
+        updateNavForLoggedInUser();
+        showToast('Profile updated successfully!', 'success');
     } catch (error) {
-    console.error('Profile update error:', error);
-    showToast('Failed to update profile: ' + error.message);
+        console.error('Update profile error:', error);
+        showToast(`Failed to update profile: ${error.message}`, 'error');
     } finally {
-    submitBtn.disabled = false;
-    submitBtn.textContent = 'Update Profile';
+        btn.disabled = false;
+        btn.textContent = 'Update Profile';
     }
 }
 
 async function handleChangePassword(event) {
     event.preventDefault();
-    
-    if (!currentUser) {
-    showToast('Please log in to change your password');
-    return;
-    }
+    const newPass = document.getElementById('new-password')?.value || '';
+    const confirmPass = document.getElementById('confirm-new-password')?.value || '';
+    const btn = event.target.querySelector('button[type="submit"]');
 
-    const currentPassword = document.getElementById('current-password').value;
-    const newPassword = document.getElementById('new-password').value;
-    const confirmPassword = document.getElementById('confirm-new-password').value;
+    if (newPass.length < 6) return showToast('New password must be at least 6 characters.', 'error');
+    if (newPass !== confirmPass) return showToast('New passwords do not match.', 'error');
 
-    if (newPassword !== confirmPassword) {
-    showToast('New passwords do not match!');
-    return;
-    }
-
-    if (currentPassword !== currentUser.password) {
-    showToast('Current password is incorrect!');
-    return;
-    }
-
-    const submitBtn = event.target.querySelector('button[type="submit"]');
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Changing Password...';
-
+    btn.disabled = true;
+    btn.textContent = 'Updating...';
     try {
-    const { data, error } = await supabase
-        .from('users')
-        .update({ password: newPassword })
-        .eq('user_id', currentUser.user_id)
-        .select()
-        .single();
-
-    if (error) throw error;
-
-    // Update current user password
-    currentUser.password = newPassword;
-    localStorage.setItem('housingo_user', JSON.stringify(currentUser));
-
-    showToast('Password changed successfully!');
-    document.getElementById('change-password-form').reset();
-    
+        await window.authService.changePassword(newPass);
+        showToast('Password updated successfully!', 'success');
+        event.target.reset();
     } catch (error) {
-    console.error('Password change error:', error);
-    showToast('Failed to change password: ' + error.message);
+        console.error('Change password error:', error);
+        showToast(`Failed to change password: ${error.message}`, 'error');
     } finally {
-    submitBtn.disabled = false;
-    submitBtn.textContent = 'Change Password';
+        btn.disabled = false;
+        btn.textContent = 'Change Password';
     }
 }
 
-function goToDashboard() {
-    if (!currentUser) return;
-    
-    const dashboardPage = currentUser.role === 'Admin' ? 'admin-dashboard' :
-                        currentUser.role === 'Landlord' ? 'landlord-dashboard' : 'tenant-dashboard';
-    showPage(dashboardPage);
-}
+// ============================================================================
+// Home & Browse Properties (available_properties view)
+// ============================================================================
+function renderPropertyCard(p) {
+    const imgUrl = Array.isArray(p.image_urls) && p.image_urls.length > 0 ? p.image_urls[0] : '';
+    const imgHtml = imgUrl
+        ? `<img src="${escapeHtml(imgUrl)}" alt="${escapeHtml(p.title)}" style="width:100%;height:200px;object-fit:cover;">`
+        : `<div style="width:100%;height:200px;background:linear-gradient(135deg,#ADD8E6,#E8F6FB);display:flex;align-items:center;justify-content:center;font-size:48px;color:#8B4513;">🏠</div>`;
 
-function toggleProfileDropdown() {
-    const dropdown = document.getElementById('profile-dropdown-menu');
-    dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
-}
+    const ratingHtml = p.review_count > 0
+        ? `<div style="font-size:13px;color:#B54708;font-weight:600;margin-bottom:6px;">${renderStars(p.avg_rating)} (${Number(p.avg_rating).toFixed(1)} · ${p.review_count})</div>`
+        : `<div style="font-size:12px;color:#654321;margin-bottom:6px;">No reviews yet</div>`;
 
-// Close dropdown when clicking outside
-document.addEventListener('click', function(event) {
-    const profileDropdown = document.getElementById('user-profile-dropdown');
-    const dropdown = document.getElementById('profile-dropdown-menu');
-    
-    if (profileDropdown && !profileDropdown.contains(event.target)) {
-    dropdown.style.display = 'none';
-    }
-});
-
-// Notification System
-let userNotifications = [];
-let currentNotificationFilter = 'all';
-
-// 🔔 Helper function to create notifications
-async function createNotification(userId, title, message) {
-    try {
-    const currentTimestamp = new Date().toISOString();
-    const { data, error } = await supabase
-        .from('notifications')
-        .insert([{
-        user_id: userId,
-        title: title,
-        message: message,
-        is_read: false,
-        sent_at: currentTimestamp
-        }])
-        .select()
-        .single();
-
-    if (error) {
-        console.error('Error creating notification:', error);
-        return null;
-    }
-
-    console.log('✅ Notification created successfully:', data);
-    return data;
-    } catch (error) {
-    console.error('Error creating notification:', error);
-    return null;
-    }
-}
-
-// 🔔 Helper function to notify all admins
-async function notifyAllAdmins(title, message) {
-    try {
-    // Get all admin users
-    const { data: admins, error } = await supabase
-        .from('users')
-        .select('user_id')
-        .eq('role', 'Admin')
-        .eq('status', 'Active');
-
-    if (error) {
-        console.error('Error fetching admins:', error);
-        return;
-    }
-
-    // Create notifications for all admins
-    const currentTimestamp = new Date().toISOString();
-    const notifications = admins.map(admin => ({
-        user_id: admin.user_id,
-        title: title,
-        message: message,
-        is_read: false,
-        sent_at: currentTimestamp
-    }));
-
-    if (notifications.length > 0) {
-        const { error: insertError } = await supabase
-        .from('notifications')
-        .insert(notifications);
-
-        if (insertError) {
-        console.error('Error creating admin notifications:', insertError);
-        } else {
-        console.log(`✅ Notifications sent to ${notifications.length} admin(s)`);
-        }
-    }
-    } catch (error) {
-    console.error('Error notifying admins:', error);
-    }
-}
-
-async function loadNotificationCount() {
-    if (!currentUser) return;
-
-    try {
-    console.log('🔔 Loading notifications for user:', currentUser.user_id);
-    
-    // Load notifications from database
-    const { data: notifications, error } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('user_id', currentUser.user_id)
-        .order('sent_at', { ascending: false });
-
-    if (error) {
-        console.error('Error loading notifications:', error);
-        // Fallback to sample notifications if database fails
-        const sampleNotifications = await generateSampleNotifications();
-        userNotifications = sampleNotifications;
-    } else {
-        userNotifications = notifications || [];
-        console.log(`📊 Loaded ${userNotifications.length} notifications from database`);
-        if (userNotifications.length > 0) {
-        console.log('🔔 Notifications details:', userNotifications.slice(0, 3).map(n => ({
-            id: n.notif_id,
-            title: n.title,
-            sent_at: n.sent_at,
-            is_read: n.is_read
-        })));
-        }
-    }
-    
-    const unreadCount = userNotifications.filter(n => !n.is_read).length;
-    console.log(`📈 Unread notifications count: ${unreadCount}`);
-    
-    const badge = document.getElementById('notification-badge');
-    const userIndicator = document.getElementById('user-notification-indicator');
-    
-    if (unreadCount > 0) {
-        badge.style.display = 'block';
-        badge.textContent = unreadCount > 99 ? '99+' : unreadCount;
-        
-        // Show red indicator near user name
-        if (userIndicator) {
-        userIndicator.style.display = 'block';
-        }
-    } else {
-        badge.style.display = 'none';
-        
-        // Hide red indicator near user name
-        if (userIndicator) {
-        userIndicator.style.display = 'none';
-        }
-    }
-    } catch (error) {
-    console.error('Error loading notifications:', error);
-    }
-}
-
-async function generateSampleNotifications() {
-    // Generate sample notifications based on user role (fallback when database is unavailable)
-    const notifications = [];
-    const now = new Date();
-
-    if (currentUser.role === 'Tenant') {
-    notifications.push(
-        {
-        notif_id: 'sample-1',
-        user_id: currentUser.user_id,
-        title: 'Application Status Update',
-        message: 'Your application for Studio Type in Taguig has been approved by the landlord!',
-        is_read: false,
-        sent_at: new Date(now - 2 * 60 * 60 * 1000) // 2 hours ago
-        },
-        {
-        notif_id: 'sample-2',
-        user_id: currentUser.user_id,
-        title: 'New Property Match',
-        message: 'A new Single Room property matching your preferences is now available in East Rembo.',
-        is_read: true,
-        sent_at: new Date(now - 24 * 60 * 60 * 1000) // 1 day ago
-        },
-        {
-        notif_id: 'sample-3',
-        user_id: currentUser.user_id,
-        title: 'Message from Landlord',
-        message: 'John Doe sent you a message regarding your application.',
-        is_read: false,
-        sent_at: new Date(now - 30 * 60 * 1000) // 30 minutes ago
-        }
-    );
-    } else if (currentUser.role === 'Landlord') {
-    notifications.push(
-        {
-        notif_id: 'sample-4',
-        user_id: currentUser.user_id,
-        title: 'New Property Application',
-        message: 'Maria Santos has applied for your Boarding House property in Taguig.',
-        is_read: false,
-        sent_at: new Date(now - 1 * 60 * 60 * 1000) // 1 hour ago
-        },
-        {
-        notif_id: 'sample-5',
-        user_id: currentUser.user_id,
-        title: 'Property Approved',
-        message: 'Your Single Family property listing has been approved and is now live!',
-        is_read: true,
-        sent_at: new Date(now - 3 * 24 * 60 * 60 * 1000) // 3 days ago
-        },
-        {
-        notif_id: 'sample-6',
-        user_id: currentUser.user_id,
-        title: 'Tenant Message',
-        message: 'Your tenant sent you a maintenance request for Unit 2B.',
-        is_read: false,
-        sent_at: new Date(now - 45 * 60 * 1000) // 45 minutes ago
-        }
-    );
-    } else if (currentUser.role === 'Admin') {
-    notifications.push(
-        {
-        notif_id: 'sample-7',
-        user_id: currentUser.user_id,
-        title: 'New Property Pending Review',
-        message: '5 new properties are waiting for your approval.',
-        is_read: false,
-        sent_at: new Date(now - 2 * 60 * 60 * 1000) // 2 hours ago
-        },
-        {
-        notif_id: 'sample-8',
-        user_id: currentUser.user_id,
-        title: 'New User Registration',
-        message: '3 new users have registered today.',
-        is_read: true,
-        sent_at: new Date(now - 6 * 60 * 60 * 1000) // 6 hours ago
-        }
-    );
-    }
-
-    return notifications;
-}
-
-function showNotifications() {
-    const modal = document.getElementById('notifications-modal');
-    modal.classList.add('active');
-    loadNotifications();
-    
-    // Close profile dropdown
-    document.getElementById('profile-dropdown-menu').style.display = 'none';
-}
-
-function closeNotifications() {
-    document.getElementById('notifications-modal').classList.remove('active');
-}
-
-function loadNotifications() {
-    displayNotifications(userNotifications);
-}
-
-function displayNotifications(notifications) {
-    const container = document.getElementById('notifications-list');
-    
-    if (notifications.length === 0) {
-    container.innerHTML = '<p style="text-align: center; color: #8B4513; padding: 40px;">No notifications yet.</p>';
-    return;
-    }
-
-    container.innerHTML = notifications.map(notification => {
-    // Use actual timestamp from database for notifications
-    const rawTimestamp = notification.sent_at;
-    const notificationTime = rawTimestamp ? new Date(rawTimestamp) : new Date();
-    
-    // Validate the parsed timestamp
-    if (isNaN(notificationTime.getTime())) {
-        console.warn(`⚠️ Invalid notification timestamp: ${rawTimestamp} for notification: ${notification.notif_id}`);
-        notificationTime = new Date(); // Fallback to current time
-    }
-    
-    const timeAgo = getTimeAgo(notificationTime);
-    const statusClass = notification.is_read ? 'read' : 'unread';
-    
-    console.log(`🔔 Notification display: id=${notification.notif_id}, raw_timestamp=${rawTimestamp}, parsed=${notificationTime.toISOString()}, timeAgo=${timeAgo}`);
-    
     return `
-        <div class="notification-item ${statusClass}" onclick="markAsRead('${notification.notif_id}')">
-        <div class="notification-header">
-            <div>
-            <div class="notification-title">${notification.title}</div>
-            <div class="notification-time">${timeAgo}</div>
+        <div class="property-card" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 15px rgba(0,0,0,0.09);display:flex;flex-direction:column;">
+            ${imgHtml}
+            <div style="padding:18px;flex:1;display:flex;flex-direction:column;">
+                <div style="display:flex;justify-content:space-between;align-items:start;gap:8px;margin-bottom:6px;">
+                    <h3 style="font-size:18px;font-weight:700;color:#8B4513;margin:0;">${escapeHtml(p.title)}</h3>
+                    ${statusBadgeHtml(p.availability_status || 'available')}
+                </div>
+                <p style="font-size:14px;color:#654321;margin-bottom:8px;">📍 ${escapeHtml(p.location)}</p>
+                ${ratingHtml}
+                <p style="font-size:22px;font-weight:800;color:#0288D1;margin-bottom:10px;">${formatPeso(p.price)} <span style="font-size:13px;font-weight:500;color:#654321;">/ month</span></p>
+                <p style="font-size:13px;color:#654321;margin-bottom:14px;flex:1;">${escapeHtml((p.description || '').slice(0, 110))}${(p.description || '').length > 110 ? '…' : ''}</p>
+                <div style="display:flex;gap:8px;margin-top:auto;">
+                    <button class="btn" onclick="openPropertyDetails('${p.property_id}')" style="flex:1;padding:10px;font-size:14px;">View Details</button>
+                    <button class="btn-secondary" onclick="applyForProperty('${p.property_id}')" style="padding:10px 14px;font-size:14px;">Apply</button>
+                </div>
             </div>
-            <span class="notification-status ${statusClass}">${notification.is_read ? 'Read' : 'New'}</span>
-        </div>
-        <div class="notification-message">${notification.message}</div>
         </div>
     `;
-    }).join('');
 }
 
-function getTimeAgo(timestamp) {
-    const now = new Date();
-    const messageTime = new Date(timestamp);
-    
-    // Adjust for 8-hour timezone difference (add 8 hours to message time)
-    const adjustedMessageTime = new Date(messageTime.getTime() + (8 * 60 * 60 * 1000));
-    
-    const diff = now - adjustedMessageTime;
-    const minutes = Math.floor(diff / (1000 * 60));
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+async function loadHomeProperties() {
+    const loadingEl = document.getElementById('loading');
+    const containerEl = document.getElementById('properties-container');
+    const emptyEl = document.getElementById('empty-state');
+    if (!containerEl) return;
 
-    if (minutes < 1) {
-    return 'Just now';
-    } else if (minutes < 60) {
-    return `${minutes} minute${minutes !== 1 ? 's' : ''} ago`;
-    } else if (hours < 24) {
-    return `${hours} hour${hours !== 1 ? 's' : ''} ago`;
-    } else {
-    return `${days} day${days !== 1 ? 's' : ''} ago`;
-    }
-}
+    if (loadingEl) loadingEl.style.display = 'block';
+    containerEl.style.display = 'none';
+    if (emptyEl) emptyEl.style.display = 'none';
 
-function filterNotifications(filter) {
-    currentNotificationFilter = filter;
-    
-    // Update filter button styles
-    document.querySelectorAll('[id^="filter-"]').forEach(btn => {
-    btn.className = 'btn-secondary';
-    btn.style.padding = '8px 16px';
-    btn.style.fontSize = '14px';
-    });
-    
-    document.getElementById(`filter-${filter}`).className = 'btn';
-
-    // Filter and display notifications
-    let filteredNotifications = userNotifications;
-    
-    if (filter === 'unread') {
-    filteredNotifications = userNotifications.filter(n => !n.is_read);
-    } else if (filter === 'read') {
-    filteredNotifications = userNotifications.filter(n => n.is_read);
-    }
-
-    displayNotifications(filteredNotifications);
-}
-
-async function markAsRead(notificationId) {
-    const notification = userNotifications.find(n => n.notif_id === notificationId);
-    if (notification && !notification.is_read) {
     try {
-        // Update in database if not a sample notification
-        if (!notificationId.startsWith('sample-')) {
-        const { error } = await supabase
-            .from('notifications')
-            .update({ is_read: true })
-            .eq('notif_id', notificationId);
-
-        if (error) {
-            console.error('Error marking notification as read:', error);
-            return;
-        }
-        }
-
-        // Update local state
-        notification.is_read = true;
-        loadNotificationCount(); // Update badge and red indicator
-        loadNotifications(); // Refresh display
+        cachedAvailableProperties = await window.propertyService.getAvailableProperties({ sortBy: 'newest' });
+        renderHomeGrid(cachedAvailableProperties);
     } catch (error) {
-        console.error('Error marking notification as read:', error);
-    }
+        console.error('Error loading properties:', error);
+        showToast(`Failed to load properties: ${error.message}`, 'error');
+        if (emptyEl) {
+            emptyEl.style.display = 'block';
+            emptyEl.querySelector('h3').textContent = 'Could not load properties';
+            emptyEl.querySelector('p').textContent = error.message;
+        }
+    } finally {
+        if (loadingEl) loadingEl.style.display = 'none';
     }
 }
 
-async function markAllAsRead() {
-    try {
-    // Update all unread notifications in database
-    const unreadNotifications = userNotifications.filter(n => !n.is_read && !n.notif_id.startsWith('sample-'));
-    
-    if (unreadNotifications.length > 0) {
-        const { error } = await supabase
-        .from('notifications')
-        .update({ is_read: true })
-        .eq('user_id', currentUser.user_id)
-        .eq('is_read', false);
+function renderHomeGrid(list) {
+    const containerEl = document.getElementById('properties-container');
+    const emptyEl = document.getElementById('empty-state');
+    if (!containerEl) return;
 
-        if (error) {
-        console.error('Error marking all notifications as read:', error);
+    if (!list || list.length === 0) {
+        containerEl.style.display = 'none';
+        if (emptyEl) emptyEl.style.display = 'block';
         return;
-        }
     }
 
-    // Update local state
-    userNotifications.forEach(n => n.is_read = true);
-    loadNotificationCount(); // Update badge and red indicator
-    loadNotifications(); // Refresh display
-    showToast('All notifications marked as read');
-    } catch (error) {
-    console.error('Error marking all notifications as read:', error);
-    showToast('Failed to mark all notifications as read');
-    }
+    if (emptyEl) emptyEl.style.display = 'none';
+    containerEl.style.display = 'grid';
+    containerEl.innerHTML = list.map(renderPropertyCard).join('');
 }
 
-// Close modals when clicking outside
-document.addEventListener('click', function(event) {
-    const notificationsModal = document.getElementById('notifications-modal');
-    if (event.target === notificationsModal) {
-    closeNotifications();
-    }
-});
+function filterHomeProperties() {
+    const searchVal = (document.getElementById('search-input')?.value || '').trim().toLowerCase();
+    const typeVal = (document.getElementById('type-search')?.value || selectedHomeKeyword || '').toLowerCase();
+    const maxPriceVal = document.getElementById('price-search')?.value || '';
 
-// Browse Properties Functions
-let selectedBrowseType = '';
-let browseProperties = [];
+    const filtered = cachedAvailableProperties.filter(p => {
+        const hay = `${p.title || ''} ${p.location || ''} ${p.description || ''}`.toLowerCase();
+        const matchSearch = !searchVal || hay.includes(searchVal);
+        const matchType = !typeVal || hay.includes(typeVal);
+        const matchPrice = !maxPriceVal || Number(p.price) <= Number(maxPriceVal);
+        return matchSearch && matchType && matchPrice;
+    });
+
+    renderHomeGrid(filtered);
+}
+
+function performHeroSearch() {
+    const searchVal = document.getElementById('search-input')?.value || '';
+    const maxPrice = document.getElementById('price-search')?.value || '';
+    showPage('browse-properties');
+    setTimeout(() => {
+        const bs = document.getElementById('browse-search-input');
+        const bm = document.getElementById('browse-max-price');
+        if (bs) bs.value = searchVal;
+        if (bm && maxPrice && maxPrice !== '999999') bm.value = maxPrice;
+        filterBrowseProperties();
+    }, 50);
+}
 
 async function loadBrowseProperties() {
-    try {
+    await filterBrowseProperties();
+}
+
+async function filterBrowseProperties() {
     const loadingEl = document.getElementById('browse-loading');
     const containerEl = document.getElementById('browse-properties-container');
-    const emptyStateEl = document.getElementById('browse-empty-state');
+    const emptyEl = document.getElementById('browse-empty-state');
+    const errorEl = document.getElementById('browse-error');
+    if (!containerEl) return;
 
-    loadingEl.style.display = 'block';
-    containerEl.style.display = 'none';
-    emptyStateEl.style.display = 'none';
+    const search = document.getElementById('browse-search-input')?.value || '';
+    const minPrice = document.getElementById('browse-min-price')?.value || '';
+    const maxPrice = document.getElementById('browse-max-price')?.value || '';
+    const sortBy = document.getElementById('browse-sort')?.value || 'newest';
 
-    // Use existing allProperties data or load fresh
-    if (allProperties.length === 0) {
-        await loadProperties();
-    }
+    if (loadingEl) loadingEl.style.display = 'block';
+    if (errorEl) errorEl.style.display = 'none';
+    if (emptyEl) emptyEl.style.display = 'none';
+    containerEl.innerHTML = '';
 
-    browseProperties = allProperties;
-    displayBrowseProperties(browseProperties);
-
-    loadingEl.style.display = 'none';
-    
-    if (browseProperties.length === 0) {
-        emptyStateEl.style.display = 'block';
-    } else {
-        containerEl.style.display = 'block';
-    }
-    } catch (error) {
-    console.error('Error loading browse properties:', error);
-    document.getElementById('browse-loading').innerHTML = '<p>Error loading properties. Please refresh the page.</p>';
-    }
-}
-
-function displayBrowseProperties(properties) {
-    const container = document.getElementById('browse-properties-container');
-    const emptyState = document.getElementById('browse-empty-state');
-    
-    container.innerHTML = '';
-
-    if (properties.length === 0) {
-    container.style.display = 'none';
-    emptyState.style.display = 'block';
-    return;
-    }
-
-    container.style.display = 'block';
-    emptyState.style.display = 'none';
-
-    // Group properties by type
-    const propertyTypes = ['Bed Spacer', 'Single Room', 'Boarding House', 'Studio Type', 'Single Family'];
-    
-    if (selectedBrowseType) {
-    // Show only selected type
-    const filteredProperties = properties.filter(p => p.type === selectedBrowseType);
-    displayPropertySection(selectedBrowseType, filteredProperties, container);
-    } else {
-    // Show all types with sections
-    propertyTypes.forEach(type => {
-        const typeProperties = properties.filter(p => p.type === type);
-        if (typeProperties.length > 0) {
-        displayPropertySection(type, typeProperties, container);
+    try {
+        const list = await window.propertyService.getAvailableProperties({ search, minPrice, maxPrice, sortBy });
+        if (list.length === 0) {
+            if (emptyEl) emptyEl.style.display = 'block';
+        } else {
+            containerEl.innerHTML = list.map(renderPropertyCard).join('');
         }
-    });
+    } catch (error) {
+        console.error('Browse error:', error);
+        if (errorEl) {
+            errorEl.textContent = `Failed to fetch properties: ${error.message}`;
+            errorEl.style.display = 'block';
+        }
+        showToast(error.message, 'error');
+    } finally {
+        if (loadingEl) loadingEl.style.display = 'none';
     }
 }
 
-function displayPropertySection(typeName, properties, container) {
-    const typeIcon = {
-    'Bed Spacer': '🛏️',
-    'Single Room': '🚪',
-    'Boarding House': '🏢',
-    'Studio Type': '🏠',
-    'Single Family': '🏠'
-    };
+function resetBrowseFilters() {
+    ['browse-search-input', 'browse-min-price', 'browse-max-price'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    const sortEl = document.getElementById('browse-sort');
+    if (sortEl) sortEl.value = 'newest';
+    filterBrowseProperties();
+}
 
-    const sectionDiv = document.createElement('div');
-    sectionDiv.style.marginBottom = '50px';
-    
-    sectionDiv.innerHTML = `
-    <h2 style="font-size: 28px; margin-bottom: 25px; color: #8B4513; display: flex; align-items: center; gap: 10px;">
-        ${typeIcon[typeName] || '🏠'} ${typeName} 
-        <span style="font-size: 18px; background-color: #ADD8E6; color: #8B4513; padding: 5px 15px; border-radius: 20px; font-weight: 600;">${properties.length}</span>
-    </h2>
-    <div class="properties-grid listing-grid" id="section-${typeName.replace(/\s+/g, '-').toLowerCase()}"></div>
-    `;
+// ============================================================================
+// Property Details Modal + Reviews + Apply + Complaint
+// ============================================================================
+async function openPropertyDetails(propertyId) {
+    const modal = document.getElementById('property-modal');
+    const titleEl = document.getElementById('modal-title');
+    const bodyEl = document.getElementById('modal-body');
+    if (!modal || !bodyEl) return console.error('❌ #property-modal or #modal-body not found.');
 
-    container.appendChild(sectionDiv);
+    modal.classList.add('active');
+    if (titleEl) titleEl.textContent = 'Loading property...';
+    bodyEl.innerHTML = '<div class="loading"><div class="loading-spinner"></div><p>Loading details &amp; reviews...</p></div>';
 
-    const sectionContainer = sectionDiv.querySelector('.properties-grid');
-    
-    properties.forEach(property => {
-    const amenities = getPropertyAmenities(property.property_id);
-    const images = getPropertyImages(property.property_id);
+    try {
+        const [property, reviews] = await Promise.all([
+            window.propertyService.getPropertyById(propertyId),
+            window.reviewService.getPropertyReviews(propertyId),
+        ]);
 
-    const card = document.createElement('div');
-    card.className = 'property-card';
-    card.onclick = () => showPropertyDetails(property);
+        currentModalImages = Array.isArray(property.image_urls) ? property.image_urls : [];
+        modalCurrentImageIndex = 0;
 
-    const amenitiesHTML = amenities.slice(0, 4).map(amenity => {
-        const icon = amenityIcons[amenity] || '✓';
-        return `<span class="amenity-tag">${icon} ${amenity}</span>`;
-    }).join('');
+        if (titleEl) titleEl.textContent = property.title;
 
-    // Create image carousel for property card
-    let imageHTML;
-    if (images.length > 0) {
-        imageHTML = `
-        <div class="property-image-carousel" style="position: relative; width: 100%; height: 250px; overflow: hidden;">
-            ${images.map((img, index) => `
-            <img src="${img.image_url}" alt="${property.type}" 
-                    style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; opacity: ${index === 0 ? 1 : 0}; transition: opacity 0.5s ease-in-out;"
-                    data-image-index="${index}">
-            `).join('')}
-            ${images.length > 1 ? `
-            <div style="position: absolute; bottom: 10px; right: 10px; background: rgba(0,0,0,0.7); color: white; padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: 600;">
-                <span class="current-image">1</span>/${images.length}
+        const galleryHtml = currentModalImages.length > 0
+            ? `<div style="position:relative;margin-bottom:20px;">
+                 <img id="modal-carousel-img" src="${escapeHtml(currentModalImages[0])}" alt="${escapeHtml(property.title)}" style="width:100%;max-height:340px;object-fit:cover;border-radius:10px;">
+                 ${currentModalImages.length > 1 ? `
+                   <button onclick="prevModalImage()" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.9);border:none;border-radius:50%;width:38px;height:38px;font-size:18px;cursor:pointer;">‹</button>
+                   <button onclick="nextModalImage()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.9);border:none;border-radius:50%;width:38px;height:38px;font-size:18px;cursor:pointer;">›</button>
+                   <div id="modal-carousel-counter" style="position:absolute;bottom:10px;right:14px;background:rgba(0,0,0,0.6);color:#fff;padding:3px 10px;border-radius:999px;font-size:12px;">1 / ${currentModalImages.length}</div>
+                 ` : ''}
+               </div>`
+            : `<div style="width:100%;height:200px;background:linear-gradient(135deg,#ADD8E6,#E8F6FB);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:60px;margin-bottom:20px;">🏠</div>`;
+
+        const avgRating = reviews.length
+            ? (reviews.reduce((s, r) => s + Number(r.rating), 0) / reviews.length).toFixed(1)
+            : null;
+
+        const myReview = currentUser ? reviews.find(r => r.tenant_id === currentUser.id) : null;
+        const canReview = currentUser && currentUser.role === 'tenant';
+        const isOwner = currentUser && currentUser.id === property.landlord_id;
+
+        const reviewFormHtml = canReview ? `
+            <form onsubmit="handleSubmitReview(event, '${property.property_id}')" style="background:#F5F5DC;padding:18px;border-radius:10px;margin-bottom:18px;">
+                <h4 style="color:#8B4513;margin-bottom:10px;">${myReview ? '✏️ Edit Your Review' : '⭐ Write a Review'}</h4>
+                <div style="margin-bottom:10px;">
+                    <label style="font-weight:600;color:#8B4513;margin-right:10px;">Rating:</label>
+                    <select id="review-rating-input" required style="padding:8px 12px;border:2px solid #ADD8E6;border-radius:8px;">
+                        ${[5,4,3,2,1].map(n => `<option value="${n}" ${myReview && Number(myReview.rating) === n ? 'selected' : ''}>${n} Star${n > 1 ? 's' : ''} (${'★'.repeat(n)})</option>`).join('')}
+                    </select>
+                </div>
+                <textarea id="review-comment-input" rows="3" placeholder="Share your experience with this property..." style="width:100%;padding:10px;border:2px solid #ADD8E6;border-radius:8px;margin-bottom:10px;">${escapeHtml(myReview?.comment || '')}</textarea>
+                <div style="display:flex;gap:10px;">
+                    <button type="submit" class="btn" style="padding:9px 18px;font-size:14px;">${myReview ? 'Update Review' : 'Post Review'}</button>
+                    ${myReview ? `<button type="button" class="btn-secondary" onclick="handleDeleteReview('${myReview.review_id}', '${property.property_id}')" style="padding:9px 14px;font-size:14px;color:#B42318;border-color:#FF6B6B;">Delete</button>` : ''}
+                </div>
+            </form>
+        ` : '';
+
+        const reviewsListHtml = reviews.length === 0
+            ? '<p style="color:#654321;">No reviews yet. Be the first tenant to review this listing!</p>'
+            : reviews.map(r => `
+                <div style="border-bottom:1px solid #EAE6D6;padding:12px 0;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <strong style="color:#8B4513;">${escapeHtml(r.tenant?.full_name || 'Tenant')}</strong>
+                        <span style="color:#B54708;font-weight:700;">${renderStars(r.rating)} (${r.rating}/5)</span>
+                    </div>
+                    <p style="color:#654321;margin:6px 0 4px;">${escapeHtml(r.comment || '')}</p>
+                    <small style="color:#888;">${formatDate(r.created_at)}</small>
+                </div>
+            `).join('');
+
+        bodyEl.innerHTML = `
+            ${galleryHtml}
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+                <span style="font-size:28px;font-weight:800;color:#0288D1;">${formatPeso(property.price)} <span style="font-size:14px;color:#654321;font-weight:500;">/ month</span></span>
+                ${statusBadgeHtml(property.availability_status)}
             </div>
-            ` : ''}
-        </div>
+            <p style="font-size:16px;color:#8B4513;margin-bottom:12px;">📍 <strong>Location:</strong> ${escapeHtml(property.location)}</p>
+            <p style="color:#654321;line-height:1.7;margin-bottom:18px;white-space:pre-line;">${escapeHtml(property.description || 'No description provided.')}</p>
+            <div style="background:#F5F5DC;padding:15px;border-radius:10px;margin-bottom:20px;">
+                <strong style="color:#8B4513;">Landlord:</strong> ${escapeHtml(property.landlord?.full_name || 'Property Owner')}
+                ${property.landlord?.is_verified ? ' <span style="color:#2E7D32;font-weight:700;">✔ Verified</span>' : ''}
+                ${property.landlord?.phone ? `<br><strong style="color:#8B4513;">Phone:</strong> ${escapeHtml(property.landlord.phone)}` : ''}
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:26px;">
+                ${!isOwner ? `<button class="btn" onclick="applyForProperty('${property.property_id}')" style="flex:1;min-width:140px;padding:12px;">📝 Apply Now</button>` : ''}
+                ${!isOwner && property.landlord_id ? `<button class="btn-secondary" onclick="openMessageToUser('${property.landlord_id}', '${escapeHtml(property.landlord?.full_name || 'Landlord')}', '${property.property_id}')" style="flex:1;min-width:140px;padding:12px;">💬 Message Landlord</button>` : ''}
+                ${currentUser && !isOwner ? `<button class="btn-secondary" onclick="openComplaintModal('${property.property_id}', '${property.landlord_id}', '${escapeHtml(property.title)}')" style="padding:12px 16px;color:#B42318;border-color:#FF6B6B;">🚨 Report</button>` : ''}
+            </div>
+            <hr style="border:none;border-top:2px solid #ADD8E6;margin:20px 0;">
+            <h3 style="color:#8B4513;margin-bottom:12px;">⭐ Reviews ${avgRating ? `(${avgRating} avg · ${reviews.length})` : '(0)'}</h3>
+            ${reviewFormHtml}
+            <div>${reviewsListHtml}</div>
         `;
-    } else {
-        imageHTML = '<div class="property-image">🏠</div>';
+    } catch (error) {
+        console.error('Property details error:', error);
+        bodyEl.innerHTML = `<div class="auth-alert show error">Failed to load property details: ${escapeHtml(error.message)}</div>`;
     }
-
-    card.innerHTML = `
-        ${imageHTML}
-        <div class="property-content">
-        <span class="property-type">${property.type || 'Property'}</span>
-        <h3 class="property-title">${property.property_name || property.type || 'Property'}</h3>
-        <p class="property-location">📍 ${property.address || 'Address not specified'}</p>
-        <p class="property-price">₱${(property.monthly_rent || 0).toLocaleString()}/month</p>
-        <div class="amenities-list">
-            ${amenitiesHTML}
-            ${amenities.length > 4 ? `<span class="amenity-tag">+${amenities.length - 4} more</span>` : ''}
-        </div>
-        <div class="property-actions">
-            <button class="btn-secondary" onclick="event.stopPropagation(); viewDetails('${property.property_id}')">View</button>
-            <button class="btn-secondary" onclick="event.stopPropagation(); messageLandlordFromCard('${property.property_id}')">Message</button>
-        </div>
-        </div>
-    `;
-
-    // Add hover carousel functionality for property cards
-    if (images.length > 1) {
-        let carouselInterval;
-        let currentImageIndex = 0;
-        const carouselImages = card.querySelectorAll('.property-image-carousel img');
-        const currentImageSpan = card.querySelector('.current-image');
-
-        function nextImage() {
-        carouselImages[currentImageIndex].style.opacity = '0';
-        currentImageIndex = (currentImageIndex + 1) % images.length;
-        carouselImages[currentImageIndex].style.opacity = '1';
-        if (currentImageSpan) {
-            currentImageSpan.textContent = currentImageIndex + 1;
-        }
-        }
-
-        card.addEventListener('mouseenter', () => {
-        carouselInterval = setInterval(nextImage, 2000);
-        });
-
-        card.addEventListener('mouseleave', () => {
-        if (carouselInterval) {
-            clearInterval(carouselInterval);
-            carouselInterval = null;
-        }
-        });
-    }
-
-    sectionContainer.appendChild(card);
-    });
 }
 
-function filterBrowseProperties() {
-    const searchTerm = document.getElementById('browse-search-input').value.toLowerCase();
-    const sortBy = document.getElementById('browse-sort').value;
-
-    let filtered = browseProperties.filter(property => {
-    const matchesSearch = !searchTerm || 
-        (property.property_name && property.property_name.toLowerCase().includes(searchTerm)) ||
-        (property.type && property.type.toLowerCase().includes(searchTerm)) ||
-        (property.city && property.city.toLowerCase().includes(searchTerm)) ||
-        (property.barangay && property.barangay.toLowerCase().includes(searchTerm)) ||
-        (property.address && property.address.toLowerCase().includes(searchTerm)) ||
-        (property.nearby_landmarks && property.nearby_landmarks.toLowerCase().includes(searchTerm)) ||
-        (property.description && property.description.toLowerCase().includes(searchTerm));
-
-    const matchesType = !selectedBrowseType || property.type === selectedBrowseType;
-
-    return matchesSearch && matchesType;
-    });
-
-    // Sort properties
-    switch (sortBy) {
-    case 'oldest':
-        filtered.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-        break;
-    case 'price-low':
-        filtered.sort((a, b) => (a.monthly_rent || 0) - (b.monthly_rent || 0));
-        break;
-    case 'price-high':
-        filtered.sort((a, b) => (b.monthly_rent || 0) - (a.monthly_rent || 0));
-        break;
-    default: // newest
-        filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    }
-
-    displayBrowseProperties(filtered);
+function nextModalImage() {
+    if (!currentModalImages.length) return;
+    modalCurrentImageIndex = (modalCurrentImageIndex + 1) % currentModalImages.length;
+    const img = document.getElementById('modal-carousel-img');
+    const ctr = document.getElementById('modal-carousel-counter');
+    if (img) img.src = currentModalImages[modalCurrentImageIndex];
+    if (ctr) ctr.textContent = `${modalCurrentImageIndex + 1} / ${currentModalImages.length}`;
 }
 
-// Browse property type filter handlers
-document.addEventListener('DOMContentLoaded', function() {
-    // Add event listeners for browse property filters
-    document.addEventListener('click', function(e) {
-    if (e.target.hasAttribute('data-browse-type')) {
-        // Remove active class from all browse filter buttons
-        document.querySelectorAll('[data-browse-type]').forEach(btn => {
-        btn.classList.remove('active');
-        btn.style.backgroundColor = '#F5F5DC';
-        btn.style.borderColor = '#ADD8E6';
+function prevModalImage() {
+    if (!currentModalImages.length) return;
+    modalCurrentImageIndex = (modalCurrentImageIndex - 1 + currentModalImages.length) % currentModalImages.length;
+    const img = document.getElementById('modal-carousel-img');
+    const ctr = document.getElementById('modal-carousel-counter');
+    if (img) img.src = currentModalImages[modalCurrentImageIndex];
+    if (ctr) ctr.textContent = `${modalCurrentImageIndex + 1} / ${currentModalImages.length}`;
+}
+
+async function applyForProperty(propertyId) {
+    if (!currentUser) {
+        showToast('Please log in as a tenant to apply for this property.', 'warning');
+        document.getElementById('property-modal')?.classList.remove('active');
+        return showPage('login');
+    }
+    if (currentUser.role !== 'tenant') {
+        return showToast('Only tenant accounts can submit rental applications.', 'warning');
+    }
+
+    try {
+        await window.applicationService.applyToProperty({
+            property_id: propertyId,
+            tenant_id: currentUser.id,
         });
-        
-        // Add active class to clicked button
-        e.target.classList.add('active');
-        e.target.style.backgroundColor = '#ADD8E6';
-        e.target.style.borderColor = '#87CEEB';
-        
-        selectedBrowseType = e.target.getAttribute('data-browse-type');
-        filterBrowseProperties();
+        showToast('Application submitted! Check your Tenant Dashboard for status updates.', 'success');
+    } catch (error) {
+        console.error('Apply error:', error);
+        showToast(error.message, 'error');
     }
-    });
+}
 
-    // Add event listeners for browse search and sort
-    const browseSearchInput = document.getElementById('browse-search-input');
-    const browseSortSelect = document.getElementById('browse-sort');
-    
-    if (browseSearchInput) {
-    browseSearchInput.addEventListener('keyup', (e) => {
-        if (e.key === 'Enter') {
-        filterBrowseProperties();
-        } else {
-        // Real-time search with debounce
-        clearTimeout(window.browseSearchTimeout);
-        window.browseSearchTimeout = setTimeout(filterBrowseProperties, 300);
-        }
-    });
-    browseSearchInput.addEventListener('input', () => {
-        // Real-time search with debounce
-        clearTimeout(window.browseSearchTimeout);
-        window.browseSearchTimeout = setTimeout(filterBrowseProperties, 300);
-    });
-    }
-    
-    if (browseSortSelect) {
-    browseSortSelect.addEventListener('change', filterBrowseProperties);
-    }
-});
+async function handleSubmitReview(event, propertyId) {
+    event.preventDefault();
+    if (!currentUser) return showToast('Please log in to post a review.', 'warning');
 
-// Live Chat System with Real-time Notifications
-async function initializeMessaging() {
+    const rating = document.getElementById('review-rating-input')?.value;
+    const comment = document.getElementById('review-comment-input')?.value || '';
+
+    try {
+        const res = await window.reviewService.upsertReview({
+            property_id: propertyId,
+            tenant_id: currentUser.id,
+            rating,
+            comment,
+        });
+        showToast(res.updated ? 'Review updated!' : 'Review posted!', 'success');
+        openPropertyDetails(propertyId);
+    } catch (error) {
+        console.error('Review submit error:', error);
+        showToast(`Could not save review: ${error.message}`, 'error');
+    }
+}
+
+async function handleDeleteReview(reviewId, propertyId = null) {
+    if (!confirm('Delete your review?')) return;
+    try {
+        await window.reviewService.deleteReview(reviewId);
+        showToast('Review deleted.', 'info');
+        if (propertyId) openPropertyDetails(propertyId);
+        else loadTenantDashboard();
+    } catch (error) {
+        showToast(`Failed to delete review: ${error.message}`, 'error');
+    }
+}
+
+// ============================================================================
+// Tenant Dashboard
+// ============================================================================
+async function loadTenantDashboard() {
     if (!currentUser) return;
+    const appsEl = document.getElementById('tenant-saved-properties');
+    const reviewsEl = document.getElementById('tenant-reviews');
+    const complaintsEl = document.getElementById('tenant-complaints');
+
+    if (appsEl) appsEl.innerHTML = '<p>Loading applications...</p>';
+    if (reviewsEl) reviewsEl.innerHTML = '<p>Loading reviews...</p>';
+    if (complaintsEl) complaintsEl.innerHTML = '<p>Loading complaints...</p>';
 
     try {
-    console.log('🚀 Initializing live chat system...');
-    
-    // Start with database-based messaging for reliability
-    await loadUserConversations();
-    
-    // Start real-time message polling
-    startMessagePolling();
-    
-    // Try to initialize GetStream as enhancement
-    try {
-        streamClient = StreamChat.getInstance('sbt75mfx4qz6');
-        
-        const userId = `user_${currentUser.user_id}`;
-        const userName = `${currentUser.first_name} ${currentUser.last_name}`;
-        const userToken = streamClient.devToken(userId);
-        
-        await streamClient.connectUser({
-        id: userId,
-        name: userName,
-        email: currentUser.email,
-        role: currentUser.role,
-        image: `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=ADD8E6&color=8B4513`
-        }, userToken);
-        
-        isStreamConnected = true;
-        console.log('✅ GetStream connected as enhancement');
-        
-        // Listen for GetStream events
-        streamClient.on('message.new', handleStreamMessage);
-        streamClient.on('channel.updated', loadStreamConversations);
-        
-    } catch (streamError) {
-        console.log('ℹ️ GetStream not available, using database-only messaging');
-        isStreamConnected = false;
-    }
-    
+        const [apps, reviews, complaints] = await Promise.all([
+            window.applicationService.getTenantApplications(currentUser.id),
+            window.reviewService.getTenantReviews(currentUser.id),
+            window.complaintService.getMyComplaints(currentUser.id),
+        ]);
+
+        const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = String(v); };
+        setTxt('tenant-stat-total', apps.length);
+        setTxt('tenant-stat-approved', apps.filter(a => a.status === 'approved').length);
+        setTxt('tenant-stat-pending', apps.filter(a => a.status === 'pending').length);
+        setTxt('tenant-stat-reviews', reviews.length);
+
+        if (appsEl) {
+            appsEl.innerHTML = apps.length === 0
+                ? '<p style="color:#654321;">You have not applied to any properties yet. <a href="#" onclick="showPage(\'browse-properties\'); return false;" style="color:#0288D1;font-weight:700;">Browse listings →</a></p>'
+                : apps.map(a => `
+                    <div style="border:2px solid #ADD8E6;border-radius:10px;padding:18px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;">
+                        <div>
+                            <h3 style="color:#8B4513;margin:0 0 6px;">${escapeHtml(a.property?.title || 'Property')}</h3>
+                            <p style="color:#654321;margin:0 0 6px;">📍 ${escapeHtml(a.property?.location || '—')} · <strong>${formatPeso(a.property?.price)}/mo</strong></p>
+                            <small style="color:#654321;">Applied: ${formatDate(a.application_date)}</small>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                            ${statusBadgeHtml(a.status)}
+                            ${a.property?.property_id ? `<button class="btn-secondary" onclick="openPropertyDetails('${a.property.property_id}')" style="padding:8px 14px;font-size:13px;">View</button>` : ''}
+                            ${a.property?.landlord?.id ? `<button class="btn-secondary" onclick="openMessageToUser('${a.property.landlord.id}', '${escapeHtml(a.property.landlord.full_name || 'Landlord')}', '${a.property.property_id}')" style="padding:8px 14px;font-size:13px;">💬 Message</button>` : ''}
+                            ${a.status === 'pending' ? `<button class="btn-secondary" onclick="cancelTenantApplication('${a.application_id}')" style="padding:8px 14px;font-size:13px;color:#B42318;border-color:#FF6B6B;">Cancel</button>` : ''}
+                        </div>
+                    </div>
+                `).join('');
+        }
+
+        if (reviewsEl) {
+            reviewsEl.innerHTML = reviews.length === 0
+                ? '<p style="color:#654321;">You haven\'t written any reviews yet. Open any property to leave a review.</p>'
+                : reviews.map(r => `
+                    <div style="border:1.5px solid #EAE6D6;background:#FAFAF5;border-radius:10px;padding:16px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:start;gap:12px;flex-wrap:wrap;">
+                        <div>
+                            <strong style="color:#8B4513;">${escapeHtml(r.property?.title || 'Property')}</strong>
+                            <span style="margin-left:10px;color:#B54708;font-weight:700;">${renderStars(r.rating)}</span>
+                            <p style="color:#654321;margin:6px 0 4px;">${escapeHtml(r.comment || '')}</p>
+                            <small style="color:#888;">${formatDate(r.created_at)}</small>
+                        </div>
+                        <div style="display:flex;gap:8px;">
+                            ${r.property?.property_id ? `<button class="btn-secondary" onclick="openPropertyDetails('${r.property.property_id}')" style="padding:7px 12px;font-size:13px;">Edit</button>` : ''}
+                            <button class="btn-secondary" onclick="handleDeleteReview('${r.review_id}')" style="padding:7px 12px;font-size:13px;color:#B42318;border-color:#FF6B6B;">Delete</button>
+                        </div>
+                    </div>
+                `).join('');
+        }
+
+        if (complaintsEl) {
+            complaintsEl.innerHTML = complaints.length === 0
+                ? '<p style="color:#654321;">No complaints filed.</p>'
+                : complaints.map(c => `
+                    <div style="border:1.5px solid #EAE6D6;border-radius:10px;padding:16px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+                        <div>
+                            <strong style="color:#8B4513;">${escapeHtml(c.property?.title || 'General Complaint')}</strong>
+                            <p style="color:#654321;margin:4px 0;">${escapeHtml(c.reason)}</p>
+                            <small style="color:#888;">Filed: ${formatDate(c.created_at)}</small>
+                        </div>
+                        ${statusBadgeHtml(c.status)}
+                    </div>
+                `).join('');
+        }
     } catch (error) {
-    console.error('❌ Error initializing messaging:', error);
-    // Fallback to basic messaging
-    await loadUserConversations();
+        console.error('Tenant dashboard error:', error);
+        showToast(`Failed to load dashboard: ${error.message}`, 'error');
     }
 }
 
-async function startMessagePolling() {
-    // Initialize lastMessageCheck to current time to avoid showing old messages as new
-    lastMessageCheck = new Date();
-    console.log(`🕒 Initialized lastMessageCheck to: ${lastMessageCheck.toISOString()}`);
-    
-    // Poll for new messages every 3 seconds
-    messagePollingInterval = setInterval(async () => {
-    if (currentUser) {
-        await checkForNewMessages();
-    }
-    }, 3000);
-    
-    // Show floating chat button and live chat indicator only if user is logged in
-    if (currentUser) {
-    const floatingButton = document.getElementById('floating-chat-button');
-    const indicator = document.getElementById('chat-status-indicator');
-    if (floatingButton) {
-        floatingButton.style.display = 'block';
-    }
-    if (indicator) {
-        indicator.style.display = 'block';
-    }
-    }
-    
-    console.log('✅ Live message polling started');
-}
-
-function stopMessagePolling() {
-    if (messagePollingInterval) {
-    clearInterval(messagePollingInterval);
-    messagePollingInterval = null;
-    
-    // Hide floating chat button and live chat indicator
-    const floatingButton = document.getElementById('floating-chat-button');
-    const indicator = document.getElementById('chat-status-indicator');
-    if (floatingButton) {
-        floatingButton.style.display = 'none';
-    }
-    if (indicator) {
-        indicator.style.display = 'none';
-    }
-    
-    console.log('⏹️ Message polling stopped');
-    }
-}
-
-// Track which messages have already been notified to prevent duplicates
-let notifiedMessageIds = new Set();
-
-async function checkForNewMessages() {
+async function cancelTenantApplication(applicationId) {
+    if (!confirm('Cancel this rental application?')) return;
     try {
-    console.log(`🔍 Checking for new messages since: ${lastMessageCheck.toISOString()}`);
-    
-    // Get messages newer than last check - use gt (greater than) instead of gte to avoid duplicates
-    const { data: newMessages, error } = await supabase
-        .from('messages')
-        .select(`
-        *,
-        sender:users!messages_sender_id_fkey(user_id, first_name, last_name, email, role),
-        receiver:users!messages_receiver_id_fkey(user_id, first_name, last_name, email, role)
-        `)
-        .eq('receiver_id', currentUser.user_id)
-        .eq('is_read', false)
-        .gt('sent_at', lastMessageCheck.toISOString())
-        .order('sent_at', { ascending: true });
-
-    if (error) throw error;
-
-    console.log(`📊 Query result: ${newMessages?.length || 0} messages found`);
-    if (newMessages && newMessages.length > 0) {
-        console.log('📨 New messages details:', newMessages.map(m => ({
-        id: m.message_id,
-        from: `${m.sender.first_name} ${m.sender.last_name}`,
-        sent_at: m.sent_at,
-        content: m.content.substring(0, 50) + '...'
-        })));
-    }
-
-    if (newMessages && newMessages.length > 0) {
-        console.log(`📨 Found ${newMessages.length} new message(s)`);
-        
-        // Show notifications for new messages using actual database timestamps
-        // Only show notifications for messages we haven't notified about yet
-        newMessages.forEach(message => {
-        if (!notifiedMessageIds.has(message.message_id)) {
-            console.log(`🔔 Processing notification for message sent at: ${message.sent_at}`);
-            showLiveChatNotification(message);
-            notifiedMessageIds.add(message.message_id);
-        } else {
-            console.log(`⏭️ Skipping already notified message: ${message.message_id}`);
-        }
-        });
-        
-        // Update conversations and badges
-        await loadUserConversations();
-        
-        // If we're in the same conversation, handle new messages
-        if (currentConversation && newMessages.some(msg => msg.sender.user_id === currentConversation.otherUserId)) {
-        // Count new messages for scroll down button
-        const conversationNewMessages = newMessages.filter(msg => msg.sender.user_id === currentConversation.otherUserId);
-        
-        // If user is scrolled up, increment new messages count
-        if (isUserScrolledUp) {
-            newMessagesCount += conversationNewMessages.length;
-            showScrollDownButton();
-        }
-        
-        await loadConversationMessages(currentConversation.otherUserId);
-        }
-        
-        // Update last check time to the latest message timestamp from database + 1 second to avoid duplicates
-        const latestMessage = newMessages[newMessages.length - 1];
-        const latestMessageTime = new Date(latestMessage.sent_at);
-        lastMessageCheck = new Date(latestMessageTime.getTime() + 1000); // Add 1 second
-        console.log(`🕒 Updated lastMessageCheck to: ${lastMessageCheck.toISOString()} (from message: ${latestMessage.message_id} + 1s)`);
-    } else {
-        console.log('📭 No new messages found');
-    }
-    
+        await window.applicationService.cancelApplication(applicationId);
+        showToast('Application cancelled.', 'info');
+        loadTenantDashboard();
     } catch (error) {
-    console.error('Error checking for new messages:', error);
+        showToast(`Could not cancel application: ${error.message}`, 'error');
     }
 }
 
-function showLiveChatNotification(message) {
-    const senderName = `${message.sender.first_name} ${message.sender.last_name}`;
-    
-    // Use actual timestamp from database - ensure proper parsing and adjust timezone
-    const messageTime = new Date(message.sent_at);
-    const adjustedMessageTime = new Date(messageTime.getTime() + (8 * 60 * 60 * 1000));
-    const timeAgo = getTimeAgo(adjustedMessageTime);
-    
-    console.log(`🔔 Showing notification for message sent at: ${message.sent_at} (adjusted: ${adjustedMessageTime.toISOString()}, ${timeAgo})`);
-    
-    // Create notification toast
-    const notification = document.createElement('div');
-    notification.style.cssText = `
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    background: linear-gradient(135deg, #ADD8E6 0%, #87CEEB 100%);
-    color: #8B4513;
-    padding: 20px;
-    border-radius: 12px;
-    box-shadow: 0 8px 25px rgba(0,0,0,0.3);
-    z-index: 4000;
-    max-width: 350px;
-    cursor: pointer;
-    transform: translateX(400px);
-    transition: transform 0.4s ease-out;
-    border: 2px solid #87CEEB;
-    `;
-    
-    notification.innerHTML = `
-    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
-        <div style="font-size: 24px;">💬</div>
-        <div>
-        <div style="font-weight: 700; font-size: 16px;">${senderName}</div>
-        <div style="font-size: 12px; opacity: 0.8;">${message.sender.role} • ${timeAgo}</div>
-        </div>
-        <button onclick="this.closest('div').remove()" style="margin-left: auto; background: none; border: none; font-size: 18px; color: #8B4513; cursor: pointer; opacity: 0.7; padding: 4px;">&times;</button>
-    </div>
-    <div style="font-size: 14px; line-height: 1.4; margin-bottom: 12px; max-height: 60px; overflow: hidden;">
-        ${message.content.length > 100 ? message.content.substring(0, 100) + '...' : message.content}
-    </div>
-    <div style="display: flex; gap: 8px;">
-        <button onclick="openChatFromNotification('${message.sender.user_id}'); this.closest('div').remove();" style="flex: 1; padding: 8px 12px; background: #8B4513; color: white; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;">Reply</button>
-        <button onclick="markMessageAsReadFromNotification('${message.message_id}'); this.closest('div').remove();" style="flex: 1; padding: 8px 12px; background: rgba(139, 69, 19, 0.2); color: #8B4513; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;">Mark Read</button>
-    </div>
-    `;
-    
-    document.body.appendChild(notification);
-    
-    // Animate in
-    setTimeout(() => {
-    notification.style.transform = 'translateX(0)';
-    }, 100);
-    
-    // Auto remove after 8 seconds
-    setTimeout(() => {
-    if (notification.parentNode) {
-        notification.style.transform = 'translateX(400px)';
-        setTimeout(() => notification.remove(), 400);
-    }
-    }, 8000);
-    
-    // Play notification sound (if supported)
+// ============================================================================
+// Landlord Dashboard & Post / Edit Property
+// ============================================================================
+async function loadLandlordDashboard() {
+    if (!currentUser) return;
+    const listEl = document.getElementById('landlord-properties-list');
+    const appsEl = document.getElementById('landlord-applications-list');
+    const inqEl = document.getElementById('landlord-inquiries-list');
+
+    if (listEl) listEl.innerHTML = '<p>Loading your properties...</p>';
+    if (appsEl) appsEl.innerHTML = '<p>Loading applications...</p>';
+    if (inqEl) inqEl.innerHTML = '<p>Loading inquiries...</p>';
+
     try {
-    const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmGgU7k9n1unEiBC13yO/eizEIHWq+8+OWT');
-    audio.volume = 0.3;
-    audio.play().catch(() => {}); // Ignore errors if audio fails
-    } catch (e) {}
-    
-    // Browser notification (if permission granted)
-    if ('Notification' in window && Notification.permission === 'granted') {
-    new Notification(`New message from ${senderName}`, {
-        body: message.content.length > 100 ? message.content.substring(0, 100) + '...' : message.content,
-        icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="%23ADD8E6"/><text x="50" y="60" text-anchor="middle" font-size="40" fill="%238B4513">💬</text></svg>',
-        tag: `message-${message.message_id}`,
-        requireInteraction: false
-    });
-    }
-}
+        const [properties, summary, applications, inquiries] = await Promise.all([
+            window.propertyService.getLandlordProperties(currentUser.id),
+            window.propertyService.getLandlordSummary(currentUser.id),
+            window.applicationService.getLandlordApplications(currentUser.id),
+            window.inquiryService.getUserInquiries(currentUser.id),
+        ]);
 
-async function openChatFromNotification(senderId) {
-    // Open messages modal and select the conversation
-    showMessages();
-    
-    // Wait a bit for the modal to load
-    setTimeout(() => {
-    selectConversation(senderId, false);
-    }, 300);
-}
+        const totalProps = summary?.total_properties ?? properties.length;
+        const availProps = summary?.available ?? properties.filter(p => p.availability_status === 'available').length;
+        const totalVal = summary?.total_value ?? properties.reduce((s, p) => s + Number(p.price || 0), 0);
 
-async function markMessageAsReadFromNotification(messageId) {
-    try {
-    const { error } = await supabase
-        .from('messages')
-        .update({ is_read: true })
-        .eq('message_id', messageId);
+        const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = String(v); };
+        setTxt('landlord-total-properties', totalProps);
+        setTxt('landlord-available-properties', availProps);
+        setTxt('landlord-occupied-properties', Math.max(0, totalProps - availProps));
+        setTxt('landlord-total-value', formatPeso(totalVal));
 
-    if (error) throw error;
-    
-    // Refresh conversations to update unread counts
-    await loadUserConversations();
-    
-    } catch (error) {
-    console.error('Error marking message as read:', error);
-    }
-}
-
-function handleStreamMessage(event) {
-    // Handle GetStream messages and sync to database
-    if (event.user.id !== `user_${currentUser.user_id}`) {
-    console.log('📨 New GetStream message received');
-    
-    // Store to database for persistence
-    storeStreamMessageToDatabase(event);
-    
-    // Show notification
-    const message = {
-        message_id: event.id,
-        content: event.text,
-        sender: {
-        user_id: event.user.id.replace('user_', ''),
-        first_name: event.user.name.split(' ')[0],
-        last_name: event.user.name.split(' ').slice(1).join(' '),
-        role: event.user.role || 'User'
+        if (listEl) {
+            listEl.innerHTML = properties.length === 0
+                ? '<p style="color:#654321;">You haven\'t listed any properties yet.</p>'
+                : properties.map(p => `
+                    <div style="border:2px solid #ADD8E6;border-radius:10px;padding:18px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;">
+                        <div>
+                            <h3 style="color:#8B4513;margin:0 0 6px;">${escapeHtml(p.title)}</h3>
+                            <p style="color:#654321;margin:0 0 6px;">📍 ${escapeHtml(p.location)} · <strong>${formatPeso(p.price)}/mo</strong></p>
+                            <small style="color:#888;">Photos: ${Array.isArray(p.image_urls) ? p.image_urls.length : 0} · Updated: ${formatDate(p.updated_at || p.created_at)}</small>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                            <select onchange="handleLandlordStatusChange('${p.property_id}', this.value)" style="padding:8px 10px;border:2px solid #ADD8E6;border-radius:8px;font-weight:600;color:#8B4513;">
+                                ${['available','occupied','hidden'].map(st => `<option value="${st}" ${p.availability_status === st ? 'selected' : ''}>${st.charAt(0).toUpperCase() + st.slice(1)}</option>`).join('')}
+                            </select>
+                            <button class="btn-secondary" onclick="openEditPropertyForm('${p.property_id}')" style="padding:8px 14px;font-size:13px;">✏️ Edit</button>
+                            <button class="btn-secondary" onclick="handleLandlordDeleteProperty('${p.property_id}')" style="padding:8px 14px;font-size:13px;color:#B42318;border-color:#FF6B6B;">🗑 Delete</button>
+                        </div>
+                    </div>
+                `).join('');
         }
-    };
-    
-    showLiveChatNotification(message);
-    
-    // Refresh conversations
-    loadStreamConversations();
-    
-    // If we're in the same channel, update messages
-    if (currentChannel && event.channel_id === currentChannel.id) {
-        loadChannelMessages();
-    }
+
+        if (appsEl) {
+            appsEl.innerHTML = applications.length === 0
+                ? '<p style="color:#654321;">No applications received yet.</p>'
+                : applications.map(a => `
+                    <div style="border:1.5px solid #EAE6D6;background:#FAFAF5;border-radius:10px;padding:16px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+                        <div>
+                            <strong style="color:#8B4513;">${escapeHtml(a.tenant?.full_name || 'Tenant')}</strong>
+                            <span style="color:#654321;"> applied for </span>
+                            <strong style="color:#0288D1;">${escapeHtml(a.property?.title || 'Property')}</strong>
+                            <div style="font-size:13px;color:#654321;margin-top:4px;">📧 ${escapeHtml(a.tenant?.email || '—')} ${a.tenant?.phone ? `· 📞 ${escapeHtml(a.tenant.phone)}` : ''} · ${formatDate(a.application_date)}</div>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                            ${statusBadgeHtml(a.status)}
+                            ${a.status === 'pending' ? `
+                                <button class="btn" onclick="handleLandlordAppDecision('${a.application_id}', 'approved')" style="padding:7px 14px;font-size:13px;background:#2E7D32;color:#fff;">✔ Approve</button>
+                                <button class="btn-secondary" onclick="handleLandlordAppDecision('${a.application_id}', 'rejected')" style="padding:7px 14px;font-size:13px;color:#B42318;border-color:#FF6B6B;">✖ Reject</button>
+                            ` : ''}
+                        </div>
+                    </div>
+                `).join('');
+        }
+
+        if (inqEl) {
+            const received = inquiries.filter(i => i.receiver_id === currentUser.id);
+            inqEl.innerHTML = received.length === 0
+                ? '<p style="color:#654321;">No tenant inquiries yet.</p>'
+                : received.map(inq => `
+                    <div style="border:1.5px solid #ADD8E6;border-radius:10px;padding:16px;margin-bottom:12px;">
+                        <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px;">
+                            <strong style="color:#8B4513;">From: ${escapeHtml(inq.sender?.full_name || 'Tenant')}</strong>
+                            <small style="color:#888;">${formatDateTime(inq.date_sent)}</small>
+                        </div>
+                        ${inq.property?.title ? `<div style="font-size:13px;color:#0288D1;margin-bottom:6px;">🏠 Re: ${escapeHtml(inq.property.title)}</div>` : ''}
+                        <p style="color:#654321;margin-bottom:10px;">${escapeHtml(inq.message)}</p>
+                        <form onsubmit="handleInlineInquiryReply(event, '${inq.sender_id}', '${inq.property_id || ''}')" style="display:flex;gap:8px;">
+                            <input type="text" required placeholder="Write a quick reply..." style="flex:1;padding:9px 12px;border:2px solid #ADD8E6;border-radius:8px;font-size:14px;">
+                            <button type="submit" class="btn" style="padding:9px 16px;font-size:14px;">Reply</button>
+                        </form>
+                    </div>
+                `).join('');
+        }
+    } catch (error) {
+        console.error('Landlord dashboard error:', error);
+        showToast(`Failed to load landlord dashboard: ${error.message}`, 'error');
     }
 }
 
-async function storeStreamMessageToDatabase(streamEvent) {
+async function handleLandlordStatusChange(propertyId, newStatus) {
     try {
-    const senderId = streamEvent.user.id.replace('user_', '');
-    
-    // Find receiver (other user in the channel)
-    const otherMember = Object.values(streamEvent.channel.state.members).find(member => 
-        member.user.id !== streamEvent.user.id
-    );
-    
-    if (otherMember) {
-        const receiverId = otherMember.user.id.replace('user_', '');
-        
-        // Check if message already exists
-        const { data: existing } = await supabase
-        .from('messages')
-        .select('message_id')
-        .eq('stream_message_id', streamEvent.id)
-        .single();
-        
-        if (!existing) {
-        // Insert new message
-        await supabase
-            .from('messages')
-            .insert([{
-            sender_id: senderId,
+        await window.propertyService.updateProperty(propertyId, { availability_status: newStatus });
+        showToast(`Property marked as ${newStatus}.`, 'success');
+        loadLandlordDashboard();
+    } catch (error) {
+        showToast(`Failed to update status: ${error.message}`, 'error');
+    }
+}
+
+async function handleLandlordDeleteProperty(propertyId) {
+    if (!confirm('Permanently delete this property listing?')) return;
+    try {
+        await window.propertyService.deleteProperty(propertyId);
+        showToast('Property deleted.', 'info');
+        loadLandlordDashboard();
+    } catch (error) {
+        showToast(`Failed to delete property: ${error.message}`, 'error');
+    }
+}
+
+async function handleLandlordAppDecision(applicationId, status) {
+    try {
+        await window.applicationService.updateStatus(applicationId, status);
+        showToast(`Application ${status}!`, status === 'approved' ? 'success' : 'info');
+        loadLandlordDashboard();
+    } catch (error) {
+        showToast(`Failed to update application: ${error.message}`, 'error');
+    }
+}
+
+async function handleInlineInquiryReply(event, receiverId, propertyId) {
+    event.preventDefault();
+    const input = event.target.querySelector('input');
+    const message = input?.value.trim() || '';
+    if (!message) return;
+    try {
+        await window.inquiryService.sendInquiry({
             receiver_id: receiverId,
-            content: streamEvent.text,
-            sent_at: streamEvent.created_at,
-            is_read: false,
-            stream_message_id: streamEvent.id
-            }]);
-        
-        console.log('✅ GetStream message stored to database');
+            property_id: propertyId || null,
+            message,
+        });
+        input.value = '';
+        showToast('Reply sent!', 'success');
+    } catch (error) {
+        showToast(`Failed to send reply: ${error.message}`, 'error');
+    }
+}
+
+function openCreatePropertyForm() {
+    if (currentUser?.role === 'landlord' && !currentUser.is_verified) {
+        return showToast('Your landlord account is pending admin verification.', 'warning');
+    }
+    editingExistingImageUrls = [];
+    const editId = document.getElementById('edit-property-id');
+    if (editId) editId.value = '';
+    const heading = document.getElementById('post-property-heading');
+    if (heading) heading.textContent = 'Post New Property';
+    const submitBtn = document.getElementById('post-property-submit-btn');
+    if (submitBtn) submitBtn.textContent = 'Publish Property';
+    document.getElementById('post-property-form')?.reset();
+    const preview = document.getElementById('image-preview');
+    if (preview) preview.innerHTML = '';
+    showPage('post-property');
+}
+
+async function openEditPropertyForm(propertyId) {
+    try {
+        const prop = await window.propertyService.getPropertyById(propertyId);
+        editingExistingImageUrls = Array.isArray(prop.image_urls) ? [...prop.image_urls] : [];
+        showPage('post-property');
+
+        const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v ?? ''; };
+        setVal('edit-property-id', prop.property_id);
+        setVal('property-name', prop.title);
+        setVal('property-address', prop.location);
+        setVal('monthly-rent', prop.price);
+        setVal('property-description', prop.description);
+        setVal('property-availability-status', prop.availability_status || 'available');
+
+        const heading = document.getElementById('post-property-heading');
+        if (heading) heading.textContent = 'Edit Property';
+        const submitBtn = document.getElementById('post-property-submit-btn');
+        if (submitBtn) submitBtn.textContent = 'Save Changes';
+
+        renderExistingImagePreview();
+    } catch (error) {
+        showToast(`Could not load property for editing: ${error.message}`, 'error');
+    }
+}
+
+function renderExistingImagePreview() {
+    const preview = document.getElementById('image-preview');
+    if (!preview) return;
+    preview.innerHTML = editingExistingImageUrls.map((url, idx) => `
+        <div style="position:relative;">
+            <img src="${escapeHtml(url)}" style="width:100%;height:95px;object-fit:cover;border-radius:8px;border:2px solid #ADD8E6;">
+            <button type="button" onclick="removeEditingImage(${idx})" style="position:absolute;top:4px;right:4px;background:#FF6B6B;color:#fff;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:12px;">×</button>
+        </div>
+    `).join('');
+}
+
+function removeEditingImage(index) {
+    editingExistingImageUrls.splice(index, 1);
+    renderExistingImagePreview();
+}
+
+function loadPostPropertyForm() {
+    if (!currentUser) return;
+    const cn = document.getElementById('contact-name');
+    const cnum = document.getElementById('contact-number');
+    if (cn) cn.value = currentUser.full_name;
+    if (cnum) cnum.value = currentUser.phone || 'Not set';
+    hideAuthAlert('post-property-alert');
+}
+
+async function handlePostProperty(event) {
+    event.preventDefault();
+    if (!currentUser) return showToast('Please log in first.', 'warning');
+    if (currentUser.role === 'landlord' && !currentUser.is_verified) {
+        return showAuthAlert('post-property-alert', 'Only verified landlords can publish properties.', 'error');
+    }
+
+    const editId = document.getElementById('edit-property-id')?.value || '';
+    const title = document.getElementById('property-name')?.value.trim() || '';
+    const location = document.getElementById('property-address')?.value.trim() || '';
+    const price = Number(document.getElementById('monthly-rent')?.value || 0);
+    const description = document.getElementById('property-description')?.value.trim() || '';
+    const availability_status = document.getElementById('property-availability-status')?.value || 'available';
+    const fileInput = document.getElementById('property-images');
+    const submitBtn = document.getElementById('post-property-submit-btn');
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = editId ? '⏳ Saving...' : '⏳ Publishing...';
+
+    try {
+        const uploadedUrls = [...editingExistingImageUrls];
+        if (fileInput?.files?.length) {
+            for (const file of Array.from(fileInput.files)) {
+                const url = await window.propertyService.uploadPropertyImage(currentUser.id, file);
+                uploadedUrls.push(url);
+            }
         }
-    }
+
+        if (editId) {
+            await window.propertyService.updateProperty(editId, {
+                title, location, price, description, availability_status, image_urls: uploadedUrls,
+            });
+            showToast('Property updated successfully!', 'success');
+        } else {
+            await window.propertyService.createProperty({
+                landlord_id: currentUser.id,
+                title, location, price, description, availability_status, image_urls: uploadedUrls,
+            });
+            showToast('Property published successfully! 🎉', 'success');
+        }
+
+        document.getElementById('post-property-form')?.reset();
+        editingExistingImageUrls = [];
+        showPage('landlord-dashboard');
     } catch (error) {
-    console.error('Error storing GetStream message to database:', error);
+        console.error('Post property error:', error);
+        showAuthAlert('post-property-alert', `Failed to save property: ${error.message}`, 'error');
+        showToast(error.message, 'error');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = editId ? 'Save Changes' : 'Publish Property';
     }
 }
 
-async function loadStreamConversations() {
-    if (!streamClient || !isStreamConnected) {
-    await loadUserConversations(); // Fallback to database
-    return;
+// ============================================================================
+// Admin Dashboard
+// ============================================================================
+async function loadAdminDashboard() {
+    if (!currentUser || currentUser.role !== 'admin') return;
+    try {
+        const report = await window.adminService.getAdminReports();
+        if (report) {
+            const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = String(v ?? 0); };
+            setTxt('admin-total-users', report.total_users);
+            setTxt('admin-total-properties', report.total_listings);
+            setTxt('admin-open-complaints', report.open_complaints);
+        }
+        await Promise.all([
+            loadAdminUsers(),
+            loadAdminProperties(),
+            loadAdminComplaints(),
+            loadAdminSystemRecords(),
+        ]);
+    } catch (error) {
+        console.error('Admin dashboard error:', error);
+        showToast(`Admin dashboard error: ${error.message}`, 'error');
     }
+}
+
+async function loadAdminUsers() {
+    const el = document.getElementById('admin-users-list');
+    if (!el) return;
+    el.innerHTML = '<p>Loading users...</p>';
 
     try {
-    // Get channels where user is a member
-    const filter = { members: { $in: [`user_${currentUser.user_id}`] } };
-    const sort = { last_message_at: -1 };
-    const channels = await streamClient.queryChannels(filter, sort, { limit: 20 });
-    
-    userConversations = channels.map(channel => {
-        const otherMembers = channel.state.members;
-        const otherMember = Object.values(otherMembers).find(member => 
-        member.user.id !== `user_${currentUser.user_id}`
-        );
-        
-        const lastMessage = channel.state.messages[channel.state.messages.length - 1];
-        const unreadCount = channel.countUnread();
-        
-        return {
-        channel,
-        otherUser: otherMember ? {
-            user_id: otherMember.user.id.replace('user_', ''),
-            first_name: otherMember.user.name.split(' ')[0],
-            last_name: otherMember.user.name.split(' ').slice(1).join(' '),
-            email: otherMember.user.email,
-            role: otherMember.user.role
-        } : null,
-        lastMessage: lastMessage ? {
-            content: lastMessage.text,
-            sent_at: lastMessage.created_at
-        } : null,
-        unreadCount: unreadCount
-        };
-    }).filter(conv => conv.otherUser); // Filter out conversations without other users
-    
-    displayConversations(userConversations);
-    updateMessagesBadge();
-    
+        const users = await window.adminService.getUsers({
+            search: document.getElementById('admin-user-search')?.value || '',
+            role: document.getElementById('admin-user-role-filter')?.value || '',
+            status: document.getElementById('admin-user-status-filter')?.value || '',
+        });
+
+        if (!users.length) {
+            el.innerHTML = '<p style="color:#654321;">No matching users found.</p>';
+            return;
+        }
+
+        el.innerHTML = users.map(u => `
+            <div style="border:1.5px solid #ADD8E6;border-radius:10px;padding:14px 16px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+                <div>
+                    <strong style="color:#8B4513;">${escapeHtml(u.full_name)}</strong>
+                    <span style="margin-left:8px;font-size:12px;font-weight:700;text-transform:uppercase;color:#0288D1;">${escapeHtml(u.role)}</span>
+                    ${u.role === 'landlord' ? (u.is_verified ? ' <span style="color:#2E7D32;font-size:12px;font-weight:700;">✔ Verified</span>' : ' <span style="color:#B54708;font-size:12px;font-weight:700;">⏳ Unverified</span>') : ''}
+                    <div style="font-size:13px;color:#654321;">${escapeHtml(u.email)} ${u.phone ? `· ${escapeHtml(u.phone)}` : ''}</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                    ${statusBadgeHtml(u.status)}
+                    ${u.role === 'landlord' ? `<button class="btn" onclick="adminVerifyLandlord('${u.id}', ${!u.is_verified})" style="padding:7px 12px;font-size:12px;">${u.is_verified ? 'Revoke Verify' : '✔ Verify Landlord'}</button>` : ''}
+                    ${u.id !== currentUser.id ? `<button class="btn-secondary" onclick="adminToggleUserStatus('${u.id}', '${u.status === 'suspended' ? 'active' : 'suspended'}')" style="padding:7px 12px;font-size:12px;${u.status === 'suspended' ? 'color:#1B5E20;border-color:#2E7D32;' : 'color:#B42318;border-color:#FF6B6B;'}">${u.status === 'suspended' ? 'Activate' : 'Suspend'}</button>` : ''}
+                </div>
+            </div>
+        `).join('');
     } catch (error) {
-    console.error('Error loading GetStream conversations:', error);
-    await loadUserConversations(); // Fallback to database
+        el.innerHTML = `<div class="auth-alert show error">${escapeHtml(error.message)}</div>`;
     }
 }
 
-function handleNewMessage(event) {
-    // Handle new message from GetStream
-    if (event.user.id !== `user_${currentUser.user_id}`) {
-    loadStreamConversations(); // Refresh conversations
-    updateMessagesBadge();
-    
-    // If we're in the same channel, update messages
-    if (currentChannel && event.channel_id === currentChannel.id) {
-        loadChannelMessages();
-    }
-    }
-}
-
-async function disconnectStream() {
-    if (streamClient && isStreamConnected) {
+async function adminVerifyLandlord(userId, isVerified) {
     try {
-        await streamClient.disconnectUser();
+        await window.adminService.verifyLandlord(currentUser.id, userId, isVerified);
+        showToast(isVerified ? 'Landlord verified!' : 'Landlord verification revoked.', 'success');
+        loadAdminDashboard();
+    } catch (error) {
+        showToast(`Failed: ${error.message}`, 'error');
+    }
+}
+
+async function adminToggleUserStatus(userId, newStatus) {
+    try {
+        await window.adminService.updateUserStatus(currentUser.id, userId, newStatus);
+        showToast(`User status updated to ${newStatus}.`, 'success');
+        loadAdminDashboard();
+    } catch (error) {
+        showToast(`Failed: ${error.message}`, 'error');
+    }
+}
+
+async function loadAdminProperties() {
+    const el = document.getElementById('admin-properties-list');
+    if (!el) return;
+    el.innerHTML = '<p>Loading properties...</p>';
+
+    try {
+        const props = await window.adminService.getAllProperties({
+            search: document.getElementById('admin-prop-search')?.value || '',
+            status: document.getElementById('admin-prop-status-filter')?.value || '',
+        });
+
+        if (!props.length) {
+            el.innerHTML = '<p style="color:#654321;">No properties found.</p>';
+            return;
+        }
+
+        el.innerHTML = props.map(p => `
+            <div style="border:1.5px solid #ADD8E6;border-radius:10px;padding:14px 16px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+                <div>
+                    <strong style="color:#8B4513;">${escapeHtml(p.title)}</strong> — <strong style="color:#0288D1;">${formatPeso(p.price)}/mo</strong>
+                    <div style="font-size:13px;color:#654321;">📍 ${escapeHtml(p.location)} · Landlord: ${escapeHtml(p.landlord?.full_name || '—')}</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                    ${statusBadgeHtml(p.availability_status)}
+                    <select onchange="adminModerateProperty('${p.property_id}', this.value)" style="padding:7px 10px;border:2px solid #ADD8E6;border-radius:8px;font-size:12px;">
+                        ${['available','occupied','hidden','removed'].map(st => `<option value="${st}" ${p.availability_status === st ? 'selected' : ''}>${st}</option>`).join('')}
+                    </select>
+                    <button class="btn-secondary" onclick="adminDeleteProperty('${p.property_id}', '${escapeHtml(p.title)}')" style="padding:7px 12px;font-size:12px;color:#B42318;border-color:#FF6B6B;">Delete</button>
+                </div>
+            </div>
+        `).join('');
+    } catch (error) {
+        el.innerHTML = `<div class="auth-alert show error">${escapeHtml(error.message)}</div>`;
+    }
+}
+
+async function adminModerateProperty(propertyId, status) {
+    try {
+        await window.adminService.moderateProperty(currentUser.id, propertyId, status);
+        showToast(`Property set to ${status}.`, 'success');
+        loadAdminDashboard();
+    } catch (error) {
+        showToast(`Failed: ${error.message}`, 'error');
+    }
+}
+
+async function adminDeleteProperty(propertyId, title) {
+    if (!confirm(`Delete property "${title}"?`)) return;
+    try {
+        await window.adminService.deleteProperty(currentUser.id, propertyId, title);
+        showToast('Property deleted.', 'info');
+        loadAdminDashboard();
+    } catch (error) {
+        showToast(`Failed: ${error.message}`, 'error');
+    }
+}
+
+async function loadAdminComplaints() {
+    const el = document.getElementById('admin-complaints-list');
+    if (!el) return;
+    el.innerHTML = '<p>Loading complaints...</p>';
+
+    try {
+        const statusFilter = document.getElementById('admin-complaint-status-filter')?.value || '';
+        const list = await window.complaintService.getAllComplaints(statusFilter);
+
+        if (!list.length) {
+            el.innerHTML = '<p style="color:#654321;">No complaints found.</p>';
+            return;
+        }
+
+        el.innerHTML = list.map(c => `
+            <div style="border:1.5px solid #FFCDD2;background:#FFFDFD;border-radius:10px;padding:15px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:12px;">
+                <div style="flex:1;min-width:240px;">
+                    <strong style="color:#8B4513;">${escapeHtml(c.property?.title || 'General Complaint')}</strong>
+                    <p style="color:#654321;margin:6px 0;">${escapeHtml(c.reason)}</p>
+                    <small style="color:#654321;">Reported by: ${escapeHtml(c.reporter?.full_name || 'User')} · ${formatDateTime(c.created_at)}${c.resolved_at ? ` · Resolved: ${formatDate(c.resolved_at)}` : ''}</small>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                    ${statusBadgeHtml(c.status)}
+                    <select onchange="adminUpdateComplaint('${c.complaint_id}', this.value)" style="padding:7px 10px;border:2px solid #ADD8E6;border-radius:8px;font-size:12px;">
+                        ${['open','under_review','resolved','dismissed'].map(st => `<option value="${st}" ${c.status === st ? 'selected' : ''}>${st.replace(/_/g, ' ')}</option>`).join('')}
+                    </select>
+                </div>
+            </div>
+        `).join('');
+    } catch (error) {
+        el.innerHTML = `<div class="auth-alert show error">${escapeHtml(error.message)}</div>`;
+    }
+}
+
+async function adminUpdateComplaint(complaintId, status) {
+    try {
+        await window.complaintService.updateComplaintStatus(complaintId, status, currentUser.id);
+        await window.adminService.logAction(currentUser.id, `complaint_${status}`, { complaint_id: complaintId, status });
+        showToast(`Complaint marked as ${status.replace(/_/g, ' ')}.`, 'success');
+        loadAdminDashboard();
+    } catch (error) {
+        showToast(`Failed: ${error.message}`, 'error');
+    }
+}
+
+async function loadAdminSystemRecords() {
+    const el = document.getElementById('admin-system-records');
+    if (!el) return;
+    try {
+        const records = await window.adminService.getSystemRecords(20);
+        if (!records.length) {
+            el.innerHTML = '<p style="color:#654321;">No audit records yet.</p>';
+            return;
+        }
+        el.innerHTML = records.map(r => `
+            <div style="border-bottom:1px solid #EAE6D6;padding:10px 4px;font-size:13px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+                <div><strong style="color:#8B4513;">${escapeHtml(r.action)}</strong> by ${escapeHtml(r.admin?.full_name || 'Admin')} — <code style="color:#654321;">${escapeHtml(JSON.stringify(r.details || {}))}</code></div>
+                <small style="color:#888;">${formatDateTime(r.created_at)}</small>
+            </div>
+        `).join('');
+    } catch (error) {
+        el.innerHTML = `<div class="auth-alert show error">${escapeHtml(error.message)}</div>`;
+    }
+}
+
+// ============================================================================
+// Complaints Modal
+// ============================================================================
+function openComplaintModal(propertyId = '', reportedUserId = '', contextLabel = '') {
+    if (!currentUser) {
+        showToast('Please log in to file a complaint.', 'warning');
+        return showPage('login');
+    }
+    const modal = document.getElementById('complaint-modal');
+    if (!modal) return console.error('❌ #complaint-modal not found.');
+
+    document.getElementById('complaint-property-id').value = propertyId || '';
+    document.getElementById('complaint-reported-user-id').value = reportedUserId || '';
+    document.getElementById('complaint-context-label').textContent = contextLabel
+        ? `Reporting listing: ${contextLabel}`
+        : 'Submit a general complaint or platform report';
+    document.getElementById('complaint-reason').value = '';
+    modal.classList.add('active');
+}
+
+function closeComplaintModal() {
+    document.getElementById('complaint-modal')?.classList.remove('active');
+}
+
+async function handleSubmitComplaint(event) {
+    event.preventDefault();
+    if (!currentUser) return;
+    const btn = document.getElementById('complaint-submit-btn');
+    btn.disabled = true;
+    btn.textContent = 'Submitting...';
+    try {
+        await window.complaintService.fileComplaint({
+            reported_by: currentUser.id,
+            property_id: document.getElementById('complaint-property-id').value || null,
+            reported_user_id: document.getElementById('complaint-reported-user-id').value || null,
+            reason: document.getElementById('complaint-reason').value,
+        });
+        showToast('Complaint submitted. Our admin team will review it.', 'success');
+        closeComplaintModal();
+        if (currentUser.role === 'tenant') loadTenantDashboard();
+    } catch (error) {
+        showToast(`Failed to submit complaint: ${error.message}`, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Submit Complaint';
+    }
+}
+
+// ============================================================================
+// Messaging Modal (Supabase Inquiries + Optional GetStream via /api/stream-token)
+// ============================================================================
+async function initOptionalStreamClient(session) {
+    if (!session?.access_token || typeof window.StreamChat === 'undefined') return;
+    try {
+        const res = await fetch('/api/stream-token', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (!res.ok) return;
+        const { apiKey, userId, token } = await res.json();
+        if (!apiKey || !token) return;
+        streamClient = window.StreamChat.getInstance(apiKey);
+        await streamClient.connectUser({ id: userId, name: currentUser?.full_name || 'User' }, token);
+        isStreamConnected = true;
+        const indicator = document.getElementById('chat-status-indicator');
+        if (indicator) indicator.style.display = 'block';
+    } catch {
         isStreamConnected = false;
-        console.log('✅ GetStream disconnected successfully');
-    } catch (error) {
-        console.error('Error disconnecting from GetStream:', error);
     }
+}
+
+async function showMessages() {
+    if (!currentUser) return showToast('Please log in to view messages.', 'warning');
+    const modal = document.getElementById('messages-modal');
+    if (!modal) return console.error('❌ #messages-modal not found.');
+    modal.classList.add('active');
+    await loadUserConversations();
+}
+
+function closeMessages() {
+    document.getElementById('messages-modal')?.classList.remove('active');
+}
+
+function showNewMessageForm() {
+    if (!currentUser) return showToast('Please log in to send a message.', 'warning');
+    document.getElementById('new-message-modal')?.classList.add('active');
+}
+
+function closeNewMessage() {
+    document.getElementById('new-message-modal')?.classList.remove('active');
+    selectedNewRecipient = null;
+}
+
+function openMessageToUser(userId, userName, propertyId = '') {
+    if (!currentUser) {
+        showToast('Please log in to message the landlord.', 'warning');
+        document.getElementById('property-modal')?.classList.remove('active');
+        return showPage('login');
     }
+    document.getElementById('property-modal')?.classList.remove('active');
+    selectedNewRecipient = { id: userId, name: userName, propertyId: propertyId || null };
+    const recInput = document.getElementById('recipient-search');
+    const msgInput = document.getElementById('initial-message');
+    if (recInput) recInput.value = userName;
+    if (msgInput) msgInput.value = propertyId ? 'Hi! I am interested in your rental property. Is it still available?' : '';
+    showNewMessageForm();
 }
 
 async function loadUserConversations() {
-    if (!currentUser) return;
-
-    try {
-    // Get all conversations where user is sender or receiver
-    const { data: messages, error } = await supabase
-        .from('messages')
-        .select(`
-        *,
-        sender:users!messages_sender_id_fkey(user_id, first_name, last_name, email, role),
-        receiver:users!messages_receiver_id_fkey(user_id, first_name, last_name, email, role)
-        `)
-        .or(`sender_id.eq.${currentUser.user_id},receiver_id.eq.${currentUser.user_id}`)
-        .order('sent_at', { ascending: false });
-
-    if (error) throw error;
-
-    // Group messages by conversation (other user)
-    const conversationMap = new Map();
-    
-    messages?.forEach(message => {
-        const otherUser = message.sender.user_id === currentUser.user_id ? message.receiver : message.sender;
-        const conversationKey = otherUser.user_id;
-        
-        if (!conversationMap.has(conversationKey)) {
-        conversationMap.set(conversationKey, {
-            otherUser,
-            lastMessage: message,
-            unreadCount: 0,
-            messages: []
-        });
-        }
-        
-        const conversation = conversationMap.get(conversationKey);
-        
-        // Count unread messages (messages sent to current user that are unread)
-        if (message.receiver.user_id === currentUser.user_id && !message.is_read) {
-        conversation.unreadCount++;
-        }
-        
-        // Update last message if this one is newer
-        if (new Date(message.sent_at) > new Date(conversation.lastMessage.sent_at)) {
-        conversation.lastMessage = message;
-        }
-    });
-
-    userConversations = Array.from(conversationMap.values())
-        .sort((a, b) => new Date(b.lastMessage.sent_at) - new Date(a.lastMessage.sent_at));
-    
-    displayConversations(userConversations);
-    updateMessagesBadge();
-    } catch (error) {
-    console.error('Error loading conversations:', error);
-    displaySampleConversations();
-    }
-}
-
-function displaySampleConversations() {
-    // Sample conversations for demo when GetStream is not available
-    const sampleConversations = [
-    {
-        id: 'sample-1',
-        name: 'John Doe (Landlord)',
-        lastMessage: 'The property is available for viewing this weekend.',
-        timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
-        unread: true,
-        avatar: '🏠'
-    },
-    {
-        id: 'sample-2', 
-        name: 'Maria Santos (Tenant)',
-        lastMessage: 'Thank you for approving my application!',
-        timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000),
-        unread: false,
-        avatar: '👤'
-    },
-    {
-        id: 'sample-3',
-        name: 'Admin Support',
-        lastMessage: 'Your property listing has been approved.',
-        timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-        unread: false,
-        avatar: '⚙️'
-    }
-    ];
-
-    displayConversations(sampleConversations, true);
-}
-
-function displayConversations(conversations, isSample = false) {
     const container = document.getElementById('conversations-container');
-    
-    if (conversations.length === 0) {
-    container.innerHTML = '<p style="text-align: center; color: #8B4513; padding: 20px;">No conversations yet</p>';
-    return;
-    }
+    if (!container || !currentUser) return;
+    container.innerHTML = '<p style="color:#654321;">Loading conversations...</p>';
 
-    container.innerHTML = conversations.map(conv => {
-    let name, lastMessage, timestamp, unread, avatar, userId;
-    
-    if (isSample) {
-        ({ name, lastMessage, timestamp, unread, avatar } = conv);
-        userId = conv.id;
-    } else {
-        // Database conversation data - use actual timestamp from database
-        name = `${conv.otherUser.first_name} ${conv.otherUser.last_name}`;
-        lastMessage = conv.lastMessage.content || 'No messages yet';
-        
-        // Parse the actual sent_at timestamp from database - ensure proper handling
-        const rawTimestamp = conv.lastMessage.sent_at;
-        timestamp = rawTimestamp ? new Date(rawTimestamp) : new Date();
-        
-        // Validate the parsed timestamp
-        if (isNaN(timestamp.getTime())) {
-        console.warn(`⚠️ Invalid timestamp for conversation with ${name}: ${rawTimestamp}`);
-        timestamp = new Date(); // Fallback to current time
-        }
-        
-        unread = conv.unreadCount > 0;
-        userId = conv.otherUser.user_id;
-        
-        // Set avatar based on role
-        const roleIcons = {
-        'Admin': '⚙️',
-        'Landlord': '🏠',
-        'Tenant': '👤'
-        };
-        avatar = roleIcons[conv.otherUser.role] || '👤';
-        
-        console.log(`💬 Conversation with ${name}: raw_timestamp=${rawTimestamp}, parsed=${timestamp.toISOString()}, valid=${!isNaN(timestamp.getTime())}`);
-    }
-
-    // Use the actual timestamp from database for time ago calculation
-    const timeAgo = getTimeAgo(timestamp);
-    
-    return `
-        <div class="conversation-item" onclick="selectConversation('${userId}', ${isSample})" style="padding: 15px; border-radius: 8px; margin-bottom: 10px; cursor: pointer; transition: background-color 0.3s; border: 2px solid transparent; ${unread ? 'background-color: #F0F8FF; border-color: #ADD8E6;' : 'background-color: #FAFAFA;'}">
-        <div style="display: flex; align-items: center; gap: 12px;">
-            <div style="font-size: 24px;">${avatar}</div>
-            <div style="flex: 1; min-width: 0;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                <h4 style="color: #8B4513; margin: 0; font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${name}</h4>
-                <span style="font-size: 12px; color: #999; white-space: nowrap;">${timeAgo}</span>
-            </div>
-            <p style="margin: 0; color: #654321; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${lastMessage}</p>
-            ${unread ? `<div style="display: flex; align-items: center; gap: 5px; margin-top: 5px;"><div style="width: 8px; height: 8px; background: #FF6B6B; border-radius: 50%;"></div><span style="font-size: 12px; color: #FF6B6B; font-weight: 600;">${conv.unreadCount || 1} new</span></div>` : ''}
-            </div>
-        </div>
-        </div>
-    `;
-    }).join('');
-}
-
-function updateMessagesBadge() {
-    const unreadCount = userConversations.reduce((total, conv) => total + conv.unreadCount, 0);
-    const floatingBadge = document.getElementById('floating-messages-badge');
-    
-    if (unreadCount > 0) {
-    floatingBadge.style.display = 'flex';
-    floatingBadge.textContent = unreadCount > 99 ? '99+' : unreadCount;
-    } else {
-    floatingBadge.style.display = 'none';
-    }
-}
-
-async function selectConversation(otherUserId, isSample = false) {
     try {
-    // Remove active state from all conversations
-    document.querySelectorAll('.conversation-item').forEach(item => {
-        item.style.backgroundColor = '#FAFAFA';
-        item.style.borderColor = 'transparent';
-    });
-    
-    // Add active state to selected conversation
-    event.target.closest('.conversation-item').style.backgroundColor = '#ADD8E6';
-    event.target.closest('.conversation-item').style.borderColor = '#87CEEB';
+        activeConversations = await window.inquiryService.getConversations(currentUser.id);
+        if (!activeConversations.length) {
+            container.innerHTML = '<p style="color:#654321;font-size:14px;">No conversations yet. Click <strong>+ New Message</strong> to start one.</p>';
+            return;
+        }
 
-    if (isSample) {
-        displaySampleChat(otherUserId);
-    } else if (isStreamConnected) {
-        // Use GetStream channel
-        const conversation = userConversations.find(c => c.otherUser.user_id === otherUserId);
-        if (conversation) {
-        currentChannel = conversation.channel;
-        await loadChannelMessages();
-        await markChannelAsRead();
-        
-        // Update chat header
-        document.getElementById('chat-title').textContent = `${conversation.otherUser.first_name} ${conversation.otherUser.last_name}`;
-        document.getElementById('chat-subtitle').textContent = `${conversation.otherUser.role} • ${conversation.otherUser.email}`;
-        }
-    } else {
-        // Fallback to database
-        const conversation = userConversations.find(c => c.otherUser.user_id === otherUserId);
-        if (conversation) {
-        currentConversation = { otherUserId, otherUser: conversation.otherUser };
-        await loadConversationMessages(otherUserId);
-        await markMessagesAsRead(otherUserId);
-        }
+        container.innerHTML = activeConversations.map(c => `
+            <div onclick="selectConversation('${c.user.id}')" style="padding:12px;border-radius:8px;cursor:pointer;margin-bottom:8px;border:1.5px solid ${selectedConversationUserId === c.user.id ? '#8B4513' : '#ADD8E6'};background:${selectedConversationUserId === c.user.id ? '#E8F6FB' : '#fff'};">
+                <div style="font-weight:700;color:#8B4513;">${escapeHtml(c.user.full_name || 'User')}</div>
+                <div style="font-size:12px;color:#654321;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(c.lastMessage)}</div>
+                <small style="color:#888;font-size:11px;">${formatDateTime(c.lastDate)}</small>
+            </div>
+        `).join('');
+    } catch (error) {
+        container.innerHTML = `<p style="color:#B42318;">${escapeHtml(error.message)}</p>`;
     }
+}
 
-    // Show chat interface
+function selectConversation(otherUserId) {
+    selectedConversationUserId = otherUserId;
+    const conv = activeConversations.find(c => c.user.id === otherUserId);
+    if (!conv) return;
+    selectedConversationPropertyId = conv.property?.property_id || null;
+
     document.getElementById('no-chat-selected').style.display = 'none';
     document.getElementById('chat-header').style.display = 'block';
     document.getElementById('chat-messages').style.display = 'block';
     document.getElementById('message-input-area').style.display = 'block';
+    document.getElementById('chat-title').textContent = conv.user.full_name || 'User';
+    document.getElementById('chat-subtitle').textContent = conv.property?.title ? `Re: ${conv.property.title}` : (conv.user.role || '');
 
-    // Reset scroll state for new conversation
-    isUserScrolledUp = false;
-    newMessagesCount = 0;
-    hideScrollDownButton();
-
-    // Mobile: Hide conversations list and show chat
-    if (window.innerWidth <= 768) {
-        showChatArea();
-    }
-    } catch (error) {
-    console.error('Error selecting conversation:', error);
-    }
-}
-
-function showChatArea() {
-    const conversationsList = document.getElementById('conversations-list');
-    const chatArea = document.getElementById('chat-area');
-    
-    conversationsList.classList.add('mobile-hidden');
-    chatArea.classList.add('mobile-visible');
-}
-
-function showConversationsList() {
-    const conversationsList = document.getElementById('conversations-list');
-    const chatArea = document.getElementById('chat-area');
-    
-    conversationsList.classList.remove('mobile-hidden');
-    chatArea.classList.remove('mobile-visible');
-    
-    // Reset chat interface
-    document.getElementById('no-chat-selected').style.display = 'flex';
-    document.getElementById('chat-header').style.display = 'none';
-    document.getElementById('chat-messages').style.display = 'none';
-    document.getElementById('message-input-area').style.display = 'none';
-    currentConversation = null;
-}
-
-function displaySampleChat(conversationId) {
-    const sampleChats = {
-    'sample-1': {
-        name: 'John Doe',
-        subtitle: 'Landlord • Studio Type Property',
-        messages: [
-        { sender: 'John Doe', text: 'Hi! I saw your application for my studio apartment.', timestamp: new Date(Date.now() - 3 * 60 * 60 * 1000), isOwn: false },
-        { sender: 'You', text: 'Hello! Yes, I\'m very interested. When can I schedule a viewing?', timestamp: new Date(Date.now() - 2.5 * 60 * 60 * 1000), isOwn: true },
-        { sender: 'John Doe', text: 'The property is available for viewing this weekend. How about Saturday at 2 PM?', timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000), isOwn: false },
-        { sender: 'You', text: 'That works perfectly! I\'ll see you then.', timestamp: new Date(Date.now() - 1.5 * 60 * 60 * 1000), isOwn: true }
-        ]
-    },
-    'sample-2': {
-        name: 'Maria Santos',
-        subtitle: 'Tenant • Boarding House Application',
-        messages: [
-        { sender: 'Maria Santos', text: 'Thank you for approving my application!', timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000), isOwn: false },
-        { sender: 'You', text: 'You\'re welcome! When would you like to move in?', timestamp: new Date(Date.now() - 23 * 60 * 60 * 1000), isOwn: true },
-        { sender: 'Maria Santos', text: 'I can move in next week if that\'s okay.', timestamp: new Date(Date.now() - 22 * 60 * 60 * 1000), isOwn: false }
-        ]
-    },
-    'sample-3': {
-        name: 'Admin Support',
-        subtitle: 'HousinGo Support Team',
-        messages: [
-        { sender: 'Admin Support', text: 'Your property listing has been approved and is now live!', timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), isOwn: false },
-        { sender: 'You', text: 'Great! Thank you for the quick approval.', timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000 + 30 * 60 * 1000), isOwn: true }
-        ]
-    }
-    };
-
-    const chat = sampleChats[conversationId];
-    if (!chat) return;
-
-    document.getElementById('chat-title').textContent = chat.name;
-    document.getElementById('chat-subtitle').textContent = chat.subtitle;
-    
-    displayMessages(chat.messages);
-}
-
-async function loadChannelMessages() {
-    if (!currentChannel) return;
-
-    try {
-    // Get messages from GetStream channel
-    const response = await currentChannel.query({ messages: { limit: 50 } });
-    const messages = response.messages || [];
-    
-    const formattedMessages = messages.map(msg => ({
-        sender: msg.user.id === `user_${currentUser.user_id}` ? 'You' : msg.user.name,
-        text: msg.text,
-        timestamp: new Date(msg.created_at),
-        isOwn: msg.user.id === `user_${currentUser.user_id}`
-    }));
-    
-    displayMessages(formattedMessages);
-    
-    // Store messages to Supabase for backup/history
-    await storeMessagesToSupabase(messages);
-    
-    } catch (error) {
-    console.error('Error loading GetStream messages:', error);
-    }
-}
-
-async function loadConversationMessages(otherUserId) {
-    try {
-    // Get all messages between current user and other user from Supabase
-    const { data: messages, error } = await supabase
-        .from('messages')
-        .select(`
-        *,
-        sender:users!messages_sender_id_fkey(user_id, first_name, last_name, email, role),
-        receiver:users!messages_receiver_id_fkey(user_id, first_name, last_name, email, role)
-        `)
-        .or(`and(sender_id.eq.${currentUser.user_id},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${currentUser.user_id})`)
-        .order('sent_at', { ascending: true });
-
-    if (error) throw error;
-
-    const otherUser = currentConversation.otherUser;
-    
-    document.getElementById('chat-title').textContent = `${otherUser.first_name} ${otherUser.last_name}`;
-    document.getElementById('chat-subtitle').textContent = `${otherUser.role} • ${otherUser.email}`;
-    
-    const formattedMessages = messages?.map(msg => ({
-        sender: msg.sender.user_id === currentUser.user_id ? 'You' : `${msg.sender.first_name} ${msg.sender.last_name}`,
-        text: msg.content,
-        timestamp: new Date(msg.sent_at),
-        isOwn: msg.sender.user_id === currentUser.user_id
-    })) || [];
-    
-    displayMessages(formattedMessages);
-    
-    } catch (error) {
-    console.error('Error loading conversation messages:', error);
-    }
-}
-
-async function storeMessagesToSupabase(streamMessages) {
-    try {
-    // Store GetStream messages to Supabase for backup/history
-    for (const msg of streamMessages) {
-        const senderId = msg.user.id.replace('user_', '');
-        
-        // Find receiver (other user in the channel)
-        const otherMember = Object.values(currentChannel.state.members).find(member => 
-        member.user.id !== msg.user.id
-        );
-        
-        if (otherMember) {
-        const receiverId = otherMember.user.id.replace('user_', '');
-        
-        // Check if message already exists in Supabase
-        const { data: existing } = await supabase
-            .from('messages')
-            .select('message_id')
-            .eq('stream_message_id', msg.id)
-            .single();
-        
-        if (!existing) {
-            // Insert new message to Supabase
-            await supabase
-            .from('messages')
-            .insert([{
-                sender_id: senderId,
-                receiver_id: receiverId,
-                content: msg.text,
-                sent_at: msg.created_at,
-                is_read: true, // Assume read since it's from GetStream
-                stream_message_id: msg.id
-            }]);
-        }
-        }
-    }
-    } catch (error) {
-    console.error('Error storing messages to Supabase:', error);
-    }
-}
-
-async function markChannelAsRead() {
-    if (!currentChannel) return;
-
-    try {
-    // Mark GetStream channel as read
-    await currentChannel.markRead();
-    
-    // Refresh conversations to update unread counts
-    await loadStreamConversations();
-    } catch (error) {
-    console.error('Error marking GetStream channel as read:', error);
-    }
-}
-
-async function markMessagesAsRead(otherUserId) {
-    try {
-    // Mark all unread messages from other user as read in Supabase
-    const { error } = await supabase
-        .from('messages')
-        .update({ is_read: true })
-        .eq('sender_id', otherUserId)
-        .eq('receiver_id', currentUser.user_id)
-        .eq('is_read', false);
-
-    if (error) throw error;
-
-    // Refresh conversations to update unread counts
-    await loadUserConversations();
-    } catch (error) {
-    console.error('Error marking messages as read:', error);
-    }
-}
-
-let isUserScrolledUp = false;
-let newMessagesCount = 0;
-
-function displayMessages(messages) {
-    const container = document.getElementById('chat-messages');
-    
-    // Check if user was scrolled up before adding new messages
-    const wasScrolledUp = isUserScrolledUp;
-    
-    container.innerHTML = messages.map(msg => {
-    // Use the actual timestamp from database, handle both Date objects and ISO strings
-    let messageTime;
-    if (msg.timestamp instanceof Date) {
-        messageTime = msg.timestamp;
-    } else {
-        messageTime = new Date(msg.timestamp);
-    }
-    
-    // Validate the parsed timestamp
-    if (isNaN(messageTime.getTime())) {
-        console.warn(`⚠️ Invalid message timestamp: ${msg.timestamp} for message from ${msg.sender}`);
-        messageTime = new Date(); // Fallback to current time
-    }
-    
-    // Adjust for 8-hour timezone difference (add 8 hours to message time)
-    const adjustedMessageTime = new Date(messageTime.getTime() + (8 * 60 * 60 * 1000));
-    const timeStr = adjustedMessageTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    
-    console.log(`💬 Message display: sender=${msg.sender}, raw_timestamp=${msg.timestamp}, parsed=${messageTime.toISOString()}, adjusted=${adjustedMessageTime.toISOString()}, timeStr=${timeStr}`);
-    
-    return `
-        <div style="margin-bottom: 15px; display: flex; ${msg.isOwn ? 'justify-content: flex-end;' : 'justify-content: flex-start;'}">
-        <div style="max-width: 70%; ${msg.isOwn ? 'background-color: #ADD8E6; color: #8B4513;' : 'background-color: white; color: #8B4513; border: 2px solid #F5F5DC;'} padding: 12px 16px; border-radius: 18px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-            ${!msg.isOwn ? `<div style="font-weight: 600; font-size: 14px; margin-bottom: 4px; color: #654321;">${msg.sender}</div>` : ''}
-            <div style="line-height: 1.4; margin-bottom: 4px;">${msg.text}</div>
-            <div style="font-size: 12px; opacity: 0.7; text-align: ${msg.isOwn ? 'right' : 'left'};">${timeStr}</div>
-        </div>
-        </div>
-    `;
+    const messagesEl = document.getElementById('chat-messages');
+    messagesEl.innerHTML = conv.messages.map(m => {
+        const mine = m.sender_id === currentUser.id;
+        return `
+            <div style="display:flex;justify-content:${mine ? 'flex-end' : 'flex-start'};margin-bottom:10px;">
+                <div style="max-width:75%;padding:10px 14px;border-radius:14px;background:${mine ? '#ADD8E6' : '#FFFFFF'};color:#8B4513;box-shadow:0 2px 6px rgba(0,0,0,0.08);">
+                    <div>${escapeHtml(m.message)}</div>
+                    <div style="font-size:10px;color:#654321;margin-top:4px;text-align:right;">${formatDateTime(m.date_sent)}</div>
+                </div>
+            </div>
+        `;
     }).join('');
-    
-    // Set up scroll detection
-    setupScrollDetection();
-    
-    // Auto-scroll to bottom only if user wasn't scrolled up
-    if (!wasScrolledUp) {
-    setTimeout(() => {
-        scrollToBottom(true);
-    }, 100);
-    } else {
-    // Show scroll down button if user was scrolled up
-    showScrollDownButton();
-    }
-}
 
-function setupScrollDetection() {
-    const container = document.getElementById('messages-container');
-    if (!container) return;
-
-    // Remove existing listener to avoid duplicates
-    container.removeEventListener('scroll', handleScroll);
-    
-    // Add scroll listener
-    container.addEventListener('scroll', handleScroll);
-}
-
-function handleScroll() {
-    const container = document.getElementById('messages-container');
-    const scrollDownButton = document.getElementById('scroll-down-button');
-    
-    if (!container || !scrollDownButton) return;
-
-    const scrollTop = container.scrollTop;
-    const scrollHeight = container.scrollHeight;
-    const clientHeight = container.clientHeight;
-    
-    // Check if user is near the bottom (within 100px)
-    const isNearBottom = scrollTop + clientHeight >= scrollHeight - 100;
-    
-    if (isNearBottom) {
-    isUserScrolledUp = false;
-    hideScrollDownButton();
-    newMessagesCount = 0;
-    } else {
-    isUserScrolledUp = true;
-    if (newMessagesCount > 0) {
-        showScrollDownButton();
-    }
-    }
-}
-
-function showScrollDownButton() {
-    const scrollDownButton = document.getElementById('scroll-down-button');
-    const newMessageIndicator = document.getElementById('new-message-indicator');
-    
-    if (scrollDownButton) {
-    scrollDownButton.style.display = 'block';
-    
-    if (newMessagesCount > 0 && newMessageIndicator) {
-        newMessageIndicator.style.display = 'flex';
-        newMessageIndicator.textContent = newMessagesCount > 99 ? '99+' : newMessagesCount;
-    }
-    }
-}
-
-function hideScrollDownButton() {
-    const scrollDownButton = document.getElementById('scroll-down-button');
-    const newMessageIndicator = document.getElementById('new-message-indicator');
-    
-    if (scrollDownButton) {
-    scrollDownButton.style.display = 'none';
-    }
-    
-    if (newMessageIndicator) {
-    newMessageIndicator.style.display = 'none';
-    }
-}
-
-function scrollToBottom(isAutoScroll = false) {
-    const container = document.getElementById('messages-container');
-    if (!container) return;
-
-    // Method 1: scrollTo with smooth behavior
-    container.scrollTo({
-    top: container.scrollHeight,
-    behavior: isAutoScroll ? 'smooth' : 'smooth'
-    });
-    
-    // Method 2: Fallback with direct scrollTop (in case scrollTo doesn't work)
-    setTimeout(() => {
-    container.scrollTop = container.scrollHeight;
-    }, 50);
-    
-    // Method 3: Force scroll after a longer delay to ensure DOM is fully rendered
-    setTimeout(() => {
-    container.scrollTop = container.scrollHeight;
-    }, 200);
-
-    // Reset scroll state
-    isUserScrolledUp = false;
-    newMessagesCount = 0;
-    hideScrollDownButton();
+    scrollToBottom();
+    loadUserConversations();
 }
 
 async function sendMessage() {
-    const messageInput = document.getElementById('message-input');
-    const messageText = messageInput.value.trim();
-    
-    if (!messageText) return;
-
+    const input = document.getElementById('message-input');
+    const message = input?.value.trim() || '';
+    if (!message || !selectedConversationUserId) return;
     try {
-    if (isStreamConnected && currentChannel) {
-        // Send via GetStream
-        await currentChannel.sendMessage({
-        text: messageText,
-        user: { id: `user_${currentUser.user_id}` }
+        await window.inquiryService.sendInquiry({
+            receiver_id: selectedConversationUserId,
+            property_id: selectedConversationPropertyId,
+            message,
         });
-        
-        messageInput.value = '';
-        
-        // Message will be automatically added to UI via GetStream events
-        // and stored to Supabase via storeMessagesToSupabase
-        
-    } else if (currentConversation) {
-        // Send via direct Supabase with live notifications
-        const currentTimestamp = new Date().toISOString();
-        const { data, error } = await supabase
-        .from('messages')
-        .insert([{
-            sender_id: currentUser.user_id,
-            receiver_id: currentConversation.otherUserId,
-            content: messageText,
-            is_read: false,
-            sent_at: currentTimestamp
-        }])
-        .select(`
-            *,
-            sender:users!messages_sender_id_fkey(user_id, first_name, last_name, email, role),
-            receiver:users!messages_receiver_id_fkey(user_id, first_name, last_name, email, role)
-        `)
-        .single();
-
-        if (error) throw error;
-
-        console.log('✅ Message sent successfully:', data);
-
-        // Immediately add message to UI for instant feedback using actual database timestamp
-        const container = document.getElementById('chat-messages');
-        const messageTimestamp = data ? new Date(data.sent_at) : new Date(currentTimestamp);
-        const timeStr = messageTimestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        
-        const messageDiv = document.createElement('div');
-        messageDiv.style.cssText = 'margin-bottom: 15px; display: flex; justify-content: flex-end;';
-        messageDiv.innerHTML = `
-        <div style="max-width: 70%; background-color: #ADD8E6; color: #8B4513; padding: 12px 16px; border-radius: 18px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-            <div style="line-height: 1.4; margin-bottom: 4px;">${messageText}</div>
-            <div style="font-size: 12px; opacity: 0.7; text-align: right;">${timeStr} ✓</div>
-        </div>
-        `;
-        
-        container.appendChild(messageDiv);
-        container.scrollTop = container.scrollHeight;
-        
-        messageInput.value = '';
-        
-        // Create notification for the receiver
-        await createNotification(
-        currentConversation.otherUserId,
-        `New message from ${currentUser.first_name} ${currentUser.last_name}`,
-        messageText.length > 100 ? messageText.substring(0, 100) + '...' : messageText
-        );
-        
-        // Refresh conversations to update last message
+        input.value = '';
         await loadUserConversations();
-        
-        console.log('📨 Message notification sent to recipient');
-    }
-    
+        selectConversation(selectedConversationUserId);
     } catch (error) {
-    console.error('Error sending message:', error);
-    showToast('Failed to send message: ' + error.message);
+        showToast(`Failed to send message: ${error.message}`, 'error');
     }
-}
-
-// Message input enter key handler and auto-resize
-document.addEventListener('DOMContentLoaded', function() {
-    const messageInput = document.getElementById('message-input');
-    if (messageInput) {
-    messageInput.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-        }
-    });
-
-    // Auto-resize textarea
-    messageInput.addEventListener('input', function() {
-        this.style.height = 'auto';
-        this.style.height = Math.min(this.scrollHeight, 100) + 'px';
-    });
-    }
-});
-
-function showMessages() {
-    const modal = document.getElementById('messages-modal');
-    modal.classList.add('active');
-    
-    if (currentUser) {
-    loadUserConversations();
-    } else {
-    displaySampleConversations();
-    }
-    
-    // Close profile dropdown
-    document.getElementById('profile-dropdown-menu').style.display = 'none';
-}
-
-function closeMessages() {
-    document.getElementById('messages-modal').classList.remove('active');
-    
-    // Reset chat interface
-    document.getElementById('no-chat-selected').style.display = 'flex';
-    document.getElementById('chat-header').style.display = 'none';
-    document.getElementById('chat-messages').style.display = 'none';
-    document.getElementById('message-input-area').style.display = 'none';
-    currentConversation = null;
-
-    // Reset mobile layout
-    const conversationsList = document.getElementById('conversations-list');
-    const chatArea = document.getElementById('chat-area');
-    conversationsList.classList.remove('mobile-hidden');
-    chatArea.classList.remove('mobile-visible');
-}
-
-function showNewMessageForm() {
-    document.getElementById('new-message-modal').classList.add('active');
-    document.getElementById('recipient-search').focus();
-}
-
-function closeNewMessage() {
-    document.getElementById('new-message-modal').classList.remove('active');
-    document.getElementById('new-message-form').reset();
-    document.getElementById('user-search-results').style.display = 'none';
-    selectedRecipient = null;
-}
-
-// User search functionality
-document.addEventListener('DOMContentLoaded', function() {
-    const recipientSearch = document.getElementById('recipient-search');
-    if (recipientSearch) {
-    recipientSearch.addEventListener('input', async function(e) {
-        const searchTerm = e.target.value.trim();
-        
-        if (searchTerm.length < 2) {
-        document.getElementById('user-search-results').style.display = 'none';
-        return;
-        }
-
-        try {
-        // Search users in database
-        const { data: users, error } = await supabase
-            .from('users')
-            .select('user_id, first_name, last_name, email, role')
-            .neq('user_id', currentUser.user_id)
-            .or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`)
-            .limit(10);
-
-        if (error) throw error;
-
-        displayUserSearchResults(users || []);
-        } catch (error) {
-        console.error('Error searching users:', error);
-        // Fallback to sample users
-        displaySampleUserResults(searchTerm);
-        }
-    });
-    }
-});
-
-function displayUserSearchResults(users) {
-    const container = document.getElementById('user-search-results');
-    
-    if (users.length === 0) {
-    container.innerHTML = '<div style="padding: 15px; text-align: center; color: #8B4513;">No users found</div>';
-    container.style.display = 'block';
-    return;
-    }
-
-    container.innerHTML = users.map(user => `
-    <div class="user-search-item" onclick="selectRecipient('${user.user_id}', '${user.first_name} ${user.last_name}', '${user.email}', '${user.role}')" style="padding: 12px 15px; cursor: pointer; border-bottom: 1px solid #F5F5DC; transition: background-color 0.3s;">
-        <div style="display: flex; align-items: center; gap: 10px;">
-        <div style="font-size: 20px;">👤</div>
-        <div>
-            <div style="font-weight: 600; color: #8B4513;">${user.first_name} ${user.last_name}</div>
-            <div style="font-size: 14px; color: #654321;">${user.email} • ${user.role}</div>
-        </div>
-        </div>
-    </div>
-    `).join('');
-    
-    container.style.display = 'block';
-
-    // Add hover effects
-    container.querySelectorAll('.user-search-item').forEach(item => {
-    item.addEventListener('mouseenter', () => item.style.backgroundColor = '#F5F5DC');
-    item.addEventListener('mouseleave', () => item.style.backgroundColor = 'white');
-    });
-}
-
-function displaySampleUserResults(searchTerm) {
-    const sampleUsers = [
-    { user_id: 'sample-user-1', first_name: 'John', last_name: 'Doe', email: 'john.doe@email.com', role: 'Landlord' },
-    { user_id: 'sample-user-2', first_name: 'Maria', last_name: 'Santos', email: 'maria.santos@email.com', role: 'Tenant' },
-    { user_id: 'sample-user-3', first_name: 'Admin', last_name: 'Support', email: 'admin@housingo.com', role: 'Admin' }
-    ];
-
-    const filtered = sampleUsers.filter(user => 
-    user.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-
-    displayUserSearchResults(filtered);
-}
-
-function selectRecipient(userId, name, email, role) {
-    selectedRecipient = { userId, name, email, role };
-    document.getElementById('recipient-search').value = `${name} (${email})`;
-    document.getElementById('user-search-results').style.display = 'none';
 }
 
 async function startNewConversation(event) {
     event.preventDefault();
-    
-    if (!selectedRecipient) {
-    showToast('Please select a recipient');
-    return;
+    const message = document.getElementById('initial-message')?.value.trim() || '';
+    if (!selectedNewRecipient?.id) {
+        return showToast('Please select a recipient from the search results.', 'warning');
     }
-
-    const initialMessage = document.getElementById('initial-message').value.trim();
-    if (!initialMessage) {
-    showToast('Please enter a message');
-    return;
-    }
-
     try {
-    if (isStreamConnected) {
-        // Create GetStream channel
-        const channelId = `chat_${Math.min(currentUser.user_id, selectedRecipient.userId)}_${Math.max(currentUser.user_id, selectedRecipient.userId)}`;
-        const channel = streamClient.channel('messaging', channelId, {
-        members: [`user_${currentUser.user_id}`, `user_${selectedRecipient.userId}`],
-        created_by_id: `user_${currentUser.user_id}`
+        await window.inquiryService.sendInquiry({
+            receiver_id: selectedNewRecipient.id,
+            property_id: selectedNewRecipient.propertyId || null,
+            message,
         });
-
-        // Create the channel
-        await channel.create();
-        
-        // Send initial message
-        await channel.sendMessage({
-        text: initialMessage,
-        user: { id: `user_${currentUser.user_id}` }
-        });
-
-        showToast('Message sent successfully!');
-        
-    } else {
-        // Send via Supabase with notifications
-        const currentTimestamp = new Date().toISOString();
-        const { data, error } = await supabase
-        .from('messages')
-        .insert([{
-            sender_id: currentUser.user_id,
-            receiver_id: selectedRecipient.userId,
-            content: initialMessage,
-            is_read: false,
-            sent_at: currentTimestamp
-        }])
-        .select(`
-            *,
-            sender:users!messages_sender_id_fkey(user_id, first_name, last_name, email, role),
-            receiver:users!messages_receiver_id_fkey(user_id, first_name, last_name, email, role)
-        `)
-        .single();
-
-        if (error) throw error;
-
-        // Create notification for the recipient
-        await createNotification(
-        selectedRecipient.userId,
-        `New message from ${currentUser.first_name} ${currentUser.last_name}`,
-        initialMessage.length > 100 ? initialMessage.substring(0, 100) + '...' : initialMessage
-        );
-
-        console.log('📨 New conversation notification sent to recipient');
-        showToast('Message sent successfully!');
-    }
-
-    closeNewMessage();
-    closeMessages();
-    
-    // Reopen messages to show the new conversation
-    setTimeout(() => {
-        showMessages();
-    }, 500);
-    
+        const targetId = selectedNewRecipient.id;
+        closeNewMessage();
+        document.getElementById('new-message-form')?.reset();
+        showToast('Message sent!', 'success');
+        await showMessages();
+        selectConversation(targetId);
     } catch (error) {
-    console.error('Error starting conversation:', error);
-    showToast('Failed to send message: ' + error.message);
+        showToast(`Failed to send message: ${error.message}`, 'error');
     }
 }
 
-// Request notification permissions
-async function requestNotificationPermission() {
-    if ('Notification' in window && Notification.permission === 'default') {
+function showConversationsList() {
+    document.getElementById('conversations-list')?.classList.remove('mobile-hidden');
+    document.getElementById('chat-area')?.classList.remove('mobile-visible');
+}
+
+function scrollToBottom() {
+    const c = document.getElementById('messages-container');
+    if (c) c.scrollTop = c.scrollHeight;
+}
+
+// Notifications Modal (driven by live inquiries + applications summary)
+async function showNotifications() {
+    if (!currentUser) return;
+    const modal = document.getElementById('notifications-modal');
+    const listEl = document.getElementById('notifications-list');
+    if (!modal || !listEl) return;
+    modal.classList.add('active');
+    listEl.innerHTML = '<p>Loading recent activity...</p>';
+
     try {
-        const permission = await Notification.requestPermission();
-        if (permission === 'granted') {
-        console.log('✅ Browser notifications enabled');
-        showToast('Browser notifications enabled! You\'ll receive alerts for new messages.', 'info');
-        } else {
-        console.log('ℹ️ Browser notifications denied');
-        }
+        const inquiries = await window.inquiryService.getUserInquiries(currentUser.id);
+        const received = inquiries.filter(i => i.receiver_id === currentUser.id).slice(-10).reverse();
+        listEl.innerHTML = received.length === 0
+            ? '<p style="color:#654321;">You\'re all caught up! No new notifications.</p>'
+            : received.map(i => `
+                <div style="border-bottom:1px solid #EAE6D6;padding:12px 6px;">
+                    <strong style="color:#8B4513;">💬 New message from ${escapeHtml(i.sender?.full_name || 'User')}</strong>
+                    <p style="color:#654321;margin:4px 0;">${escapeHtml(i.message)}</p>
+                    <small style="color:#888;">${formatDateTime(i.date_sent)}</small>
+                </div>
+            `).join('');
     } catch (error) {
-        console.log('ℹ️ Browser notifications not supported');
-    }
+        listEl.innerHTML = `<p style="color:#B42318;">${escapeHtml(error.message)}</p>`;
     }
 }
 
-// Update message functions to use GetStream + Supabase
-function messageLandlord(landlordId, landlordName, propertyId) {
-    if (!currentUser) {
-    showToast('Please log in to send messages');
-    return;
+function closeNotifications() { document.getElementById('notifications-modal')?.classList.remove('active'); }
+function filterNotifications() { showNotifications(); }
+function markAllAsRead() { showToast('All notifications reviewed.', 'info'); closeNotifications(); }
+
+// ============================================================================
+// Contact Us, FAQ & UI Event Wiring
+// ============================================================================
+function handleContact(event) {
+    event.preventDefault();
+    showToast('Thank you for contacting HousinGo! We will get back to you soon.', 'success');
+    document.getElementById('contact-form')?.reset();
+}
+
+function socialLogin(platform) {
+    showToast(`${platform} OAuth is not enabled yet. Please sign in with Email & Password.`, 'info');
+}
+
+function toggleFAQ(questionElement) {
+    const item = questionElement?.closest('.faq-item');
+    if (!item) return;
+    const answer = item.querySelector('.faq-answer');
+    const icon = item.querySelector('.faq-icon');
+    const isOpen = answer.style.maxHeight && answer.style.maxHeight !== '0px';
+    answer.style.maxHeight = isOpen ? '0px' : `${answer.scrollHeight + 40}px`;
+    if (icon) icon.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+}
+
+function wireAllUIListeners() {
+    // Hamburger menu
+    const hamburger = document.getElementById('hamburger');
+    const navMenu = document.getElementById('nav-menu');
+    if (hamburger && navMenu) {
+        hamburger.addEventListener('click', () => {
+            hamburger.classList.toggle('active');
+            navMenu.classList.toggle('active');
+        });
     }
 
-    // Set the recipient and show new message modal
-    selectedRecipient = {
-    userId: landlordId,
-    name: landlordName,
-    email: '', // We don't have email in this context
-    role: 'Landlord'
+    // Home hero search & filters
+    document.getElementById('search-btn')?.addEventListener('click', performHeroSearch);
+    document.getElementById('search-input')?.addEventListener('keyup', e => {
+        if (e.key === 'Enter') performHeroSearch();
+    });
+    document.getElementById('type-search')?.addEventListener('change', filterHomeProperties);
+    document.getElementById('price-search')?.addEventListener('change', filterHomeProperties);
+    document.querySelectorAll('#home-content .filter-btn').forEach(btn => {
+        btn.addEventListener('click', function () {
+            document.querySelectorAll('#home-content .filter-btn').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            selectedHomeKeyword = this.getAttribute('data-type') || '';
+            filterHomeProperties();
+        });
+    });
+
+    // Browse search on Enter
+    document.getElementById('browse-search-input')?.addEventListener('keyup', e => {
+        if (e.key === 'Enter') filterBrowseProperties();
+    });
+
+    // Property details modal close
+    document.getElementById('close-modal')?.addEventListener('click', () => {
+        document.getElementById('property-modal')?.classList.remove('active');
+    });
+
+    // Close modals when clicking backdrop
+    document.addEventListener('click', (e) => {
+        ['property-modal', 'messages-modal', 'new-message-modal', 'notifications-modal', 'complaint-modal'].forEach(id => {
+            const modal = document.getElementById(id);
+            if (modal && e.target === modal) modal.classList.remove('active');
+        });
+    });
+
+    // Login & Register forms
+    const loginForm = document.getElementById('login-form');
+    if (loginForm) loginForm.addEventListener('submit', handleLogin);
+    else console.error('❌ #login-form not found.');
+
+    const registerForm = document.getElementById('register-form');
+    if (registerForm) registerForm.addEventListener('submit', handleRegister);
+    else console.error('❌ #register-form not found.');
+
+    // Password eye toggles
+    document.querySelectorAll('[data-toggle-password]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const target = document.getElementById(btn.getAttribute('data-toggle-password'));
+            if (!target) return;
+            const hidden = target.type === 'password';
+            target.type = hidden ? 'text' : 'password';
+            btn.textContent = hidden ? '🙈' : '👁️';
+        });
+    });
+
+    // Interactive Role Cards on Register page
+    const roleSelect = document.getElementById('reg-usertype');
+    const roleCards = document.querySelectorAll('[data-role-card]');
+    roleCards.forEach(card => {
+        const activate = () => {
+            roleCards.forEach(c => c.classList.remove('selected'));
+            card.classList.add('selected');
+            if (roleSelect) roleSelect.value = card.getAttribute('data-role-card');
+        };
+        card.addEventListener('click', activate);
+        card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); } });
+    });
+
+    // Live Password Strength & Match
+    const regPass = document.getElementById('reg-password');
+    const regConfirm = document.getElementById('reg-confirm-password');
+    const bar = document.getElementById('reg-password-strength-bar');
+    const txt = document.getElementById('reg-password-strength-text');
+    const matchTxt = document.getElementById('reg-password-match-text');
+
+    const updateStrength = () => {
+        if (!regPass || !bar || !txt) return;
+        const v = regPass.value;
+        let s = 0;
+        if (v.length >= 6) s++;
+        if (v.length >= 10) s++;
+        if (/[A-Z]/.test(v) && /[a-z]/.test(v)) s++;
+        if (/\d/.test(v)) s++;
+        if (/[^A-Za-z0-9]/.test(v)) s++;
+        if (!v) { bar.style.width = '0%'; txt.textContent = 'Use at least 6 characters'; txt.style.color = '#654321'; }
+        else if (s <= 2) { bar.style.width = '35%'; bar.style.backgroundColor = '#FF6B6B'; txt.textContent = 'Weak password'; txt.style.color = '#B42318'; }
+        else if (s === 3) { bar.style.width = '70%'; bar.style.backgroundColor = '#FFA500'; txt.textContent = 'Fair password'; txt.style.color = '#B54708'; }
+        else { bar.style.width = '100%'; bar.style.backgroundColor = '#2E7D32'; txt.textContent = 'Strong password ✓'; txt.style.color = '#067647'; }
     };
-    
-    document.getElementById('recipient-search').value = `${landlordName} (Landlord)`;
-    document.getElementById('initial-message').value = `Hi! I'm interested in your property (ID: ${propertyId}). Could we discuss the details?`;
-    
-    showNewMessageForm();
-}
-
-async function sendTenantMessage(event, propertyId) {
-    event.preventDefault();
-    const subject = document.getElementById('message-subject').value;
-    const content = document.getElementById('message-content').value;
-    
-    try {
-    // Find tenant for this property and send message via GetStream/Supabase
-    // This would require additional property-tenant relationship data
-    showToast('Message sent to tenant successfully!');
-    document.querySelector('div[style*="position: fixed"]')?.remove();
-    } catch (error) {
-    console.error('Error sending tenant message:', error);
-    showToast('Failed to send message');
-    }
-}
-
-async function sendLandlordMessage(event, landlordId, propertyId) {
-    event.preventDefault();
-    const subject = document.getElementById('landlord-message-subject').value;
-    const content = document.getElementById('landlord-message-content').value;
-    
-    try {
-    if (isStreamConnected) {
-        // Create or get existing channel with landlord
-        const channelId = `chat_${Math.min(currentUser.user_id, landlordId)}_${Math.max(currentUser.user_id, landlordId)}`;
-        const channel = streamClient.channel('messaging', channelId, {
-        members: [`user_${currentUser.user_id}`, `user_${landlordId}`],
-        created_by_id: `user_${currentUser.user_id}`
-        });
-
-        await channel.create();
-        
-        // Send message with subject and content
-        const messageText = subject ? `${subject}\n\n${content}` : content;
-        await channel.sendMessage({
-        text: messageText,
-        user: { id: `user_${currentUser.user_id}` }
-        });
-        
-        showToast('Message sent to landlord successfully!');
-    } else {
-        // Fallback to Supabase
-        const { error } = await supabase
-        .from('messages')
-        .insert([{
-            sender_id: currentUser.user_id,
-            receiver_id: landlordId,
-            content: subject ? `${subject}\n\n${content}` : content,
-            is_read: false
-        }]);
-
-        if (error) throw error;
-        showToast('Message sent to landlord successfully!');
-    }
-    
-    document.querySelector('div[style*="position: fixed"]')?.remove();
-    } catch (error) {
-    console.error('Error sending landlord message:', error);
-    showToast('Failed to send message');
-    }
-}
-
-// Admin Management Functions
-async function resetUserPassword(userId, userName) {
-    const confirmDiv = document.createElement('div');
-    confirmDiv.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 3000; display: flex; align-items: center; justify-content: center; padding: 20px;';
-    confirmDiv.innerHTML = `
-    <div style="background: white; padding: 40px; border-radius: 12px; max-width: 500px; width: 100%;">
-        <h3 style="color: #8B4513; margin-bottom: 20px;">Reset Password for ${userName}</h3>
-        <form onsubmit="confirmResetPassword(event, '${userId}', '${userName}')">
-        <div style="margin-bottom: 20px;">
-            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #8B4513;">New Password</label>
-            <input type="password" id="new-user-password" required minlength="6" style="width: 100%; padding: 12px; border: 2px solid #ADD8E6; border-radius: 8px; font-size: 16px; color: #8B4513;">
-            <p style="font-size: 14px; color: #654321; margin-top: 5px;">Minimum 6 characters</p>
-        </div>
-        <div style="margin-bottom: 20px;">
-            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #8B4513;">Confirm New Password</label>
-            <input type="password" id="confirm-user-password" required minlength="6" style="width: 100%; padding: 12px; border: 2px solid #ADD8E6; border-radius: 8px; font-size: 16px; color: #8B4513;">
-        </div>
-        <div style="display: flex; gap: 15px;">
-            <button type="button" class="btn-secondary" onclick="this.closest('div[style*=fixed]').remove()" style="flex: 1; padding: 12px;">Cancel</button>
-            <button type="submit" class="btn" style="flex: 1; padding: 12px;">Reset Password</button>
-        </div>
-        </form>
-    </div>
-    `;
-    document.body.appendChild(confirmDiv);
-}
-
-async function confirmResetPassword(event, userId, userName) {
-    event.preventDefault();
-    
-    const newPassword = document.getElementById('new-user-password').value;
-    const confirmPassword = document.getElementById('confirm-user-password').value;
-
-    if (newPassword !== confirmPassword) {
-    showToast('Passwords do not match!');
-    return;
-    }
-
-    try {
-    const { error } = await supabase
-        .from('users')
-        .update({ password: newPassword })
-        .eq('user_id', userId);
-
-    if (error) throw error;
-
-    // 🔔 Create notification for user - password reset
-    await createNotification(
-        userId,
-        'Password Reset by Admin',
-        `Your password has been reset by an administrator. Please log in with your new password and consider changing it in your account settings.`
-    );
-
-    showToast(`Password reset successfully for ${userName}!`);
-    document.querySelector('div[style*="position: fixed"]')?.remove();
-    
-    } catch (error) {
-    console.error('Error resetting password:', error);
-    showToast('Failed to reset password: ' + error.message);
-    }
-}
-
-async function toggleUserStatus(userId, currentStatus, userName) {
-    const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
-    const action = newStatus === 'Active' ? 'activate' : 'deactivate';
-    
-    const confirmDiv = document.createElement('div');
-    confirmDiv.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 3000; display: flex; align-items: center; justify-content: center;';
-    confirmDiv.innerHTML = `
-    <div style="background: white; padding: 40px; border-radius: 12px; max-width: 400px; text-align: center;">
-        <h3 style="color: #8B4513; margin-bottom: 20px;">${action === 'activate' ? 'Activate' : 'Deactivate'} User?</h3>
-        <p style="margin-bottom: 30px; color: #654321;">Are you sure you want to ${action} ${userName}? ${newStatus === 'Inactive' ? 'They will not be able to log in.' : 'They will be able to log in again.'}</p>
-        <div style="display: flex; gap: 15px;">
-        <button class="btn-secondary" onclick="this.closest('div[style*=fixed]').remove()" style="flex: 1; padding: 12px;">Cancel</button>
-        <button class="btn" onclick="confirmToggleUserStatus('${userId}', '${newStatus}', '${userName}')" style="flex: 1; padding: 12px; background-color: ${newStatus === 'Active' ? '#32CD32' : '#FF6B6B'};">${action === 'activate' ? 'Activate' : 'Deactivate'}</button>
-        </div>
-    </div>
-    `;
-    document.body.appendChild(confirmDiv);
-}
-
-async function confirmToggleUserStatus(userId, newStatus, userName) {
-    try {
-    document.querySelector('div[style*="position: fixed"]')?.remove();
-
-    const { error } = await supabase
-        .from('users')
-        .update({ status: newStatus })
-        .eq('user_id', userId);
-
-    if (error) throw error;
-
-    // 🔔 Create notification for user - account status change
-    await createNotification(
-        userId,
-        `Account ${newStatus === 'Active' ? 'Activated' : 'Deactivated'}`,
-        `Your account has been ${newStatus === 'Active' ? 'activated' : 'deactivated'} by an administrator. ${newStatus === 'Active' ? 'You can now log in and use all features.' : 'Please contact support if you have any questions.'}`
-    );
-
-    showToast(`${userName} has been ${newStatus === 'Active' ? 'activated' : 'deactivated'} successfully!`);
-    loadAdminDashboard(); // Refresh the dashboard
-    
-    } catch (error) {
-    console.error('Error updating user status:', error);
-    showToast('Failed to update user status: ' + error.message);
-    }
-}
-
-function editUser(userId, firstName, lastName, email, mobile, role, status) {
-    const editModal = document.createElement('div');
-    editModal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 3000; display: flex; align-items: center; justify-content: center; padding: 20px; overflow-y: auto;';
-    editModal.innerHTML = `
-    <div style="background: white; border-radius: 12px; max-width: 600px; width: 100%; max-height: 90%; overflow-y: auto;">
-        <div style="background-color: #ADD8E6; padding: 20px; display: flex; justify-content: space-between; align-items: center; border-radius: 12px 12px 0 0;">
-        <h2 style="color: #8B4513; margin: 0;">Edit User: ${firstName} ${lastName}</h2>
-        <button onclick="this.closest('div[style*=fixed]').remove()" style="background: none; border: none; font-size: 30px; color: #8B4513; cursor: pointer; line-height: 1;">&times;</button>
-        </div>
-        <div style="padding: 30px;">
-        <form onsubmit="saveUserChanges(event, '${userId}')">
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
-            <div>
-                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #8B4513;">First Name</label>
-                <input type="text" id="edit-firstname" value="${firstName}" required style="width: 100%; padding: 12px; border: 2px solid #ADD8E6; border-radius: 8px; font-size: 16px; color: #8B4513;">
-            </div>
-            <div>
-                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #8B4513;">Last Name</label>
-                <input type="text" id="edit-lastname" value="${lastName}" required style="width: 100%; padding: 12px; border: 2px solid #ADD8E6; border-radius: 8px; font-size: 16px; color: #8B4513;">
-            </div>
-            </div>
-            
-            <div style="margin-bottom: 20px;">
-            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #8B4513;">Email</label>
-            <input type="email" id="edit-email" value="${email}" required style="width: 100%; padding: 12px; border: 2px solid #ADD8E6; border-radius: 8px; font-size: 16px; color: #8B4513;">
-            </div>
-            
-            <div style="margin-bottom: 20px;">
-            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #8B4513;">Mobile</label>
-            <input type="tel" id="edit-mobile" value="${mobile || ''}" style="width: 100%; padding: 12px; border: 2px solid #ADD8E6; border-radius: 8px; font-size: 16px; color: #8B4513;">
-            </div>
-            
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
-            <div>
-                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #8B4513;">Role</label>
-                <select id="edit-role" style="width: 100%; padding: 12px; border: 2px solid #ADD8E6; border-radius: 8px; font-size: 16px; color: #8B4513;">
-                <option value="Admin" ${role === 'Admin' ? 'selected' : ''}>Admin</option>
-                <option value="Landlord" ${role === 'Landlord' ? 'selected' : ''}>Landlord</option>
-                <option value="Tenant" ${role === 'Tenant' ? 'selected' : ''}>Tenant</option>
-                </select>
-            </div>
-            <div>
-                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #8B4513;">Status</label>
-                <select id="edit-status" style="width: 100%; padding: 12px; border: 2px solid #ADD8E6; border-radius: 8px; font-size: 16px; color: #8B4513;">
-                <option value="Active" ${status === 'Active' ? 'selected' : ''}>Active</option>
-                <option value="Inactive" ${status === 'Inactive' ? 'selected' : ''}>Inactive</option>
-                </select>
-            </div>
-            </div>
-            
-            <div style="margin-bottom: 30px;">
-            <h3 style="color: #8B4513; margin-bottom: 15px;">Admin Actions</h3>
-            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                <button type="button" class="btn-secondary" onclick="resetUserPasswordFromEdit('${userId}', '${firstName} ${lastName}')" style="flex: 1; min-width: 150px; padding: 12px; font-size: 14px; background-color: #FFA500; color: white; border-color: #FFA500;">🔑 Reset Password</button>
-                <button type="button" class="btn-secondary" onclick="toggleUserStatusFromEdit('${userId}', '${status}', '${firstName} ${lastName}')" style="flex: 1; min-width: 150px; padding: 12px; font-size: 14px; background-color: ${status === 'Active' ? '#FF6B6B' : '#32CD32'}; color: white; border-color: ${status === 'Active' ? '#FF6B6B' : '#32CD32'};">${status === 'Active' ? '🚫 Deactivate' : '✅ Activate'}</button>
-                <button type="button" class="btn" onclick="messageUserFromEdit('${userId}', '${firstName} ${lastName}')" style="flex: 1; min-width: 150px; padding: 12px; font-size: 14px;">💬 Send Message</button>
-            </div>
-            </div>
-            
-            <div style="display: flex; gap: 15px;">
-            <button type="button" class="btn-secondary" onclick="this.closest('div[style*=fixed]').remove()" style="flex: 1; padding: 15px; font-size: 16px;">Cancel</button>
-            <button type="submit" class="btn" style="flex: 1; padding: 15px; font-size: 16px;">Save Changes</button>
-            </div>
-        </form>
-        </div>
-    </div>
-    `;
-    document.body.appendChild(editModal);
-}
-
-async function saveUserChanges(event, userId) {
-    event.preventDefault();
-    
-    const submitBtn = event.target.querySelector('button[type="submit"]');
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Saving...';
-
-    try {
-    const updateData = {
-        first_name: document.getElementById('edit-firstname').value,
-        last_name: document.getElementById('edit-lastname').value,
-        email: document.getElementById('edit-email').value,
-        mobile: document.getElementById('edit-mobile').value,
-        role: document.getElementById('edit-role').value,
-        status: document.getElementById('edit-status').value
+    const updateMatch = () => {
+        if (!regPass || !regConfirm || !matchTxt) return;
+        if (!regConfirm.value) { matchTxt.textContent = ''; return; }
+        matchTxt.textContent = regPass.value === regConfirm.value ? '✓ Passwords match' : '✗ Passwords do not match';
+        matchTxt.style.color = regPass.value === regConfirm.value ? '#067647' : '#B42318';
     };
+    regPass?.addEventListener('input', () => { updateStrength(); updateMatch(); });
+    regConfirm?.addEventListener('input', updateMatch);
 
-    const { error } = await supabase
-        .from('users')
-        .update(updateData)
-        .eq('user_id', userId);
-
-    if (error) throw error;
-
-    // 🔔 Create notification for user - profile updated by admin
-    await createNotification(
-        userId,
-        'Profile Updated by Admin',
-        `Your profile information has been updated by an administrator. Please review your account details and contact support if you have any questions.`
-    );
-
-    showToast('User updated successfully!');
-    document.querySelector('div[style*="position: fixed"]')?.remove();
-    loadAdminDashboard(); // Refresh the dashboard
-    
-    } catch (error) {
-    console.error('Error updating user:', error);
-    showToast('Failed to update user: ' + error.message);
-    submitBtn.disabled = false;
-    submitBtn.textContent = 'Save Changes';
-    }
+    // Recipient search in New Message modal (queries real profiles)
+    const recSearch = document.getElementById('recipient-search');
+    const recResults = document.getElementById('user-search-results');
+    let searchTimer = null;
+    recSearch?.addEventListener('input', () => {
+        clearTimeout(searchTimer);
+        const q = recSearch.value.trim();
+        if (q.length < 2 || !recResults) { if (recResults) recResults.style.display = 'none'; return; }
+        searchTimer = setTimeout(async () => {
+            try {
+                const { data, error } = await window.supabaseClient
+                    .from('profiles')
+                    .select('id, full_name, email, role')
+                    .or(`full_name.ilike.%${q}%,email.ilike.%${q}%`)
+                    .neq('id', currentUser?.id || '')
+                    .limit(6);
+                if (error) throw error;
+                if (!data?.length) {
+                    recResults.innerHTML = '<div style="padding:10px;color:#654321;">No users found.</div>';
+                } else {
+                    recResults.innerHTML = data.map(u => `
+                        <div onclick="pickNewMessageRecipient('${u.id}', '${escapeHtml(u.full_name)}')" style="padding:10px 12px;cursor:pointer;border-bottom:1px solid #F5F5DC;">
+                            <strong style="color:#8B4513;">${escapeHtml(u.full_name)}</strong> <small style="color:#0288D1;">(${escapeHtml(u.role)})</small><br>
+                            <small style="color:#654321;">${escapeHtml(u.email)}</small>
+                        </div>
+                    `).join('');
+                }
+                recResults.style.display = 'block';
+            } catch (err) {
+                console.error('Recipient search error:', err);
+            }
+        }, 250);
+    });
 }
 
-function resetUserPasswordFromEdit(userId, userName) {
-    // Close the edit modal first
-    document.querySelector('div[style*="position: fixed"]')?.remove();
-    
-    // Open the reset password modal
-    resetUserPassword(userId, userName);
+function pickNewMessageRecipient(id, name) {
+    selectedNewRecipient = { id, name, propertyId: null };
+    const input = document.getElementById('recipient-search');
+    const results = document.getElementById('user-search-results');
+    if (input) input.value = name;
+    if (results) results.style.display = 'none';
 }
 
-function toggleUserStatusFromEdit(userId, currentStatus, userName) {
-    // Close the edit modal first
-    document.querySelector('div[style*="position: fixed"]')?.remove();
-    
-    // Open the toggle status modal
-    toggleUserStatus(userId, currentStatus, userName);
-}
-
-function messageUserFromEdit(userId, userName) {
-    // Close the edit modal first
-    document.querySelector('div[style*="position: fixed"]')?.remove();
-    
-    // Open the message modal
-    messageUser(userId, userName);
-}
-
-function messageUser(userId, userName) {
-    if (!currentUser) {
-    showToast('Please log in to send messages');
-    return;
-    }
-
-    // Set the recipient and show new message modal
-    selectedRecipient = {
-    userId: userId,
-    name: userName,
-    email: '', // We don't have email in this context
-    role: 'User'
-    };
-    
-    document.getElementById('recipient-search').value = `${userName}`;
-    document.getElementById('initial-message').value = `Hello ${userName.split(' ')[0]}! This is a message from the HousinGo admin team.`;
-    
-    showNewMessageForm();
-}
-
-async function viewPropertyDetails(propertyId) {
-    try {
-    // Get property with all related data
-    const { data: property, error: propError } = await supabase
-        .from('properties')
-        .select(`
-        *,
-        landlord:users(
-            user_id,
-            first_name,
-            last_name,
-            email,
-            mobile
-        )
-        `)
-        .eq('property_id', propertyId)
-        .single();
-
-    if (propError) throw propError;
-
-    // Get amenities and images
-    const amenities = getPropertyAmenities(propertyId);
-    const images = getPropertyImages(propertyId);
-
-    // Show property details in modal (reuse existing modal)
-    showPropertyDetails(property);
-    
-    } catch (error) {
-    console.error('Error loading property details:', error);
-    showToast('Failed to load property details: ' + error.message);
-    }
-}
-
-async function rejectProperty(propertyId) {
-    const confirmDiv = document.createElement('div');
-    confirmDiv.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 3000; display: flex; align-items: center; justify-content: center; padding: 20px;';
-    confirmDiv.innerHTML = `
-    <div style="background: white; padding: 40px; border-radius: 12px; max-width: 500px; width: 100%;">
-        <h3 style="color: #8B4513; margin-bottom: 20px;">Reject Property</h3>
-        <form onsubmit="confirmRejectProperty(event, '${propertyId}')">
-        <div style="margin-bottom: 20px;">
-            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #8B4513;">Reason for Rejection</label>
-            <textarea id="rejection-reason" required rows="4" placeholder="Please provide a reason for rejecting this property..." style="width: 100%; padding: 12px; border: 2px solid #ADD8E6; border-radius: 8px; font-size: 16px; color: #8B4513; resize: vertical; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;"></textarea>
-        </div>
-        <div style="display: flex; gap: 15px;">
-            <button type="button" class="btn-secondary" onclick="this.closest('div[style*=fixed]').remove()" style="flex: 1; padding: 12px;">Cancel</button>
-            <button type="submit" class="btn" style="flex: 1; padding: 12px; background-color: #FF6B6B;">Reject Property</button>
-        </div>
-        </form>
-    </div>
-    `;
-    document.body.appendChild(confirmDiv);
-}
-
-async function confirmRejectProperty(event, propertyId) {
-    event.preventDefault();
-    
-    const rejectionReason = document.getElementById('rejection-reason').value.trim();
-
-    try {
-    // Get property details first
-    const { data: property, error: propError } = await supabase
-        .from('properties')
-        .select(`
-        *,
-        landlord:users(
-            user_id,
-            first_name,
-            last_name,
-            email
-        )
-        `)
-        .eq('property_id', propertyId)
-        .single();
-
-    if (propError) throw propError;
-
-    const { error } = await supabase
-        .from('properties')
-        .update({ status: 'Rejected' })
-        .eq('property_id', propertyId);
-
-    if (error) throw error;
-
-    // 🔔 Create notification for landlord - property rejected
-    await createNotification(
-        property.landlord.user_id,
-        'Property Listing Rejected',
-        `Unfortunately, your ${property.type} property in ${property.city} was not approved. Reason: ${rejectionReason}. You can edit and resubmit your listing after addressing the issues mentioned.`
-    );
-
-    showToast('Property rejected successfully!');
-    document.querySelector('div[style*="position: fixed"]')?.remove();
-    loadAdminDashboard();
-    
-    } catch (error) {
-    console.error('Error rejecting property:', error);
-    showToast('Failed to reject property: ' + error.message);
-    }
-}
-
-async function suspendProperty(propertyId) {
-    const confirmDiv = document.createElement('div');
-    confirmDiv.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 3000; display: flex; align-items: center; justify-content: center; padding: 20px;';
-    confirmDiv.innerHTML = `
-    <div style="background: white; padding: 40px; border-radius: 12px; max-width: 500px; width: 100%;">
-        <h3 style="color: #8B4513; margin-bottom: 20px;">Suspend Property</h3>
-        <form onsubmit="confirmSuspendProperty(event, '${propertyId}')">
-        <div style="margin-bottom: 20px;">
-            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #8B4513;">Reason for Suspension</label>
-            <textarea id="suspension-reason" required rows="4" placeholder="Please provide a reason for suspending this property..." style="width: 100%; padding: 12px; border: 2px solid #ADD8E6; border-radius: 8px; font-size: 16px; color: #8B4513; resize: vertical; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;"></textarea>
-        </div>
-        <div style="display: flex; gap: 15px;">
-            <button type="button" class="btn-secondary" onclick="this.closest('div[style*=fixed]').remove()" style="flex: 1; padding: 12px;">Cancel</button>
-            <button type="submit" class="btn" style="flex: 1; padding: 12px; background-color: #FFA500;">Suspend Property</button>
-        </div>
-        </form>
-    </div>
-    `;
-    document.body.appendChild(confirmDiv);
-}
-
-async function confirmSuspendProperty(event, propertyId) {
-    event.preventDefault();
-    
-    const suspensionReason = document.getElementById('suspension-reason').value.trim();
-
-    try {
-    // Get property details first
-    const { data: property, error: propError } = await supabase
-        .from('properties')
-        .select(`
-        *,
-        landlord:users(
-            user_id,
-            first_name,
-            last_name,
-            email
-        )
-        `)
-        .eq('property_id', propertyId)
-        .single();
-
-    if (propError) throw propError;
-
-    const { error } = await supabase
-        .from('properties')
-        .update({ status: 'Suspended' })
-        .eq('property_id', propertyId);
-
-    if (error) throw error;
-
-    // 🔔 Create notification for landlord - property suspended
-    await createNotification(
-        property.landlord.user_id,
-        'Property Listing Suspended',
-        `Your ${property.type} property in ${property.city} has been temporarily suspended. Reason: ${suspensionReason}. Please contact support to resolve this issue and reactivate your listing.`
-    );
-
-    showToast('Property suspended successfully!');
-    document.querySelector('div[style*="position: fixed"]')?.remove();
-    loadAdminDashboard();
-    
-    } catch (error) {
-    console.error('Error suspending property:', error);
-    showToast('Failed to suspend property: ' + error.message);
-    }
-}
-
-// Close modals when clicking outside
-document.addEventListener('click', function(event) {
-    const messagesModal = document.getElementById('messages-modal');
-    const newMessageModal = document.getElementById('new-message-modal');
-    
-    if (event.target === messagesModal) {
-    closeMessages();
-    }
-    if (event.target === newMessageModal) {
-    closeNewMessage();
-    }
-});
-
+// ============================================================================
+// Boot Application (called right after pageLoader.js mounts all partials)
+// ============================================================================
+wireAllUIListeners();
 checkAuthState();
-loadProperties();
+loadHomeProperties();

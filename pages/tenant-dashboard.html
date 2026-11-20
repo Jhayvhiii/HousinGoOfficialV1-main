@@ -1,18 +1,47 @@
 <!-- Tenant Dashboard -->
 <main id="tenant-dashboard-page" style="display: none;">
- <div style="max-width: 70%; margin: 40px auto; background-color: #FFFFFF; padding: 40px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
-  <h1 style="font-size: 36px; margin-bottom: 30px; color: #8B4513;">Tenant Dashboard</h1>
+ <div style="max-width: 75%; margin: 40px auto; background-color: #FFFFFF; padding: 40px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 25px;">
+   <h1 style="font-size: 36px; color: #8B4513; margin: 0;">Tenant Dashboard</h1>
+   <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+    <button class="btn" onclick="showPage('browse-properties')" style="padding: 12px 22px;">🔍 Browse Rentals</button>
+    <button class="btn-secondary" onclick="openComplaintModal()" style="padding: 12px 22px;">🚨 File Complaint</button>
+   </div>
+  </div>
+
+  <!-- Tenant Stats -->
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 18px; margin-bottom: 35px;">
+   <div style="background-color: #ADD8E6; padding: 20px; border-radius: 10px;">
+    <h3 style="color: #8B4513; margin-bottom: 6px; font-size: 15px;">Total Applications</h3>
+    <p style="font-size: 30px; font-weight: bold; color: #8B4513;" id="tenant-stat-total">0</p>
+   </div>
+   <div style="background-color: #E8F5E9; padding: 20px; border-radius: 10px;">
+    <h3 style="color: #2E7D32; margin-bottom: 6px; font-size: 15px;">Approved</h3>
+    <p style="font-size: 30px; font-weight: bold; color: #2E7D32;" id="tenant-stat-approved">0</p>
+   </div>
+   <div style="background-color: #FFF8E1; padding: 20px; border-radius: 10px;">
+    <h3 style="color: #B54708; margin-bottom: 6px; font-size: 15px;">Pending</h3>
+    <p style="font-size: 30px; font-weight: bold; color: #B54708;" id="tenant-stat-pending">0</p>
+   </div>
+   <div style="background-color: #F5F5DC; padding: 20px; border-radius: 10px;">
+    <h3 style="color: #8B4513; margin-bottom: 6px; font-size: 15px;">My Reviews</h3>
+    <p style="font-size: 30px; font-weight: bold; color: #8B4513;" id="tenant-stat-reviews">0</p>
+   </div>
+  </div>
+
   <div style="margin-bottom: 40px;">
-   <h2 style="font-size: 24px; margin-bottom: 20px; color: #8B4513;">My Applied Properties</h2>
+   <h2 style="font-size: 24px; margin-bottom: 18px; color: #8B4513; border-bottom: 2px solid #ADD8E6; padding-bottom: 8px;">📋 My Applications</h2>
    <div id="tenant-saved-properties"></div>
   </div>
+
   <div style="margin-bottom: 40px;">
-   <h2 style="font-size: 24px; margin-bottom: 20px; color: #8B4513;">My Reviews</h2>
+   <h2 style="font-size: 24px; margin-bottom: 18px; color: #8B4513; border-bottom: 2px solid #ADD8E6; padding-bottom: 8px;">⭐ My Reviews</h2>
    <div id="tenant-reviews"></div>
   </div>
+
   <div>
-   <h2 style="font-size: 24px; margin-bottom: 20px; color: #8B4513;">Rental History</h2>
-   <div id="tenant-history"></div>
+   <h2 style="font-size: 24px; margin-bottom: 18px; color: #8B4513; border-bottom: 2px solid #ADD8E6; padding-bottom: 8px;">🚨 My Complaints</h2>
+   <div id="tenant-complaints"></div>
   </div>
  </div>
 </main>

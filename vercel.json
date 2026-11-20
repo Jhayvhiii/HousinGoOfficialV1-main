@@ -1,0 +1,20 @@
+{
+  "rewrites": [
+    {
+      "source": "/env.js",
+      "destination": "/api/env"
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(pages|components)/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache" }
+      ]
+    }
+  ]
+}
