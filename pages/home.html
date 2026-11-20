@@ -1,6 +1,7 @@
 <!-- Home Page -->
 <section class="hero" id="home-page">
  <div class="container">
+  <span class="dash-role-pill" style="margin-bottom: 14px;">📍 Brgy. East Rembo, Taguig City</span>
   <h1 id="site-name-hero">HousinGo</h1>
   <p id="tagline">Your next home is just a click away.</p>
   <div class="search-bar"><input type="text" id="search-input" placeholder="Property name, city, barangay, or address">
@@ -9,39 +10,58 @@
   </div>
  </div>
 </section>
+
 <main id="home-content">
- <div class="home-toolbar">
-  <div class="filters" style="margin: 0;">
-   <div class="filter-buttons"><button class="filter-btn active" data-type="">🏘️ All</button> <button class="filter-btn" data-type="Bed Spacer">🛏️ Bed Spacer</button> <button class="filter-btn" data-type="Single Room">🚪 Single Room</button> <button class="filter-btn" data-type="Boarding House">🏢 Boarding House</button> <button class="filter-btn" data-type="Single Family">🏠 Single Family</button> <button class="filter-btn" data-type="Studio Type">🏠 Studio Type</button>
-   </div>
-  </div>
-  <button type="button" id="toggle-map-btn" class="btn-secondary" onclick="toggleHomeMap()" style="padding: 9px 16px; font-size: 14px;">🗺️ Hide Map</button>
- </div>
-
- <!-- Spotahome-Style Split Screen: Left = Listings, Right = Sticky GPS Map -->
- <div id="home-split-layout" class="home-split-layout">
-  <div class="home-listings-column">
-   <div id="loading" class="loading">
-    <div class="loading-spinner"></div>
-    <p>Loading properties...</p>
-   </div>
-   <div id="properties-container" class="properties-grid home-grid" style="display: none;"></div>
-   <div id="empty-state" class="empty-state" style="display: none;">
-    <div class="empty-state-icon">🏠</div>
-    <h3>No properties found</h3>
-    <p>Try adjusting your search or filters</p>
+ <div class="home-modern-shell">
+  <!-- 1. Category Filter Pills (Dashboard-style clean bar) -->
+  <div class="home-filter-bar">
+   <div class="filter-buttons">
+    <button class="filter-btn active" data-type="">🏘️ All</button>
+    <button class="filter-btn" data-type="Bed Spacer">🛏️ Bed Spacer</button>
+    <button class="filter-btn" data-type="Single Room">🚪 Single Room</button>
+    <button class="filter-btn" data-type="Boarding House">🏢 Boarding House</button>
+    <button class="filter-btn" data-type="Single Family">🏠 Single Family</button>
+    <button class="filter-btn" data-type="Studio Type">🏠 Studio Type</button>
    </div>
   </div>
 
-  <aside class="home-map-column" aria-label="Interactive GPS Map">
-   <div class="map-panel-header">
-    <div class="map-panel-title">🗺️ <span id="map-results-count">0 rentals on map</span></div>
+  <!-- 2. Show/Hide Map Controls & Interactive GPS Map (Directly below category filters) -->
+  <div id="home-split-layout" class="home-stacked-layout">
+   <div class="home-map-toolbar-row">
+    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+     <button type="button" id="toggle-map-btn" class="btn" onclick="toggleHomeMap()" style="padding: 9px 18px; font-size: 14px;">🗺️ Hide Map</button>
+     <span class="map-count-pill">📍 <span id="map-results-count">0 rentals on map</span></span>
+    </div>
     <div class="map-panel-actions">
      <button type="button" class="gps-pill-btn" onclick="locateUserOnMap()" title="Find rentals near your GPS location">📍 Near Me (GPS)</button>
      <button type="button" class="gps-pill-btn" onclick="resetMapToEastRembo()" title="Center map on Brgy. East Rembo">🎯 East Rembo</button>
     </div>
    </div>
-   <div id="home-gps-map"></div>
-  </aside>
+
+   <section class="home-map-column home-map-banner" aria-label="Interactive GPS Map">
+    <div id="home-gps-map"></div>
+   </section>
+
+   <!-- 3. Property Listings & Details (Directly below the Map) -->
+   <div class="home-listings-column">
+    <div class="home-listings-header">
+     <div>
+      <h2 style="font-size: 22px; font-weight: 800; color: #1E293B; margin: 0;">🏠 Available Rental Properties</h2>
+      <p style="font-size: 13.5px; color: #64748B; margin: 4px 0 0;">Click any property card or map price pin to view full details, amenities, and reviews.</p>
+     </div>
+    </div>
+
+    <div id="loading" class="loading">
+     <div class="loading-spinner"></div>
+     <p>Loading properties...</p>
+    </div>
+    <div id="properties-container" class="properties-grid home-grid" style="display: none;"></div>
+    <div id="empty-state" class="empty-state" style="display: none;">
+     <div class="empty-state-icon">🏠</div>
+     <h3>No properties found</h3>
+     <p>Try adjusting your search or filters</p>
+    </div>
+   </div>
+  </div>
  </div>
 </main>
