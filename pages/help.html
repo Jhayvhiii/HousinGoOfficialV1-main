@@ -1,0 +1,106 @@
+<!-- Help Page -->
+<main class="container" id="help-page" style="display: none;">
+ <div style="background-color: #FFFFFF; padding: 60px 40px; border-radius: 12px; margin: 40px 0; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+  <h1 style="font-size: 42px; margin-bottom: 20px; color: #8B4513; text-align: center;">Welcome to HousinGo Help Center! 💙</h1>
+  <p style="text-align: center; margin-bottom: 50px; font-size: 18px; color: #654321;">Here, you'll find answers to common questions and guides on how to use our website easily.</p>
+  <div style="max-width: 900px; margin: 0 auto;">
+   <h2 style="font-size: 32px; margin-bottom: 30px; color: #8B4513; text-align: center;">Frequently Asked Questions (FAQ)</h2><!-- FAQ 1 -->
+   <div class="faq-item" style="background-color: #F5F5DC; border-radius: 10px; margin-bottom: 15px; overflow: hidden;">
+    <div class="faq-question" onclick="toggleFAQ(this)" style="padding: 25px 30px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: background-color 0.3s;">
+     <h3 style="font-size: 24px; color: #8B4513; margin: 0;">1. How to Register and Log In</h3><span class="faq-icon" style="font-size: 24px; color: #8B4513; transition: transform 0.3s;">▼</span>
+    </div>
+    <div class="faq-answer" style="max-height: 0; overflow: hidden; transition: max-height 0.4s ease-out, padding 0.4s ease-out;">
+     <div style="padding: 0 30px 30px 30px;">
+      <p style="margin-bottom: 15px; line-height: 1.7;">To start using HousinGo, you need to create an account first.</p>
+      <h4 style="color: #8B4513; margin: 20px 0 10px; font-size: 18px;">📝 Steps to Register:</h4>
+      <ul style="margin-bottom: 15px; padding-left: 25px; line-height: 1.8;">
+       <li>Click on the "Register" button on the top menu.</li>
+       <li>Fill out the required fields: First Name, Last Name, Email Address, Mobile Number, and Password.</li>
+       <li>Click "Create Account."</li>
+       <li>You will receive a confirmation email — open it and verify your account.</li>
+      </ul>
+      <h4 style="color: #8B4513; margin: 20px 0 10px; font-size: 18px;">🔐 To Log In:</h4>
+      <ul style="margin-bottom: 15px; padding-left: 25px; line-height: 1.8;">
+       <li>Click "Log In" on the menu.</li>
+       <li>Enter your registered email and password.</li>
+       <li>You can also choose "Continue with Facebook" or "Continue with Google" for faster access.</li>
+      </ul>
+      <p style="background-color: #ADD8E6; padding: 12px; border-radius: 6px; margin-top: 15px;"><strong>💡 Tip:</strong> Always keep your password private and never share it with anyone.</p>
+     </div>
+    </div>
+   </div><!-- FAQ 2 -->
+   <div class="faq-item" style="background-color: #F5F5DC; border-radius: 10px; margin-bottom: 15px; overflow: hidden;">
+    <div class="faq-question" onclick="toggleFAQ(this)" style="padding: 25px 30px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: background-color 0.3s;">
+     <h3 style="font-size: 24px; color: #8B4513; margin: 0;">2. How to Post a Property</h3><span class="faq-icon" style="font-size: 24px; color: #8B4513; transition: transform 0.3s;">▼</span>
+    </div>
+    <div class="faq-answer" style="max-height: 0; overflow: hidden; transition: max-height 0.4s ease-out, padding 0.4s ease-out;">
+     <div style="padding: 0 30px 30px 30px;">
+      <p style="margin-bottom: 15px; line-height: 1.7;">If you are a landlord or property owner, you can easily post your available space.</p>
+      <h4 style="color: #8B4513; margin: 20px 0 10px; font-size: 18px;">📋 Steps to Post:</h4>
+      <ul style="margin-bottom: 15px; padding-left: 25px; line-height: 1.8;">
+       <li>Log in to your Landlord Account.</li>
+       <li>Click "Post Property" on your dashboard.</li>
+       <li>Fill in all details such as:
+        <ul style="margin-top: 10px; padding-left: 25px;">
+         <li>Property Type (Bed Spacer, Room, Apartment, Single Family, etc.)</li>
+         <li>Location and Address</li>
+         <li>Monthly Rent Price</li>
+         <li>Photos of the property</li>
+         <li>Description (amenities, rules, nearby places, etc.)</li>
+        </ul></li>
+       <li>Click "Submit" to post your property.</li>
+       <li>Wait for admin approval before it becomes visible to tenants.</li>
+      </ul>
+      <p style="background-color: #ADD8E6; padding: 12px; border-radius: 6px; margin-top: 15px;"><strong>💡 Tip:</strong> Upload clear and real photos to attract more tenants.</p>
+     </div>
+    </div>
+   </div><!-- FAQ 3 -->
+   <div class="faq-item" style="background-color: #F5F5DC; border-radius: 10px; margin-bottom: 15px; overflow: hidden;">
+    <div class="faq-question" onclick="toggleFAQ(this)" style="padding: 25px 30px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: background-color 0.3s;">
+     <h3 style="font-size: 24px; color: #8B4513; margin: 0;">3. How to Contact a Landlord</h3><span class="faq-icon" style="font-size: 24px; color: #8B4513; transition: transform 0.3s;">▼</span>
+    </div>
+    <div class="faq-answer" style="max-height: 0; overflow: hidden; transition: max-height 0.4s ease-out, padding 0.4s ease-out;">
+     <div style="padding: 0 30px 30px 30px;">
+      <p style="margin-bottom: 15px; line-height: 1.7;">If you're a tenant interested in a property:</p>
+      <ul style="margin-bottom: 15px; padding-left: 25px; line-height: 1.8;">
+       <li>Go to the property page you like.</li>
+       <li>Click the "Contact" button.</li>
+       <li>You can send a message through the system or see the contact details (if available).</li>
+       <li>Wait for the landlord to respond via your registered email or in your account inbox.</li>
+      </ul>
+      <p style="background-color: #ADD8E6; padding: 12px; border-radius: 6px; margin-top: 15px;"><strong>💡 Tip:</strong> Be polite and include important details like your move-in date or budget.</p>
+     </div>
+    </div>
+   </div><!-- FAQ 4 -->
+   <div class="faq-item" style="background-color: #F5F5DC; border-radius: 10px; margin-bottom: 15px; overflow: hidden;">
+    <div class="faq-question" onclick="toggleFAQ(this)" style="padding: 25px 30px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: background-color 0.3s;">
+     <h3 style="font-size: 24px; color: #8B4513; margin: 0;">4. How to Report a Problem</h3><span class="faq-icon" style="font-size: 24px; color: #8B4513; transition: transform 0.3s;">▼</span>
+    </div>
+    <div class="faq-answer" style="max-height: 0; overflow: hidden; transition: max-height 0.4s ease-out, padding 0.4s ease-out;">
+     <div style="padding: 0 30px 30px 30px;">
+      <p style="margin-bottom: 15px; line-height: 1.7;">If you encounter an issue — such as a fake listing, duplicate property, or technical error:</p>
+      <h4 style="color: #8B4513; margin: 20px 0 10px; font-size: 18px;">🚨 Steps:</h4>
+      <ul style="margin-bottom: 15px; padding-left: 25px; line-height: 1.8;">
+       <li>Click "Contact Us" on the main menu.</li>
+       <li>Fill out the form:
+        <ul style="margin-top: 10px; padding-left: 25px;">
+         <li>Name</li>
+         <li>Email</li>
+         <li>Subject (e.g., "Fake Listing Report")</li>
+         <li>Message (describe the issue clearly)</li>
+        </ul></li>
+       <li>Click "Send."</li>
+       <li>The admin team will review your report and contact you if needed.</li>
+      </ul>
+      <p style="margin-top: 15px; line-height: 1.7;">You can also email us directly at: <strong>support@housingo.com</strong></p>
+     </div>
+    </div>
+   </div><!-- Still Need Help -->
+   <div style="background-color: #ADD8E6; padding: 40px; border-radius: 10px; text-align: center; margin-top: 40px;">
+    <h3 style="font-size: 28px; color: #8B4513; margin-bottom: 15px;">💬 Still Need Help?</h3>
+    <p style="margin-bottom: 25px; font-size: 18px; line-height: 1.7;">If your question isn't listed here, feel free to reach out using our Contact Us page.<br>
+     Our team is always ready to assist you. 💙</p><button class="btn" onclick="showPage('contact')" style="font-size: 18px; padding: 15px 40px;">Contact Support</button>
+   </div>
+  </div>
+ </div>
+</main>

@@ -1,0 +1,29 @@
+<!-- Login Page -->
+<main class="container" id="login-page" style="display: none;">
+ <div class="auth-card" style="max-width: 500px; margin: 60px auto; background-color: #FFFFFF; padding: 48px 40px; border-radius: 14px; box-shadow: 0 8px 28px rgba(139,69,19,0.12);">
+  <div style="text-align: center; margin-bottom: 24px;">
+   <span class="auth-badge">🏠 Welcome Back to HousinGo</span>
+   <h1 style="font-size: 34px; margin-bottom: 8px; color: #8B4513;">Log In</h1>
+   <p style="color: #654321; font-size: 15px;">Sign in as a Tenant, Landlord, or Admin to continue.</p>
+  </div>
+  <div id="login-alert" class="auth-alert" role="alert"></div>
+  <form id="login-form">
+   <div class="auth-input-wrap" style="margin-bottom: 20px;"><label for="login-email" style="display: block; margin-bottom: 8px; font-weight: 600; color: #8B4513;">Email Address</label> <input type="email" id="login-email" required autocomplete="email" placeholder="you@example.com" style="width: 100%; padding: 12px 14px; border: 2px solid #ADD8E6; border-radius: 8px; font-size: 16px; color: #8B4513;">
+   </div>
+   <div class="auth-input-wrap" style="margin-bottom: 20px;"><label for="login-password" style="display: block; margin-bottom: 8px; font-weight: 600; color: #8B4513;">Password</label>
+    <div style="position: relative;"><input type="password" id="login-password" required autocomplete="current-password" placeholder="Enter your password" style="width: 100%; padding: 12px 46px 12px 14px; border: 2px solid #ADD8E6; border-radius: 8px; font-size: 16px; color: #8B4513;"> <button type="button" class="password-toggle-btn" data-toggle-password="login-password" aria-label="Toggle password visibility" title="Show / hide password">👁️</button>
+    </div>
+   </div>
+   <div style="margin-bottom: 25px; display: flex; align-items: center; justify-content: space-between;"><label style="display: flex; align-items: center; color: #8B4513; cursor: pointer;"><input type="checkbox" id="remember-me" style="width: 18px; height: 18px; margin-right: 8px; cursor: pointer;"> Remember Me</label>
+   </div><button type="submit" id="login-submit-btn" class="btn" style="width: 100%; padding: 15px; font-size: 18px; margin-bottom: 20px;">🔑 Log In</button>
+   <div style="text-align: center; margin: 22px 0 16px; color: #8B4513; font-weight: 500; font-size: 14px;">
+    Or continue with:
+   </div>
+   <div style="display: flex; gap: 15px;"><button type="button" onclick="socialLogin('Facebook')" style="flex: 1; padding: 12px; background-color: #1877F2; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 15px;">Facebook</button> <button type="button" onclick="socialLogin('Google')" style="flex: 1; padding: 12px; background-color: #DB4437; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 15px;">Google</button>
+   </div>
+   <div style="text-align: center; margin-top: 25px; color: #8B4513;">
+    Don't have an account? <a href="#" id="go-to-register-link" onclick="showPage('register'); return false;" style="color: #0288D1; font-weight: 700; text-decoration: none;">Register here →</a>
+   </div>
+  </form>
+ </div>
+</main>

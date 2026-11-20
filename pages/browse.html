@@ -1,0 +1,25 @@
+<!-- Browse Properties Page -->
+<main class="container" id="browse-properties-page" style="display: none;">
+ <div style="background-color: #FFFFFF; padding: 40px; border-radius: 12px; margin: 40px 0; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+  <h1 style="font-size: 36px; margin-bottom: 30px; color: #8B4513; text-align: center;">Browse All Properties</h1><!-- Property Type Filters -->
+  <div style="margin-bottom: 40px;">
+   <div style="display: flex; gap: 15px; flex-wrap: wrap; justify-content: center; margin-bottom: 30px;"><button class="filter-btn active" data-browse-type="" style="padding: 12px 24px; background-color: #ADD8E6; color: #8B4513; border: 2px solid #87CEEB; border-radius: 25px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.3s;">🏘️ All Properties</button> <button class="filter-btn" data-browse-type="Bed Spacer" style="padding: 12px 24px; background-color: #F5F5DC; color: #8B4513; border: 2px solid #ADD8E6; border-radius: 25px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.3s;">🛏️ Bed Spacer</button> <button class="filter-btn" data-browse-type="Single Room" style="padding: 12px 24px; background-color: #F5F5DC; color: #8B4513; border: 2px solid #ADD8E6; border-radius: 25px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.3s;">🚪 Single Room</button> <button class="filter-btn" data-browse-type="Boarding House" style="padding: 12px 24px; background-color: #F5F5DC; color: #8B4513; border: 2px solid #ADD8E6; border-radius: 25px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.3s;">🏢 Boarding House</button> <button class="filter-btn" data-browse-type="Single Family" style="padding: 12px 24px; background-color: #F5F5DC; color: #8B4513; border: 2px solid #ADD8E6; border-radius: 25px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.3s;">🏠 Single Family</button> <button class="filter-btn" data-browse-type="Studio Type" style="padding: 12px 24px; background-color: #F5F5DC; color: #8B4513; border: 2px solid #ADD8E6; border-radius: 25px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.3s;">🏠 Studio Type</button>
+   </div><!-- Search and Sort Controls -->
+   <div style="display: flex; gap: 15px; flex-wrap: wrap; align-items: center; justify-content: center;"><input type="text" id="browse-search-input" placeholder="Search properties..." style="flex: 1; min-width: 250px; padding: 12px 20px; border: 2px solid #ADD8E6; border-radius: 25px; font-size: 16px; color: #8B4513;"> <select id="browse-sort" style="padding: 12px 20px; border: 2px solid #ADD8E6; border-radius: 25px; font-size: 16px; color: #8B4513; cursor: pointer;"> <option value="newest">Newest First</option> <option value="oldest">Oldest First</option> <option value="price-low">Price: Low to High</option> <option value="price-high">Price: High to Low</option> </select> <button class="btn" onclick="filterBrowseProperties()" style="padding: 12px 25px; border-radius: 25px;">🔍 Filter</button>
+   </div>
+  </div><!-- Property Type Sections -->
+  <div id="browse-loading" class="loading" style="display: none;">
+   <div class="loading-spinner"></div>
+   <p>Loading properties...</p>
+  </div>
+  <div id="browse-properties-container"><!-- Properties will be loaded here grouped by type -->
+  </div>
+  <div id="browse-empty-state" class="empty-state" style="display: none;">
+   <div class="empty-state-icon">
+    🏠
+   </div>
+   <h3>No properties found</h3>
+   <p>Try adjusting your search or filters</p>
+  </div>
+ </div>
+</main>
