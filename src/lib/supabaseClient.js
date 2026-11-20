@@ -20,7 +20,12 @@ function getEnvVar(key) {
 let clientInstance = null;
 
 export function getSupabaseClient() {
-  if (clientInstance && typeof clientInstance.from === 'function' && clientInstance.auth && typeof clientInstance.auth.signUp === 'function') {
+  if (
+    clientInstance &&
+    typeof clientInstance.from === 'function' &&
+    clientInstance.auth &&
+    typeof clientInstance.auth.signUp === 'function'
+  ) {
     return clientInstance;
   }
 
@@ -35,8 +40,16 @@ export function getSupabaseClient() {
     return clientInstance;
   }
 
-  const supabaseUrl = getEnvVar('https://lqoeueckcyxvcnwbcnqm.supabase.co');
-  const supabaseAnonKey = getEnvVar('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxxb2V1ZWNrY3l4dmNud2JjbnFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ3Mzg3MDQsImV4cCI6MjExMDMxNDcwNH0.DgeCFG9e1i3CDYOzhwcdME70YE1b5gN_EdAA9z2UJ70');
+  // Always pass the ENV VARIABLE NAMES here (NOT the raw URL/key values!)
+  const supabaseUrl = getEnvVar('VITE_SUPABASE_URL');
+  const supabaseAnonKey = getEnvVar('VITE_SUPABASE_ANON_KEY');
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    const msg =
+      'Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env (local) or Vercel Project Settings -> Environment Variables.';
+    console.error('❌ ' + msg);
+    throw new Error(msg);
+  }
 
   if (typeof window !== 'undefined' && window.supabase && typeof window.supabase.createClient === 'function') {
     clientInstance = window.supabase.createClient(supabaseUrl, supabaseAnonKey, {
