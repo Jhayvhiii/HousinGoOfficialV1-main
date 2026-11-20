@@ -64,6 +64,53 @@ function renderStars(rating) {
     return '★'.repeat(Math.max(0, Math.min(5, r))) + '☆'.repeat(Math.max(0, 5 - Math.min(5, r)));
 }
 
+const AMENITY_ICONS = {
+    'Wi-Fi': '📶',
+    'Aircon': '❄️',
+    'Water Included': '💧',
+    'Electric Included': '⚡',
+    'Kitchen Access': '🍳',
+    'Parking': '🚗',
+    'Private Bathroom': '🚿',
+    'Pet Friendly': '🐾',
+};
+
+const META_OPEN = '[HOUSINGO_META]';
+const META_CLOSE = '[/HOUSINGO_META]';
+
+function encodePropertyDescription(plainText, meta = {}) {
+    const cleanText = (plainText || '').trim();
+    const cleanedMeta = {
+        type: meta.type || '',
+        slots: meta.slots ? Number(meta.slots) : null,
+        min_stay: (meta.min_stay || '').trim(),
+        move_in_date: (meta.move_in_date || '').trim(),
+        landmarks: (meta.landmarks || '').trim(),
+        map_link: (meta.map_link || '').trim(),
+        rules: (meta.rules || '').trim(),
+        amenities: Array.isArray(meta.amenities) ? meta.amenities : [],
+    };
+    return `${cleanText}\n\n${META_OPEN}${JSON.stringify(cleanedMeta)}${META_CLOSE}`;
+}
+
+function parsePropertyDescription(rawDescription) {
+    const raw = String(rawDescription || '');
+    const startIdx = raw.indexOf(META_OPEN);
+    const endIdx = raw.indexOf(META_CLOSE);
+
+    if (startIdx !== -1 && endIdx > startIdx) {
+        const text = raw.slice(0, startIdx).trim();
+        const jsonStr = raw.slice(startIdx + META_OPEN.length, endIdx);
+        try {
+            const meta = JSON.parse(jsonStr);
+            return { text, meta: meta || {} };
+        } catch {
+            return { text: raw, meta: {} };
+        }
+    }
+    return { text: raw, meta: {} };
+}
+
 function statusBadgeHtml(status) {
     const s = String(status || '').toLowerCase();
     const map = {
@@ -585,12 +632,21 @@ async function handleChangePassword(event) {
 function renderPropertyCard(p) {
     const imgUrl = Array.isArray(p.image_urls) && p.image_urls.length > 0 ? p.image_urls[0] : '';
     const imgHtml = imgUrl
-        ?`<img src="${escapeHtml(imgUrl)}" alt="${escapeHtml(p.title)}">`
+        ? `<img src="${escapeHtml(imgUrl)}" alt="${escapeHtml(p.title)}">`
         : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:48px;color:#0F4C81;">🏠</div>`;
 
+    const { text: cleanDesc, meta } = parsePropertyDescription(p.description);
     const ratingHtml = p.review_count > 0
-        ?`<span style="font-size:13px;color:#D97706;font-weight:700;">★ ${Number(p.avg_rating).toFixed(1)} <span style="color:#64748B;font-weight:500;">(${p.review_count})</span></span>`
+        ? `<span style="font-size:13px;color:#D97706;font-weight:700;">★ ${Number(p.avg_rating).toFixed(1)} <span style="color:#64748B;font-weight:500;">(${p.review_count})</span></span>`
         : `<span style="font-size:12px;color:#94A3B8;">New listing</span>`;
+
+    const typePillHtml = meta.type
+        ? `<span style="display:inline-block;background:#EEF6FA;color:#0F4C81;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;margin-bottom:8px;">🏷️ ${escapeHtml(meta.type)}${meta.slots ? ` · ${meta.slots} slot${meta.slots > 1 ? 's' : ''}` : ''}</span>`
+        : '';
+
+    const amenityChips = Array.isArray(meta.amenities) && meta.amenities.length > 0
+        ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px;">${meta.amenities.slice(0, 3).map(a => `<span style="background:#FAF8F5;border:1px solid #EAE5DC;color:#475569;font-size:11px;padding:3px 8px;border-radius:999px;">${AMENITY_ICONS[a] || '✓'} ${escapeHtml(a)}</span>`).join('')}${meta.amenities.length > 3 ? `<span style="font-size:11px;color:#64748B;padding:3px 4px;">+${meta.amenities.length - 3} more</span>` : ''}</div>`
+        : '';
 
     return `
         <div class="property-card" style="background:#fff;overflow:hidden;display:flex;flex-direction:column;">
@@ -600,6 +656,7 @@ function renderPropertyCard(p) {
                 <div class="property-card-price-pill">${formatPeso(p.price)}<span style="font-weight:400;font-size:11px;"> /mo</span></div>
             </div>
             <div style="padding:18px;flex:1;display:flex;flex-direction:column;">
+                <div>${typePillHtml}</div>
                 <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;">
                     <h3 style="font-size:17px;font-weight:700;color:#1E293B;margin:0;line-height:1.3;">${escapeHtml(p.title)}</h3>
                 </div>
@@ -607,7 +664,8 @@ function renderPropertyCard(p) {
                     <span style="font-size:13px;color:#64748B;">📍 ${escapeHtml(p.location)}</span>
                     ${ratingHtml}
                 </div>
-                <p style="font-size:13.5px;color:#475569;line-height:1.55;margin-bottom:16px;flex:1;">${escapeHtml((p.description || '').slice(0, 105))}${(p.description || '').length > 105 ? '…' : ''}</p>
+                ${amenityChips}
+                <p style="font-size:13.5px;color:#475569;line-height:1.55;margin-bottom:16px;flex:1;">${escapeHtml(cleanDesc.slice(0, 105))}${cleanDesc.length > 105 ? '…' : ''}</p>
                 <div style="display:flex;gap:8px;margin-top:auto;">
                     <button class="btn" onclick="openPropertyDetails('${p.property_id}')" style="flex:1;padding:10px;font-size:14px;">View Details</button>
                     <button class="btn-secondary" onclick="applyForProperty('${p.property_id}')" style="padding:10px 14px;font-size:14px;">Apply</button>
@@ -756,26 +814,69 @@ async function openPropertyDetails(propertyId) {
                 </div>
             `).join('');
 
+        const { text: cleanDesc, meta } = parsePropertyDescription(property.description);
+        const canEditThisProperty = Boolean(currentUser && (currentUser.id === property.landlord_id || currentUser.role === 'admin'));
+
+        const specsItems = [
+            meta.type ? `<div style="background:#FAF8F5;padding:10px 14px;border-radius:10px;border:1px solid #EAE5DC;"><small style="color:#64748B;display:block;">Property Type</small><strong style="color:#1E293B;">🏷️ ${escapeHtml(meta.type)}</strong></div>` : '',
+            meta.slots ? `<div style="background:#FAF8F5;padding:10px 14px;border-radius:10px;border:1px solid #EAE5DC;"><small style="color:#64748B;display:block;">Available Slots</small><strong style="color:#1E293B;">🛏️ ${meta.slots}</strong></div>` : '',
+            meta.min_stay ? `<div style="background:#FAF8F5;padding:10px 14px;border-radius:10px;border:1px solid #EAE5DC;"><small style="color:#64748B;display:block;">Minimum Stay</small><strong style="color:#1E293B;">⏳ ${escapeHtml(meta.min_stay)}</strong></div>` : '',
+            meta.move_in_date ? `<div style="background:#FAF8F5;padding:10px 14px;border-radius:10px;border:1px solid #EAE5DC;"><small style="color:#64748B;display:block;">Move-in Date</small><strong style="color:#1E293B;">📅 ${formatDate(meta.move_in_date)}</strong></div>` : '',
+        ].filter(Boolean).join('');
+
+        const specsGridHtml = specsItems
+            ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px;margin-bottom:18px;">${specsItems}</div>`
+            : '';
+
+        const landmarksHtml = (meta.landmarks || meta.map_link)
+            ? `<div style="margin-bottom:16px;font-size:14px;color:#475569;">
+                 ${meta.landmarks ? `<div>🧭 <strong>Nearby Landmarks:</strong> ${escapeHtml(meta.landmarks)}</div>` : ''}
+                 ${meta.map_link ? `<div style="margin-top:6px;"><a href="${escapeHtml(meta.map_link)}" target="_blank" rel="noopener noreferrer" style="color:#0F4C81;font-weight:700;text-decoration:underline;">🗺️ View Location on Google Maps ↗</a></div>` : ''}
+               </div>`
+            : '';
+
+        const amenitiesDetailHtml = Array.isArray(meta.amenities) && meta.amenities.length > 0
+            ? `<div style="margin-bottom:18px;">
+                 <strong style="display:block;color:#2C1E16;margin-bottom:8px;">✨ Amenities &amp; Inclusions</strong>
+                 <div style="display:flex;flex-wrap:wrap;gap:8px;">${meta.amenities.map(a => `<span style="background:#EEF6FA;color:#0F4C81;font-size:13px;font-weight:600;padding:5px 12px;border-radius:999px;">${AMENITY_ICONS[a] || '✓'} ${escapeHtml(a)}</span>`).join('')}</div>
+               </div>`
+            : '';
+
+        const rulesDetailHtml = meta.rules
+            ? `<div style="background:#FFF8E1;border:1px solid #FDE68A;padding:14px;border-radius:10px;margin-bottom:18px;">
+                 <strong style="display:block;color:#92400E;margin-bottom:4px;">📜 House Rules &amp; Conditions</strong>
+                 <p style="color:#78350F;margin:0;font-size:14px;white-space:pre-line;">${escapeHtml(meta.rules)}</p>
+               </div>`
+            : '';
+
         bodyEl.innerHTML = `
             ${galleryHtml}
             <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
-                <span style="font-size:28px;font-weight:800;color:#0288D1;">${formatPeso(property.price)} <span style="font-size:14px;color:#654321;font-weight:500;">/ month</span></span>
+                <span style="font-size:28px;font-weight:800;color:#0F4C81;">${formatPeso(property.price)} <span style="font-size:14px;color:#64748B;font-weight:500;">/ month</span></span>
                 ${statusBadgeHtml(property.availability_status)}
             </div>
-            <p style="font-size:16px;color:#8B4513;margin-bottom:12px;">📍 <strong>Location:</strong> ${escapeHtml(property.location)}</p>
-            <p style="color:#654321;line-height:1.7;margin-bottom:18px;white-space:pre-line;">${escapeHtml(property.description || 'No description provided.')}</p>
-            <div style="background:#F5F5DC;padding:15px;border-radius:10px;margin-bottom:20px;">
-                <strong style="color:#8B4513;">Landlord:</strong> ${escapeHtml(property.landlord?.full_name || 'Property Owner')}
+            <p style="font-size:15px;color:#2C1E16;margin-bottom:14px;">📍 <strong>Location:</strong> ${escapeHtml(property.location)}</p>
+            ${specsGridHtml}
+            ${landmarksHtml}
+            ${amenitiesDetailHtml}
+            <div style="margin-bottom:18px;">
+                <strong style="display:block;color:#2C1E16;margin-bottom:6px;">📝 Description</strong>
+                <p style="color:#475569;line-height:1.7;margin:0;white-space:pre-line;">${escapeHtml(cleanDesc || 'No description provided.')}</p>
+            </div>
+            ${rulesDetailHtml}
+            <div style="background:#FAF8F5;border:1px solid #EAE5DC;padding:15px;border-radius:10px;margin-bottom:20px;">
+                <strong style="color:#2C1E16;">Landlord:</strong> ${escapeHtml(property.landlord?.full_name || 'Property Owner')}
                 ${property.landlord?.is_verified ? ' <span style="color:#2E7D32;font-weight:700;">✔ Verified</span>' : ''}
-                ${property.landlord?.phone ? `<br><strong style="color:#8B4513;">Phone:</strong> ${escapeHtml(property.landlord.phone)}` : ''}
+                ${property.landlord?.phone ? `<br><strong style="color:#2C1E16;">Phone:</strong> ${escapeHtml(property.landlord.phone)}` : ''}
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:26px;">
+                ${canEditThisProperty ? `<button class="btn" onclick="document.getElementById('property-modal').classList.remove('active'); openEditPropertyForm('${property.property_id}')" style="flex:1;min-width:160px;padding:12px;">✏️ Edit Property Details</button>` : ''}
                 ${!isOwner ? `<button class="btn" onclick="applyForProperty('${property.property_id}')" style="flex:1;min-width:140px;padding:12px;">📝 Apply Now</button>` : ''}
                 ${!isOwner && property.landlord_id ? `<button class="btn-secondary" onclick="openMessageToUser('${property.landlord_id}', '${escapeJsAttr(property.landlord?.full_name || 'Landlord')}', '${property.property_id}')" style="flex:1;min-width:140px;padding:12px;">💬 Message Landlord</button>` : ''}
                 ${currentUser && !isOwner ? `<button class="btn-secondary" onclick="openComplaintModal('${property.property_id}', '${property.landlord_id}', '${escapeJsAttr(property.title)}')" style="padding:12px 16px;color:#B42318;border-color:#FF6B6B;">🚨 Report</button>` : ''}
             </div>
-            <hr style="border:none;border-top:2px solid #ADD8E6;margin:20px 0;">
-            <h3 style="color:#8B4513;margin-bottom:12px;">⭐ Reviews ${avgRating ? `(${avgRating} avg · ${reviews.length})` : '(0)'}</h3>
+            <hr style="border:none;border-top:2px solid #EAE5DC;margin:20px 0;">
+            <h3 style="color:#2C1E16;margin-bottom:12px;">⭐ Reviews ${avgRating ? `(${avgRating} avg · ${reviews.length})` : '(0)'}</h3>
             ${reviewFormHtml}
             <div>${reviewsListHtml}</div>
         `;
@@ -1000,7 +1101,8 @@ async function loadLandlordDashboard() {
                             <select onchange="handleLandlordStatusChange('${p.property_id}', this.value)" style="padding:8px 10px;border:2px solid #ADD8E6;border-radius:8px;font-weight:600;color:#8B4513;">
                                 ${['available', 'occupied', 'hidden'].map(st => `<option value="${st}" ${p.availability_status === st ? 'selected' : ''}>${st.charAt(0).toUpperCase() + st.slice(1)}</option>`).join('')}
                             </select>
-                            <button class="btn-secondary" onclick="openEditPropertyForm('${p.property_id}')" style="padding:8px 14px;font-size:13px;">✏️ Edit</button>
+                            <button class="btn-secondary" onclick="openPropertyDetails('${p.property_id}')" style="padding:8px 14px;font-size:13px;">👁️ Preview</button>
+                            <button class="btn-secondary" onclick="openEditPropertyForm('${p.property_id}')" style="padding:8px 14px;font-size:13px;">✏️ Edit Details</button>
                             <button class="btn-secondary" onclick="handleLandlordDeleteProperty('${p.property_id}')" style="padding:8px 14px;font-size:13px;color:#B42318;border-color:#FF6B6B;">🗑 Delete</button>
                         </div>
                     </div>
@@ -1123,19 +1225,32 @@ function openCreatePropertyForm() {
 async function openEditPropertyForm(propertyId) {
     try {
         const prop = await window.propertyService.getPropertyById(propertyId);
+        const { text: cleanDesc, meta } = parsePropertyDescription(prop.description);
         editingExistingImageUrls = Array.isArray(prop.image_urls) ? [...prop.image_urls] : [];
         showPage('post-property');
 
         const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v ?? ''; };
         setVal('edit-property-id', prop.property_id);
         setVal('property-name', prop.title);
+        setVal('property-type', meta.type || 'Studio Type');
         setVal('property-address', prop.location);
         setVal('monthly-rent', prop.price);
-        setVal('property-description', prop.description);
+        setVal('available-slots', meta.slots || 1);
+        setVal('min-stay', meta.min_stay || '');
+        setVal('move-in-date', meta.move_in_date || '');
+        setVal('nearby-landmarks', meta.landmarks || '');
+        setVal('location-link', meta.map_link || '');
+        setVal('property-description', cleanDesc);
+        setVal('property-rules', meta.rules || '');
         setVal('property-availability-status', prop.availability_status || 'available');
 
+        const savedAmenities = new Set(Array.isArray(meta.amenities) ? meta.amenities : []);
+        document.querySelectorAll('#post-property-form input[name="amenity"]').forEach(cb => {
+            cb.checked = savedAmenities.has(cb.value);
+        });
+
         const heading = document.getElementById('post-property-heading');
-        if (heading) heading.textContent = 'Edit Property';
+        if (heading) heading.textContent = 'Edit Property Details';
         const submitBtn = document.getElementById('post-property-submit-btn');
         if (submitBtn) submitBtn.textContent = 'Save Changes';
 
@@ -1181,8 +1296,19 @@ async function handlePostProperty(event) {
     const title = document.getElementById('property-name')?.value.trim() || '';
     const location = document.getElementById('property-address')?.value.trim() || '';
     const price = Number(document.getElementById('monthly-rent')?.value || 0);
-    const description = document.getElementById('property-description')?.value.trim() || '';
+    const plainDescription = document.getElementById('property-description')?.value.trim() || '';
     const availability_status = document.getElementById('property-availability-status')?.value || 'available';
+    const checkedAmenities = Array.from(document.querySelectorAll('#post-property-form input[name="amenity"]:checked')).map(cb => cb.value);
+    const description = encodePropertyDescription(plainDescription, {
+        type: document.getElementById('property-type')?.value || '',
+        slots: document.getElementById('available-slots')?.value || 1,
+        min_stay: document.getElementById('min-stay')?.value || '',
+        move_in_date: document.getElementById('move-in-date')?.value || '',
+        landmarks: document.getElementById('nearby-landmarks')?.value || '',
+        map_link: document.getElementById('location-link')?.value || '',
+        rules: document.getElementById('property-rules')?.value || '',
+        amenities: checkedAmenities,
+    });
     const fileInput = document.getElementById('property-images');
     const submitBtn = document.getElementById('post-property-submit-btn');
 
