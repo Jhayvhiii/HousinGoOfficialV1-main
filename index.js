@@ -201,6 +201,7 @@ async function applyAuthenticatedUser(session, profile) {
     currentUser = normalized;
     updateNavForLoggedInUser();
     updateLandlordVerificationUI();
+    refreshNotificationBadge();
     initOptionalStreamClient(session).catch(() => {});
     return currentUser;
 }
@@ -675,6 +676,7 @@ async function filterBrowseProperties() {
     if (!containerEl) return;
 
     const search = document.getElementById('browse-search-input')?.value || '';
+    const typeFilter = (document.getElementById('browse-type-filter')?.value || '').toLowerCase();
     const minPrice = document.getElementById('browse-min-price')?.value || '';
     const maxPrice = document.getElementById('browse-max-price')?.value || '';
     const sortBy = document.getElementById('browse-sort')?.value || 'newest';
@@ -685,7 +687,10 @@ async function filterBrowseProperties() {
     containerEl.innerHTML = '';
 
     try {
-        const list = await window.propertyService.getAvailableProperties({ search, minPrice, maxPrice, sortBy });
+        let list = await window.propertyService.getAvailableProperties({ search, minPrice, maxPrice, sortBy });
+        if (typeFilter) {
+            list = list.filter(p => `${p.title || ''} ${p.description || ''}`.toLowerCase().includes(typeFilter));
+        }
         if (list.length === 0) {
             if (emptyEl) emptyEl.style.display = 'block';
         } else {
@@ -704,7 +709,7 @@ async function filterBrowseProperties() {
 }
 
 function resetBrowseFilters() {
-    ['browse-search-input', 'browse-min-price', 'browse-max-price'].forEach(id => {
+    ['browse-search-input', 'browse-type-filter', 'browse-min-price', 'browse-max-price'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
     });
@@ -1671,7 +1676,91 @@ function scrollToBottom() {
     if (c) c.scrollTop = c.scrollHeight;
 }
 
-// Notifications Modal (driven by live inquiries + applications summary)
+// Notifications Modal (live activity: messages, application/approval updates & role alerts)
+async function buildUserNotifications() {
+    if (!currentUser) return [];
+    const items = [];
+
+    // 1. Incoming messages / inquiries
+    const inquiries = await window.inquiryService.getUserInquiries(currentUser.id).catch(() => []);
+    inquiries
+        .filter(i => i.receiver_id === currentUser.id)
+        .slice(-8)
+        .forEach(i => {
+            items.push({
+                icon: '💬',
+                title: `New message from ${i.sender?.full_name || 'User'}`,
+                body: i.message,
+                date: i.date_sent,
+            });
+        });
+
+    // 2. Role-specific approval & activity updates
+    if (currentUser.role === 'tenant') {
+        const apps = await window.applicationService.getTenantApplications(currentUser.id).catch(() => []);
+        apps.slice(0, 8).forEach(a => {
+            items.push({
+                icon: a.status === 'approved' ? '✅' : a.status === 'rejected' ? '❌' : '📝',
+                title: `Application ${a.status.toUpperCase()}: ${a.property?.title || 'Property'}`,
+                body: a.status === 'approved'
+                    ? 'Your rental application has been approved by the landlord!'
+                    : a.status === 'rejected'
+                    ? 'Your rental application was not approved.'
+                    : 'Your application is currently pending landlord review.',
+                date: a.application_date,
+            });
+        });
+    } else if (currentUser.role === 'landlord') {
+        if (!currentUser.is_verified) {
+            items.push({
+                icon: '⏳',
+                title: 'Landlord Verification Pending',
+                body: 'An administrator will verify your account so you can publish rental properties.',
+                date: currentUser.created_at || new Date().toISOString(),
+            });
+        }
+        const apps = await window.applicationService.getLandlordApplications(currentUser.id).catch(() => []);
+        apps.slice(0, 8).forEach(a => {
+            items.push({
+                icon: '📩',
+                title: `Application (${a.status}) from ${a.tenant?.full_name || 'Tenant'}`,
+                body: `For listing: ${a.property?.title || 'Property'}`,
+                date: a.application_date,
+            });
+        });
+    } else if (currentUser.role === 'admin') {
+        const complaints = await window.complaintService.getAllComplaints('open').catch(() => []);
+        complaints.slice(0, 8).forEach(c => {
+            items.push({
+                icon: '🚨',
+                title: `Open Complaint: ${c.property?.title || 'General'}`,
+                body: c.reason,
+                date: c.created_at,
+            });
+        });
+    }
+
+    return items.sort((a, b) => new Date(b.date) - new Date(a.date));
+}
+
+async function refreshNotificationBadge() {
+    if (!currentUser) return;
+    try {
+        const items = await buildUserNotifications();
+        const badge = document.getElementById('notification-badge');
+        const dot = document.getElementById('user-notification-indicator');
+        if (badge) {
+            badge.textContent = String(items.length);
+            badge.style.display = items.length > 0 ? 'inline-block' : 'none';
+        }
+        if (dot) {
+            dot.style.display = items.length > 0 ? 'block' : 'none';
+        }
+    } catch {
+        // non-blocking
+    }
+}
+
 async function showNotifications() {
     if (!currentUser) return;
     const modal = document.getElementById('notifications-modal');
@@ -1681,15 +1770,14 @@ async function showNotifications() {
     listEl.innerHTML = '<p>Loading recent activity...</p>';
 
     try {
-        const inquiries = await window.inquiryService.getUserInquiries(currentUser.id);
-        const received = inquiries.filter(i => i.receiver_id === currentUser.id).slice(-10).reverse();
-        listEl.innerHTML = received.length === 0
+        const items = await buildUserNotifications();
+        listEl.innerHTML = items.length === 0
             ? '<p style="color:#654321;">You\'re all caught up! No new notifications.</p>'
-            : received.map(i => `
+            : items.map(n => `
                 <div style="border-bottom:1px solid #EAE6D6;padding:12px 6px;">
-                    <strong style="color:#8B4513;">💬 New message from ${escapeHtml(i.sender?.full_name || 'User')}</strong>
-                    <p style="color:#654321;margin:4px 0;">${escapeHtml(i.message)}</p>
-                    <small style="color:#888;">${formatDateTime(i.date_sent)}</small>
+                    <strong style="color:#8B4513;">${n.icon} ${escapeHtml(n.title)}</strong>
+                    <p style="color:#654321;margin:4px 0;">${escapeHtml(n.body)}</p>
+                    <small style="color:#888;">${formatDateTime(n.date)}</small>
                 </div>
             `).join('');
     } catch (error) {

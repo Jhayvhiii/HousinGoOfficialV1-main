@@ -4,12 +4,20 @@
   <h1 style="font-size: 36px; margin-bottom: 10px; color: #8B4513; text-align: center;">Browse Available Properties</h1>
   <p style="text-align: center; color: #654321; margin-bottom: 30px;">Filter by location, keyword, price range, and sort order.</p>
 
-  <!-- Search, Price Range & Sort Controls -->
+  <!-- Search, Property Type, Price Range & Sort Controls -->
   <div style="margin-bottom: 35px;">
    <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; justify-content: center;">
-    <input type="text" id="browse-search-input" placeholder="Search title or location (e.g. Taguig, Makati)..." style="flex: 2; min-width: 240px; padding: 12px 18px; border: 2px solid #ADD8E6; border-radius: 25px; font-size: 15px; color: #8B4513;">
-    <input type="number" id="browse-min-price" min="0" placeholder="Min ₱" style="width: 130px; padding: 12px 14px; border: 2px solid #ADD8E6; border-radius: 25px; font-size: 15px; color: #8B4513;">
-    <input type="number" id="browse-max-price" min="0" placeholder="Max ₱" style="width: 130px; padding: 12px 14px; border: 2px solid #ADD8E6; border-radius: 25px; font-size: 15px; color: #8B4513;">
+    <input type="text" id="browse-search-input" placeholder="Location or keyword (e.g. East Rembo, Taguig)..." style="flex: 2; min-width: 220px; padding: 12px 18px; border: 2px solid #ADD8E6; border-radius: 25px; font-size: 15px; color: #8B4513;">
+    <select id="browse-type-filter" style="padding: 12px 16px; border: 2px solid #ADD8E6; border-radius: 25px; font-size: 15px; color: #8B4513; cursor: pointer;">
+     <option value="">All Property Types</option>
+     <option value="Bed Spacer">Bed Spacer</option>
+     <option value="Single Room">Single Room</option>
+     <option value="Boarding House">Boarding House</option>
+     <option value="Studio Type">Studio Type</option>
+     <option value="Single Family">Single Family</option>
+    </select>
+    <input type="number" id="browse-min-price" min="0" placeholder="Min ₱" style="width: 120px; padding: 12px 14px; border: 2px solid #ADD8E6; border-radius: 25px; font-size: 15px; color: #8B4513;">
+    <input type="number" id="browse-max-price" min="0" placeholder="Max ₱" style="width: 120px; padding: 12px 14px; border: 2px solid #ADD8E6; border-radius: 25px; font-size: 15px; color: #8B4513;">
     <select id="browse-sort" style="padding: 12px 18px; border: 2px solid #ADD8E6; border-radius: 25px; font-size: 15px; color: #8B4513; cursor: pointer;">
      <option value="newest">Newest First</option>
      <option value="price_asc">Price: Low to High</option>
