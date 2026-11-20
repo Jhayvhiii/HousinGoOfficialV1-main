@@ -6,9 +6,20 @@
 
 export default function handler(req, res) {
   const publicEnv = {
-    VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '',
-    VITE_SUPABASE_ANON_KEY: process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '',
-    VITE_STREAM_API_KEY: process.env.VITE_STREAM_API_KEY || process.env.STREAM_API_KEY || '',
+    VITE_SUPABASE_URL:
+      process.env.VITE_SUPABASE_URL ||
+      process.env.NEXT_PUBLIC_SUPABASE_URL ||
+      process.env.SUPABASE_URL ||
+      '',
+    VITE_SUPABASE_ANON_KEY:
+      process.env.VITE_SUPABASE_ANON_KEY ||
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+      process.env.SUPABASE_ANON_KEY ||
+      '',
+    VITE_STREAM_API_KEY:
+      process.env.VITE_STREAM_API_KEY ||
+      process.env.STREAM_API_KEY ||
+      '',
   };
 
   res.setHeader('Content-Type', 'application/javascript; charset=utf-8');

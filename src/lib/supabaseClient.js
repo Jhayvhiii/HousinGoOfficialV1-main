@@ -40,9 +40,9 @@ export function getSupabaseClient() {
     return clientInstance;
   }
 
-  // Always pass the ENV VARIABLE NAMES here (NOT the raw URL/key values!)
-  const supabaseUrl = getEnvVar('https://lqoeueckcyxvcnwbcnqm.supabase.co');
-  const supabaseAnonKey = getEnvVar('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxxb2V1ZWNrY3l4dmNud2JjbnFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ3Mzg3MDQsImV4cCI6MjExMDMxNDcwNH0.DgeCFG9e1i3CDYOzhwcdME70YE1b5gN_EdAA9z2UJ70');
+  // DO NOT replace these strings — they are the env variable NAMES read from .env / Vercel!
+  const supabaseUrl = getEnvVar('VITE_SUPABASE_URL');
+  const supabaseAnonKey = getEnvVar('VITE_SUPABASE_ANON_KEY');
 
   if (!supabaseUrl || !supabaseAnonKey) {
     const msg =
