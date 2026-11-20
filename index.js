@@ -67,20 +67,20 @@ function renderStars(rating) {
 function statusBadgeHtml(status) {
     const s = String(status || '').toLowerCase();
     const map = {
-        available:   { bg: '#E8F5E9', color: '#1B5E20' },
-        active:      { bg: '#E8F5E9', color: '#1B5E20' },
-        approved:    { bg: '#E8F5E9', color: '#1B5E20' },
-        resolved:    { bg: '#E8F5E9', color: '#1B5E20' },
-        pending:     { bg: '#FFF8E1', color: '#B54708' },
-        occupied:    { bg: '#FFF8E1', color: '#B54708' },
-        under_review:{ bg: '#E3F2FD', color: '#0D47A1' },
-        open:        { bg: '#FFF0F0', color: '#B42318' },
-        rejected:    { bg: '#FFF0F0', color: '#B42318' },
-        suspended:   { bg: '#FFF0F0', color: '#B42318' },
-        removed:     { bg: '#FFF0F0', color: '#B42318' },
-        hidden:      { bg: '#ECEFF1', color: '#455A64' },
-        cancelled:   { bg: '#ECEFF1', color: '#455A64' },
-        dismissed:   { bg: '#ECEFF1', color: '#455A64' },
+        available: { bg: '#E8F5E9', color: '#1B5E20' },
+        active: { bg: '#E8F5E9', color: '#1B5E20' },
+        approved: { bg: '#E8F5E9', color: '#1B5E20' },
+        resolved: { bg: '#E8F5E9', color: '#1B5E20' },
+        pending: { bg: '#FFF8E1', color: '#B54708' },
+        occupied: { bg: '#FFF8E1', color: '#B54708' },
+        under_review: { bg: '#E3F2FD', color: '#0D47A1' },
+        open: { bg: '#FFF0F0', color: '#B42318' },
+        rejected: { bg: '#FFF0F0', color: '#B42318' },
+        suspended: { bg: '#FFF0F0', color: '#B42318' },
+        removed: { bg: '#FFF0F0', color: '#B42318' },
+        hidden: { bg: '#ECEFF1', color: '#455A64' },
+        cancelled: { bg: '#ECEFF1', color: '#455A64' },
+        dismissed: { bg: '#ECEFF1', color: '#455A64' },
     };
     const style = map[s] || { bg: '#F5F5DC', color: '#8B4513' };
     return `<span style="display:inline-block;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700;text-transform:capitalize;background:${style.bg};color:${style.color};">${escapeHtml(s.replace(/_/g, ' '))}</span>`;
@@ -202,7 +202,7 @@ async function applyAuthenticatedUser(session, profile) {
     updateNavForLoggedInUser();
     updateLandlordVerificationUI();
     refreshNotificationBadge();
-    initOptionalStreamClient(session).catch(() => {});
+    initOptionalStreamClient(session).catch(() => { });
     return currentUser;
 }
 
@@ -265,35 +265,52 @@ function updateNavForLoggedInUser() {
         const dash = getDashboardForRole(currentUser.role);
         const roleLabel = currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1);
         navList.innerHTML = `
-            <li><a href="#" onclick="showPage('home'); return false;">Home</a></li>
-            <li><a href="#" onclick="showPage('browse-properties'); return false;">Browse Properties</a></li>
-            <li><a href="#" onclick="showPage('${dash}'); return false;">Dashboard</a></li>
-            <li><a href="#" onclick="showPage('about'); return false;">About Us</a></li>
-            <li><a href="#" onclick="showPage('contact'); return false;">Contact Us</a></li>
-            <li><a href="#" onclick="showPage('help'); return false;">Help</a></li>
+            <li><a href="#" data-nav="home" onclick="showPage('home'); return false;">Home</a></li>
+            <li><a href="#" data-nav="browse-properties" onclick="showPage('browse-properties'); return false;">Browse Properties</a></li>
+            <li><a href="#" data-nav="${dash}" onclick="showPage('${dash}'); return false;">Dashboard</a></li>
+            <li><a href="#" data-nav="about" onclick="showPage('about'); return false;">About Us</a></li>
+            <li><a href="#" data-nav="contact" onclick="showPage('contact'); return false;">Contact Us</a></li>
+            <li><a href="#" data-nav="help" onclick="showPage('help'); return false;">Help</a></li>
         `;
         if (profileDropdown) profileDropdown.style.display = 'block';
         if (userNameDisplay) userNameDisplay.textContent = `👤 ${currentUser.full_name} (${roleLabel})`;
         if (floatingChat) floatingChat.style.display = 'block';
     } else {
         navList.innerHTML = `
-            <li><a href="#" onclick="showPage('home'); return false;">Home</a></li>
-            <li><a href="#" onclick="showPage('browse-properties'); return false;">Browse Properties</a></li>
-            <li><a href="#" onclick="showPage('about'); return false;">About Us</a></li>
-            <li><a href="#" onclick="showPage('login'); return false;">Log In</a></li>
-            <li><a href="#" onclick="showPage('register'); return false;">Register</a></li>
-            <li><a href="#" onclick="showPage('contact'); return false;">Contact Us</a></li>
-            <li><a href="#" onclick="showPage('help'); return false;">Help</a></li>
+            <li><a href="#" data-nav="home" onclick="showPage('home'); return false;">Home</a></li>
+            <li><a href="#" data-nav="browse-properties" onclick="showPage('browse-properties'); return false;">Browse Properties</a></li>
+            <li><a href="#" data-nav="about" onclick="showPage('about'); return false;">About Us</a></li>
+            <li><a href="#" data-nav="login" onclick="showPage('login'); return false;">Log In</a></li>
+            <li><a href="#" data-nav="register" onclick="showPage('register'); return false;">Register</a></li>
+            <li><a href="#" data-nav="contact" onclick="showPage('contact'); return false;">Contact Us</a></li>
+            <li><a href="#" data-nav="help" onclick="showPage('help'); return false;">Help</a></li>
         `;
         if (profileDropdown) profileDropdown.style.display = 'none';
         if (floatingChat) floatingChat.style.display = 'none';
     }
+    setActiveNavLink(window.__currentPageName || 'home');
+}
+
+function setActiveNavLink(pageName) {
+    window.__currentPageName = pageName;
+    document.querySelectorAll('#nav-menu a').forEach(a => {
+        a.classList.toggle('nav-link-active', a.getAttribute('data-nav') === pageName);
+    });
+}
+
+function switchDashboardTab(group, targetPanelId) {
+    document.querySelectorAll(`.dash-tabs[data-tab-group="${group}"] .dash-tab-btn`).forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-tab-target') === targetPanelId);
+    });
+    document.querySelectorAll(`.dash-tab-panel[data-tab-group="${group}"]`).forEach(panel => {
+        panel.classList.toggle('active', panel.id === targetPanelId);
+    });
 }
 
 async function logout() {
     try {
         if (streamClient && isStreamConnected) {
-            await streamClient.disconnectUser().catch(() => {});
+            await streamClient.disconnectUser().catch(() => { });
             isStreamConnected = false;
         }
         await window.authService?.signOut();
@@ -303,6 +320,8 @@ async function logout() {
         currentUser = null;
         updateNavForLoggedInUser();
         updateLandlordVerificationUI();
+        setActiveNavLink(pageName);
+
         const dd = document.getElementById('profile-dropdown-menu');
         if (dd) dd.style.display = 'none';
         showToast('Logged out successfully!', 'info');
@@ -377,6 +396,8 @@ function showPage(pageName) {
         }
         target.style.display = 'block';
     }
+
+    setActiveNavLink(pageName);
 
     const dd = document.getElementById('profile-dropdown-menu');
     if (dd) dd.style.display = 'none';
@@ -565,25 +586,29 @@ async function handleChangePassword(event) {
 function renderPropertyCard(p) {
     const imgUrl = Array.isArray(p.image_urls) && p.image_urls.length > 0 ? p.image_urls[0] : '';
     const imgHtml = imgUrl
-        ? `<img src="${escapeHtml(imgUrl)}" alt="${escapeHtml(p.title)}" style="width:100%;height:200px;object-fit:cover;">`
-        : `<div style="width:100%;height:200px;background:linear-gradient(135deg,#ADD8E6,#E8F6FB);display:flex;align-items:center;justify-content:center;font-size:48px;color:#8B4513;">🏠</div>`;
+        ?`<img src="${escapeHtml(imgUrl)}" alt="${escapeHtml(p.title)}">`
+        : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:48px;color:#0F4C81;">🏠</div>`;
 
     const ratingHtml = p.review_count > 0
-        ? `<div style="font-size:13px;color:#B54708;font-weight:600;margin-bottom:6px;">${renderStars(p.avg_rating)} (${Number(p.avg_rating).toFixed(1)} · ${p.review_count})</div>`
-        : `<div style="font-size:12px;color:#654321;margin-bottom:6px;">No reviews yet</div>`;
+        ?`<span style="font-size:13px;color:#D97706;font-weight:700;">★ ${Number(p.avg_rating).toFixed(1)} <span style="color:#64748B;font-weight:500;">(${p.review_count})</span></span>`
+        : `<span style="font-size:12px;color:#94A3B8;">New listing</span>`;
 
     return `
-        <div class="property-card" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 15px rgba(0,0,0,0.09);display:flex;flex-direction:column;">
-            ${imgHtml}
+        <div class="property-card" style="background:#fff;overflow:hidden;display:flex;flex-direction:column;">
+            <div class="property-card-media">
+                ${imgHtml}
+                <div class="property-card-badge">${statusBadgeHtml(p.availability_status || 'available')}</div>
+                <div class="property-card-price-pill">${formatPeso(p.price)}<span style="font-weight:400;font-size:11px;"> /mo</span></div>
+            </div>
             <div style="padding:18px;flex:1;display:flex;flex-direction:column;">
-                <div style="display:flex;justify-content:space-between;align-items:start;gap:8px;margin-bottom:6px;">
-                    <h3 style="font-size:18px;font-weight:700;color:#8B4513;margin:0;">${escapeHtml(p.title)}</h3>
-                    ${statusBadgeHtml(p.availability_status || 'available')}
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;">
+                    <h3 style="font-size:17px;font-weight:700;color:#1E293B;margin:0;line-height:1.3;">${escapeHtml(p.title)}</h3>
                 </div>
-                <p style="font-size:14px;color:#654321;margin-bottom:8px;">📍 ${escapeHtml(p.location)}</p>
-                ${ratingHtml}
-                <p style="font-size:22px;font-weight:800;color:#0288D1;margin-bottom:10px;">${formatPeso(p.price)} <span style="font-size:13px;font-weight:500;color:#654321;">/ month</span></p>
-                <p style="font-size:13px;color:#654321;margin-bottom:14px;flex:1;">${escapeHtml((p.description || '').slice(0, 110))}${(p.description || '').length > 110 ? '…' : ''}</p>
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;">
+                    <span style="font-size:13px;color:#64748B;">📍 ${escapeHtml(p.location)}</span>
+                    ${ratingHtml}
+                </div>
+                <p style="font-size:13.5px;color:#475569;line-height:1.55;margin-bottom:16px;flex:1;">${escapeHtml((p.description || '').slice(0, 105))}${(p.description || '').length > 105 ? '…' : ''}</p>
                 <div style="display:flex;gap:8px;margin-top:auto;">
                     <button class="btn" onclick="openPropertyDetails('${p.property_id}')" style="flex:1;padding:10px;font-size:14px;">View Details</button>
                     <button class="btn-secondary" onclick="applyForProperty('${p.property_id}')" style="padding:10px 14px;font-size:14px;">Apply</button>
@@ -767,7 +792,7 @@ async function openPropertyDetails(propertyId) {
                 <div style="margin-bottom:10px;">
                     <label style="font-weight:600;color:#8B4513;margin-right:10px;">Rating:</label>
                     <select id="review-rating-input" required style="padding:8px 12px;border:2px solid #ADD8E6;border-radius:8px;">
-                        ${[5,4,3,2,1].map(n => `<option value="${n}" ${myReview && Number(myReview.rating) === n ? 'selected' : ''}>${n} Star${n > 1 ? 's' : ''} (${'★'.repeat(n)})</option>`).join('')}
+                        ${[5, 4, 3, 2, 1].map(n => `<option value="${n}" ${myReview && Number(myReview.rating) === n ? 'selected' : ''}>${n} Star${n > 1 ? 's' : ''} (${'★'.repeat(n)})</option>`).join('')}
                     </select>
                 </div>
                 <textarea id="review-comment-input" rows="3" placeholder="Share your experience with this property..." style="width:100%;padding:10px;border:2px solid #ADD8E6;border-radius:8px;margin-bottom:10px;">${escapeHtml(myReview?.comment || '')}</textarea>
@@ -1033,7 +1058,7 @@ async function loadLandlordDashboard() {
                         </div>
                         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
                             <select onchange="handleLandlordStatusChange('${p.property_id}', this.value)" style="padding:8px 10px;border:2px solid #ADD8E6;border-radius:8px;font-weight:600;color:#8B4513;">
-                                ${['available','occupied','hidden'].map(st => `<option value="${st}" ${p.availability_status === st ? 'selected' : ''}>${st.charAt(0).toUpperCase() + st.slice(1)}</option>`).join('')}
+                                ${['available', 'occupied', 'hidden'].map(st => `<option value="${st}" ${p.availability_status === st ? 'selected' : ''}>${st.charAt(0).toUpperCase() + st.slice(1)}</option>`).join('')}
                             </select>
                             <button class="btn-secondary" onclick="openEditPropertyForm('${p.property_id}')" style="padding:8px 14px;font-size:13px;">✏️ Edit</button>
                             <button class="btn-secondary" onclick="handleLandlordDeleteProperty('${p.property_id}')" style="padding:8px 14px;font-size:13px;color:#B42318;border-color:#FF6B6B;">🗑 Delete</button>
@@ -1366,7 +1391,7 @@ async function loadAdminProperties() {
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                     ${statusBadgeHtml(p.availability_status)}
                     <select onchange="adminModerateProperty('${p.property_id}', this.value)" style="padding:7px 10px;border:2px solid #ADD8E6;border-radius:8px;font-size:12px;">
-                        ${['available','occupied','hidden','removed'].map(st => `<option value="${st}" ${p.availability_status === st ? 'selected' : ''}>${st}</option>`).join('')}
+                        ${['available', 'occupied', 'hidden', 'removed'].map(st => `<option value="${st}" ${p.availability_status === st ? 'selected' : ''}>${st}</option>`).join('')}
                     </select>
                     <button class="btn-secondary" onclick="adminDeleteProperty('${p.property_id}', '${escapeJsAttr(p.title)}')" style="padding:7px 12px;font-size:12px;color:#B42318;border-color:#FF6B6B;">Delete</button>
                 </div>
@@ -1422,7 +1447,7 @@ async function loadAdminComplaints() {
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                     ${statusBadgeHtml(c.status)}
                     <select onchange="adminUpdateComplaint('${c.complaint_id}', this.value)" style="padding:7px 10px;border:2px solid #ADD8E6;border-radius:8px;font-size:12px;">
-                        ${['open','under_review','resolved','dismissed'].map(st => `<option value="${st}" ${c.status === st ? 'selected' : ''}>${st.replace(/_/g, ' ')}</option>`).join('')}
+                        ${['open', 'under_review', 'resolved', 'dismissed'].map(st => `<option value="${st}" ${c.status === st ? 'selected' : ''}>${st.replace(/_/g, ' ')}</option>`).join('')}
                     </select>
                 </div>
             </div>
@@ -1705,8 +1730,8 @@ async function buildUserNotifications() {
                 body: a.status === 'approved'
                     ? 'Your rental application has been approved by the landlord!'
                     : a.status === 'rejected'
-                    ? 'Your rental application was not approved.'
-                    : 'Your application is currently pending landlord review.',
+                        ? 'Your rental application was not approved.'
+                        : 'Your application is currently pending landlord review.',
                 date: a.application_date,
             });
         });
