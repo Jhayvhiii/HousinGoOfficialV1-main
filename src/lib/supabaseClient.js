@@ -38,13 +38,6 @@ export function getSupabaseClient() {
   const supabaseUrl = getEnvVar('https://lqoeueckcyxvcnwbcnqm.supabase.co');
   const supabaseAnonKey = getEnvVar('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxxb2V1ZWNrY3l4dmNud2JjbnFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ3Mzg3MDQsImV4cCI6MjExMDMxNDcwNH0.DgeCFG9e1i3CDYOzhwcdME70YE1b5gN_EdAA9z2UJ70');
 
-  if (!supabaseUrl || !supabaseAnonKey) {
-    const msg =
-      'Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env and run with `npm run dev` (or generate env.js for Live Server).';
-    console.error('❌ ' + msg);
-    throw new Error(msg);
-  }
-
   if (typeof window !== 'undefined' && window.supabase && typeof window.supabase.createClient === 'function') {
     clientInstance = window.supabase.createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
