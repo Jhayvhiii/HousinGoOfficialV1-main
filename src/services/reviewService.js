@@ -3,10 +3,10 @@
  * Manages property reviews (1-5 stars) in public.reviews.
  */
 
+import { getSupabaseClient } from '../lib/supabaseClient.js';
+
 function getClient() {
-  if (typeof window !== 'undefined' && window.supabaseClient) return window.supabaseClient;
-  if (typeof window !== 'undefined' && window.supabase) return window.supabase;
-  throw new Error('Supabase client is not initialized.');
+  return getSupabaseClient();
 }
 
 export const reviewService = {

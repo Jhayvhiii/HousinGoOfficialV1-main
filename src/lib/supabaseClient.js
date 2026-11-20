@@ -17,32 +17,49 @@ function getEnvVar(key) {
   return '';
 }
 
-const supabaseUrl = getEnvVar('https://lqoeueckcyxvcnwbcnqm.supabase.co');
-const supabaseAnonKey = getEnvVar('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxxb2V1ZWNrY3l4dmNud2JjbnFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ3Mzg3MDQsImV4cCI6MjExMDMxNDcwNH0.DgeCFG9e1i3CDYOzhwcdME70YE1b5gN_EdAA9z2UJ70');
+let clientInstance = null;
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error(
-    '❌ Missing Supabase environment variables! Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file and run with `npm run dev`.'
-  );
-}
+export function getSupabaseClient() {
+  if (clientInstance && typeof clientInstance.from === 'function') {
+    return clientInstance;
+  }
 
-let client = null;
-if (supabaseUrl && supabaseAnonKey) {
+  if (typeof window !== 'undefined' && window.supabaseClient && typeof window.supabaseClient.from === 'function') {
+    clientInstance = window.supabaseClient;
+    return clientInstance;
+  }
+
+  const supabaseUrl = getEnvVar('https://lqoeueckcyxvcnwbcnqm.supabase.co');
+  const supabaseAnonKey = getEnvVar('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxxb2V1ZWNrY3l4dmNud2JjbnFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ3Mzg3MDQsImV4cCI6MjExMDMxNDcwNH0.DgeCFG9e1i3CDYOzhwcdME70YE1b5gN_EdAA9z2UJ70');
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    const msg =
+      'Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env and run with `npm run dev` (or generate env.js for Live Server).';
+    console.error('❌ ' + msg);
+    throw new Error(msg);
+  }
+
   if (typeof window !== 'undefined' && window.supabase && typeof window.supabase.createClient === 'function') {
-    client = window.supabase.createClient(supabaseUrl, supabaseAnonKey, {
+    clientInstance = window.supabase.createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
       },
     });
-  } else {
-    console.error('❌ Supabase JS SDK (window.supabase) was not loaded before supabaseClient.js.');
+    window.supabaseClient = clientInstance;
+    return clientInstance;
   }
+
+  throw new Error('Supabase JS SDK was not loaded. Check the CDN script tag in index.html.');
 }
 
-export const supabase = client;
-
-if (typeof window !== 'undefined') {
-  window.supabaseClient = supabase;
+// Eagerly initialize on load if env & SDK are ready
+let initialClient = null;
+try {
+  initialClient = getSupabaseClient();
+} catch (err) {
+  console.warn('⚠️ Deferred Supabase client init:', err.message);
 }
+
+export const supabase = initialClient;
