@@ -1,38 +1,49 @@
 <!-- Tenant Dashboard -->
 <main id="tenant-dashboard-page" style="display: none;">
- <div class="dash-shell">
-  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 24px;">
+ <div class="dash-shell dash-fullscreen">
+  <div class="dash-hero-bar">
    <div>
-    <h1 style="font-size: 32px; color: #2C1E16; margin: 0 0 4px;">Tenant Dashboard</h1>
-    <p style="color: #64748B; font-size: 14px; margin: 0;">Track your rental applications, reviews, and reports in one place.</p>
+    <span class="dash-role-pill">🔍 Tenant Workspace</span>
+    <h1 style="font-size: 32px; color: #FFFFFF; margin: 10px 0 4px; letter-spacing: -0.02em;">Tenant Dashboard</h1>
+    <p style="color: rgba(255,255,255,0.88); font-size: 14px; margin: 0;">Track your rental applications, reviews, and reports in one place.</p>
    </div>
-   <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-    <button class="btn" onclick="showPage('home')" style="padding: 11px 20px;">🏠 Browse Rentals</button>
-    <button class="btn-secondary" onclick="openComplaintModal()" style="padding: 11px 18px;">🚨 File Complaint</button>
+   <div style="display: flex; gap: 10px; flex-wrap: wrap; align-self: flex-start; position: relative; z-index: 1;">
+    <button class="btn dash-hero-cta" onclick="showPage('home')">🏠 Browse Rentals</button>
+    <button class="btn-secondary" onclick="openComplaintModal()" style="padding: 12px 18px; border-radius: 12px !important;">🚨 File Complaint</button>
    </div>
   </div>
 
-  <!-- Clean KPI Cards -->
   <div class="kpi-grid">
    <div class="kpi-card">
-    <div class="kpi-label">Total Applications</div>
-    <p class="kpi-value" id="tenant-stat-total">0</p>
+    <div>
+     <div class="kpi-label">Total Applications</div>
+     <p class="kpi-value" id="tenant-stat-total">0</p>
+    </div>
+    <div class="kpi-icon">📋</div>
    </div>
    <div class="kpi-card green">
-    <div class="kpi-label">Approved</div>
-    <p class="kpi-value" style="color: #2E7D32;" id="tenant-stat-approved">0</p>
+    <div>
+     <div class="kpi-label">Approved</div>
+     <p class="kpi-value" style="color: #2E7D32;" id="tenant-stat-approved">0</p>
+    </div>
+    <div class="kpi-icon">✅</div>
    </div>
    <div class="kpi-card amber">
-    <div class="kpi-label">Pending</div>
-    <p class="kpi-value" style="color: #D97706;" id="tenant-stat-pending">0</p>
+    <div>
+     <div class="kpi-label">Pending</div>
+     <p class="kpi-value" style="color: #D97706;" id="tenant-stat-pending">0</p>
+    </div>
+    <div class="kpi-icon">⏳</div>
    </div>
    <div class="kpi-card">
-    <div class="kpi-label">My Reviews</div>
-    <p class="kpi-value" id="tenant-stat-reviews">0</p>
+    <div>
+     <div class="kpi-label">My Reviews</div>
+     <p class="kpi-value" id="tenant-stat-reviews">0</p>
+    </div>
+    <div class="kpi-icon">⭐</div>
    </div>
   </div>
 
-  <!-- Tabbed Navigation -->
   <div class="dash-tabs" data-tab-group="tenant">
    <button type="button" class="dash-tab-btn active" data-tab-target="tenant-tab-apps" onclick="switchDashboardTab('tenant', 'tenant-tab-apps')">📋 My Applications</button>
    <button type="button" class="dash-tab-btn" data-tab-target="tenant-tab-reviews" onclick="switchDashboardTab('tenant', 'tenant-tab-reviews')">⭐ My Reviews</button>

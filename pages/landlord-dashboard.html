@@ -1,14 +1,14 @@
 <!-- Landlord Dashboard -->
 <main id="landlord-dashboard-page" style="display: none;">
  <div class="dash-shell dash-fullscreen">
-  <!-- Lively Full-Width Dashboard Header Banner -->
+  <!-- Full-Width Dashboard Header Banner with Upper-Right CTA -->
   <div class="dash-hero-bar">
    <div>
     <span class="dash-role-pill">🔑 Landlord Workspace</span>
-    <h1 style="font-size: 32px; color: #FFFFFF; margin: 8px 0 4px;">Landlord Dashboard</h1>
-    <p style="color: rgba(255,255,255,0.86); font-size: 14px; margin: 0;">Manage your rental listings, review tenant applications, and reply to inquiries in real time.</p>
+    <h1 style="font-size: 32px; color: #FFFFFF; margin: 10px 0 4px; letter-spacing: -0.02em;">Landlord Dashboard</h1>
+    <p style="color: rgba(255,255,255,0.88); font-size: 14px; margin: 0;">Manage your rental listings, review tenant applications, and reply to inquiries in real time.</p>
    </div>
-   <button id="landlord-add-property-btn" class="btn dash-hero-cta" onclick="openCreatePropertyForm()">+ Add New Property</button>
+   <button id="landlord-add-property-btn" class="btn dash-hero-cta" onclick="openCreatePropertyForm()">＋ Add New Property</button>
   </div>
 
   <div id="landlord-verification-banner" class="verification-banner" role="status">
@@ -21,20 +21,32 @@
   <!-- Stats from landlord_property_summary view -->
   <div class="kpi-grid">
    <div class="kpi-card">
-    <div class="kpi-label">Total Properties</div>
-    <p class="kpi-value" id="landlord-total-properties">0</p>
+    <div>
+     <div class="kpi-label">Total Properties</div>
+     <p class="kpi-value" id="landlord-total-properties">0</p>
+    </div>
+    <div class="kpi-icon">🏠</div>
    </div>
    <div class="kpi-card green">
-    <div class="kpi-label">Available</div>
-    <p class="kpi-value" style="color: #2E7D32;" id="landlord-available-properties">0</p>
+    <div>
+     <div class="kpi-label">Available</div>
+     <p class="kpi-value" style="color: #2E7D32;" id="landlord-available-properties">0</p>
+    </div>
+    <div class="kpi-icon">✅</div>
    </div>
    <div class="kpi-card amber">
-    <div class="kpi-label">Occupied / Hidden</div>
-    <p class="kpi-value" style="color: #D97706;" id="landlord-occupied-properties">0</p>
+    <div>
+     <div class="kpi-label">Occupied / Hidden</div>
+     <p class="kpi-value" style="color: #D97706;" id="landlord-occupied-properties">0</p>
+    </div>
+    <div class="kpi-icon">🔒</div>
    </div>
    <div class="kpi-card">
-    <div class="kpi-label">Portfolio Value / mo</div>
-    <p class="kpi-value" style="font-size: 26px;" id="landlord-total-value">₱0</p>
+    <div>
+     <div class="kpi-label">Portfolio Value / mo</div>
+     <p class="kpi-value" style="font-size: 24px;" id="landlord-total-value">₱0</p>
+    </div>
+    <div class="kpi-icon">💰</div>
    </div>
   </div>
 
