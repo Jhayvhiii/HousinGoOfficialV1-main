@@ -34,6 +34,14 @@ function escapeHtml(str) {
         .replace(/'/g, '&#39;');
 }
 
+function escapeJsAttr(str) {
+    return String(str ?? '')
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'")
+        .replace(/"/g, '&quot;')
+        .replace(/\r?\n/g, ' ');
+}
+
 function formatPeso(amount) {
     const num = Number(amount || 0);
     return `₱${num.toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
@@ -793,8 +801,8 @@ async function openPropertyDetails(propertyId) {
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:26px;">
                 ${!isOwner ? `<button class="btn" onclick="applyForProperty('${property.property_id}')" style="flex:1;min-width:140px;padding:12px;">📝 Apply Now</button>` : ''}
-                ${!isOwner && property.landlord_id ? `<button class="btn-secondary" onclick="openMessageToUser('${property.landlord_id}', '${escapeHtml(property.landlord?.full_name || 'Landlord')}', '${property.property_id}')" style="flex:1;min-width:140px;padding:12px;">💬 Message Landlord</button>` : ''}
-                ${currentUser && !isOwner ? `<button class="btn-secondary" onclick="openComplaintModal('${property.property_id}', '${property.landlord_id}', '${escapeHtml(property.title)}')" style="padding:12px 16px;color:#B42318;border-color:#FF6B6B;">🚨 Report</button>` : ''}
+                ${!isOwner && property.landlord_id ? `<button class="btn-secondary" onclick="openMessageToUser('${property.landlord_id}', '${escapeJsAttr(property.landlord?.full_name || 'Landlord')}', '${property.property_id}')" style="flex:1;min-width:140px;padding:12px;">💬 Message Landlord</button>` : ''}
+                ${currentUser && !isOwner ? `<button class="btn-secondary" onclick="openComplaintModal('${property.property_id}', '${property.landlord_id}', '${escapeJsAttr(property.title)}')" style="padding:12px 16px;color:#B42318;border-color:#FF6B6B;">🚨 Report</button>` : ''}
             </div>
             <hr style="border:none;border-top:2px solid #ADD8E6;margin:20px 0;">
             <h3 style="color:#8B4513;margin-bottom:12px;">⭐ Reviews ${avgRating ? `(${avgRating} avg · ${reviews.length})` : '(0)'}</h3>
@@ -1355,7 +1363,7 @@ async function loadAdminProperties() {
                     <select onchange="adminModerateProperty('${p.property_id}', this.value)" style="padding:7px 10px;border:2px solid #ADD8E6;border-radius:8px;font-size:12px;">
                         ${['available','occupied','hidden','removed'].map(st => `<option value="${st}" ${p.availability_status === st ? 'selected' : ''}>${st}</option>`).join('')}
                     </select>
-                    <button class="btn-secondary" onclick="adminDeleteProperty('${p.property_id}', '${escapeHtml(p.title)}')" style="padding:7px 12px;font-size:12px;color:#B42318;border-color:#FF6B6B;">Delete</button>
+                    <button class="btn-secondary" onclick="adminDeleteProperty('${p.property_id}', '${escapeJsAttr(p.title)}')" style="padding:7px 12px;font-size:12px;color:#B42318;border-color:#FF6B6B;">Delete</button>
                 </div>
             </div>
         `).join('');
@@ -1824,6 +1832,23 @@ function wireAllUIListeners() {
     regPass?.addEventListener('input', () => { updateStrength(); updateMatch(); });
     regConfirm?.addEventListener('input', updateMatch);
 
+    // Property image file preview on Post/Edit Property page
+    document.getElementById('property-images')?.addEventListener('change', (e) => {
+        const preview = document.getElementById('image-preview');
+        if (!preview) return;
+        renderExistingImagePreview();
+        const files = Array.from(e.target.files || []);
+        files.forEach(file => {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const wrap = document.createElement('div');
+                wrap.innerHTML = `<img src="${ev.target.result}" style="width:100%;height:95px;object-fit:cover;border-radius:8px;border:2px solid #87CEEB;">`;
+                preview.appendChild(wrap);
+            };
+            reader.readAsDataURL(file);
+        });
+    });
+
     // Recipient search in New Message modal (queries real profiles)
     const recSearch = document.getElementById('recipient-search');
     const recResults = document.getElementById('user-search-results');
@@ -1845,7 +1870,7 @@ function wireAllUIListeners() {
                     recResults.innerHTML = '<div style="padding:10px;color:#654321;">No users found.</div>';
                 } else {
                     recResults.innerHTML = data.map(u => `
-                        <div onclick="pickNewMessageRecipient('${u.id}', '${escapeHtml(u.full_name)}')" style="padding:10px 12px;cursor:pointer;border-bottom:1px solid #F5F5DC;">
+                        <div onclick="pickNewMessageRecipient('${u.id}', '${escapeJsAttr(u.full_name)}')" style="padding:10px 12px;cursor:pointer;border-bottom:1px solid #F5F5DC;">
                             <strong style="color:#8B4513;">${escapeHtml(u.full_name)}</strong> <small style="color:#0288D1;">(${escapeHtml(u.role)})</small><br>
                             <small style="color:#654321;">${escapeHtml(u.email)}</small>
                         </div>

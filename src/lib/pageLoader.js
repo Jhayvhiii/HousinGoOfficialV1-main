@@ -78,7 +78,7 @@ async function bootstrapHousinGo() {
 
     // Load main application logic only AFTER all services & HTML partials are ready
     const appScript = document.createElement('script');
-    appScript.src = 'index.js';
+    appScript.src = 'index.js?v=3';
     appScript.onerror = () => console.error('❌ Failed to load index.js');
     document.body.appendChild(appScript);
   } catch (error) {

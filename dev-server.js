@@ -46,6 +46,12 @@ const server = http.createServer((req, res) => {
   const parsedUrl = new URL(req.url, `http://${req.headers.host}`);
   let pathname = decodeURIComponent(parsedUrl.pathname);
 
+  // Handle /api/stream-token locally without 404 console noise
+  if (pathname === '/api/stream-token') {
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    return res.end(JSON.stringify({ fallback: true, message: 'Using Supabase inquiries messaging in local dev.' }));
+  }
+
   // Serve dynamic /env.js containing safe public client environment variables
   if (pathname === '/env.js') {
     const env = loadEnv();

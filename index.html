@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>HousinGo - Your next home is just a click away</title>
+  <link rel="icon" type="image/svg+xml" href="assets/logo.svg">
   <script src="env.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/stream-chat@8.40.2/dist/browser/index.umd.js"></script>
@@ -32,7 +33,7 @@
       </ul>
      </nav>
      <!-- Floating Chat Button -->
-     <div id="floating-chat-button" style="position: fixed; bottom: 20px; right: 20px; z-index: 2000; display: none;"><button onclick="showMessages()" onmouseover="this.style.transform='scale(1.1)'; this.style.boxShadow='0 6px 25px rgba(0,0,0,0.4)'" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 4px 20px rgba(0,0,0,0.3)'" style="width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, #ADD8E6 0%, #87CEEB 100%); border: 3px solid white; box-shadow: 0 4px 20px rgba(0,0,0,0.3); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 24px; transition: all 0.3s ease; position: relative;"> 💬 <span id="floating-messages-badge" style="display: none; position: absolute; top: -5px; right: -5px; background: #FF6B6B; color: white; border-radius: 50%; width: 24px; height: 24px; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; border: 2px solid white; animation: pulse 2s infinite;">0</span> </button>
+     <div id="floating-chat-button" style="position: fixed; bottom: 20px; right: 20px; z-index: 2000; display: none;"><button onclick="showMessages()" onmouseover="this.style.transform='scale(1.1)'; this.style.boxShadow='0 6px 25px rgba(0,0,0,0.4)'" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 4px 20px rgba(0,0,0,0.3)'" style="width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, #ADD8E6 0%, #87CEEB 100%); border: 3px solid white; box-shadow: 0 4px 20px rgba(0,0,0,0.3); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 24px; transition: all 0.3s ease; position: relative;"> 💬 <span id="floating-messages-badge" style="display: none; position: absolute; top: -5px; right: -5px; background: #FF6B6B; color: white; border-radius: 50%; width: 24px; height: 24px; font-size: 12px; font-weight: 600; align-items: center; justify-content: center; border: 2px solid white; animation: pulse 2s infinite;">0</span> </button>
       <div id="chat-status-indicator" style="position: absolute; bottom: 70px; right: 0; background: linear-gradient(135deg, #32CD32 0%, #228B22 100%); color: white; padding: 8px 12px; border-radius: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); font-size: 12px; font-weight: 600; white-space: nowrap; display: none;">
        <div style="display: flex; align-items: center; gap: 6px;">
         <div style="width: 6px; height: 6px; background: white; border-radius: 50%; animation: pulse 2s infinite;"></div><span>Live Chat</span>
