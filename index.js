@@ -91,12 +91,16 @@ function encodePropertyDescription(plainText, meta = {}) {
     const cleanedMeta = {
         type: meta.type || '',
         slots: meta.slots ? Number(meta.slots) : null,
+        area: (meta.area || '').trim(),
+        min_occupants: (meta.min_occupants || '').trim(),
         min_stay: (meta.min_stay || '').trim(),
+        advance_payment: (meta.advance_payment || '').trim(),
         move_in_date: (meta.move_in_date || '').trim(),
         landmarks: (meta.landmarks || '').trim(),
         map_link: (meta.map_link || '').trim(),
         rules: (meta.rules || '').trim(),
         amenities: Array.isArray(meta.amenities) ? meta.amenities : [],
+        amenity_fees: meta.amenity_fees && typeof meta.amenity_fees === 'object' ? meta.amenity_fees : {},
         contact_name: (meta.contact_name || '').trim(),
         contact_phone: (meta.contact_phone || '').trim(),
         lat: meta.lat !== undefined && meta.lat !== '' && !Number.isNaN(Number(meta.lat)) ? Number(meta.lat) : null,
@@ -1179,8 +1183,11 @@ async function openPropertyDetails(propertyId) {
 
         const specsItems = [
             meta.type ? `<div style="background:#FAF8F5;padding:10px 14px;border-radius:10px;border:1px solid #EAE5DC;"><small style="color:#64748B;display:block;">Property Type</small><strong style="color:#1E293B;">🏷️ ${escapeHtml(meta.type)}</strong></div>` : '',
+            meta.area ? `<div style="background:#FAF8F5;padding:10px 14px;border-radius:10px;border:1px solid #EAE5DC;"><small style="color:#64748B;display:block;">Lot / Floor Area</small><strong style="color:#1E293B;">📐 ${escapeHtml(meta.area)}</strong></div>` : '',
+            meta.min_occupants ? `<div style="background:#FAF8F5;padding:10px 14px;border-radius:10px;border:1px solid #EAE5DC;"><small style="color:#64748B;display:block;">Occupants (Min/Max)</small><strong style="color:#1E293B;">👥 ${escapeHtml(meta.min_occupants)}</strong></div>` : '',
             meta.slots ? `<div style="background:#FAF8F5;padding:10px 14px;border-radius:10px;border:1px solid #EAE5DC;"><small style="color:#64748B;display:block;">Available Slots</small><strong style="color:#1E293B;">🛏️ ${meta.slots}</strong></div>` : '',
             meta.min_stay ? `<div style="background:#FAF8F5;padding:10px 14px;border-radius:10px;border:1px solid #EAE5DC;"><small style="color:#64748B;display:block;">Minimum Stay</small><strong style="color:#1E293B;">⏳ ${escapeHtml(meta.min_stay)}</strong></div>` : '',
+            meta.advance_payment ? `<div style="background:#EFF6FF;padding:10px 14px;border-radius:10px;border:1px solid #BFDBFE;"><small style="color:#1D4ED8;display:block;">Advance / Deposit</small><strong style="color:#1E3A8A;">💵 ${escapeHtml(meta.advance_payment)}</strong></div>` : '',
             meta.move_in_date ? `<div style="background:#FAF8F5;padding:10px 14px;border-radius:10px;border:1px solid #EAE5DC;"><small style="color:#64748B;display:block;">Move-in Date</small><strong style="color:#1E293B;">📅 ${formatDate(meta.move_in_date)}</strong></div>` : '',
         ].filter(Boolean).join('');
 
@@ -1195,10 +1202,19 @@ async function openPropertyDetails(propertyId) {
                </div>`
             : '';
 
+        const amenityFees = meta.amenity_fees && typeof meta.amenity_fees === 'object' ? meta.amenity_fees : {};
         const amenitiesDetailHtml = Array.isArray(meta.amenities) && meta.amenities.length > 0
             ? `<div style="margin-bottom:18px;">
-                 <strong style="display:block;color:#2C1E16;margin-bottom:8px;">✨ Amenities &amp; Inclusions</strong>
-                 <div style="display:flex;flex-wrap:wrap;gap:8px;">${meta.amenities.map(a => `<span style="background:#EEF6FA;color:#0F4C81;font-size:13px;font-weight:600;padding:5px 12px;border-radius:999px;">${AMENITY_ICONS[a] || '✓'} ${escapeHtml(a)}</span>`).join('')}</div>
+                 <strong style="display:block;color:#2C1E16;margin-bottom:8px;">✨ Amenities, Inclusions &amp; Utility / Advance Payments</strong>
+                 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px;">
+                   ${meta.amenities.map(a => {
+                       const fee = amenityFees[a];
+                       return `<div style="background:#EEF6FA;border:1px solid #C8E2F2;color:#0F4C81;font-size:13px;font-weight:600;padding:8px 12px;border-radius:10px;display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                         <span>${AMENITY_ICONS[a] || '✓'} ${escapeHtml(a)}</span>
+                         ${fee ? `<span style="background:#FFFFFF;color:#1E293B;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:999px;">${escapeHtml(fee)}</span>` : ''}
+                       </div>`;
+                   }).join('')}
+                 </div>
                </div>`
             : '';
 
@@ -1613,7 +1629,10 @@ async function openEditPropertyForm(propertyId) {
         setVal('property-address', prop.location);
         setVal('monthly-rent', prop.price);
         setVal('available-slots', meta.slots || 1);
+        setVal('property-area', meta.area || '');
+        setVal('min-occupants', meta.min_occupants || '');
         setVal('min-stay', meta.min_stay || '');
+        setVal('advance-payment', meta.advance_payment || '');
         setVal('move-in-date', meta.move_in_date || '');
         setVal('nearby-landmarks', meta.landmarks || '');
         setVal('location-link', meta.map_link || '');
@@ -1626,8 +1645,13 @@ async function openEditPropertyForm(propertyId) {
         setVal('property-lng', meta.lng ?? '');
 
         const savedAmenities = new Set(Array.isArray(meta.amenities) ? meta.amenities : []);
+        const savedFees = meta.amenity_fees && typeof meta.amenity_fees === 'object' ? meta.amenity_fees : {};
         document.querySelectorAll('#post-property-form input[name="amenity"]').forEach(cb => {
             cb.checked = savedAmenities.has(cb.value);
+        });
+        document.querySelectorAll('#post-property-form input[data-amenity-fee]').forEach(inp => {
+            const key = inp.getAttribute('data-amenity-fee');
+            inp.value = savedFees[key] || '';
         });
 
         const heading = document.getElementById('post-property-heading');
@@ -1684,15 +1708,28 @@ async function handlePostProperty(event) {
     const plainDescription = document.getElementById('property-description')?.value.trim() || '';
     const availability_status = document.getElementById('property-availability-status')?.value || 'available';
     const checkedAmenities = Array.from(document.querySelectorAll('#post-property-form input[name="amenity"]:checked')).map(cb => cb.value);
+    const amenityFees = {};
+    document.querySelectorAll('#post-property-form input[data-amenity-fee]').forEach(inp => {
+        const key = inp.getAttribute('data-amenity-fee');
+        const val = inp.value.trim();
+        if (val) {
+            amenityFees[key] = val;
+            if (!checkedAmenities.includes(key)) checkedAmenities.push(key);
+        }
+    });
     const description = encodePropertyDescription(plainDescription, {
         type: document.getElementById('property-type')?.value || '',
         slots: document.getElementById('available-slots')?.value || 1,
+        area: document.getElementById('property-area')?.value || '',
+        min_occupants: document.getElementById('min-occupants')?.value || '',
         min_stay: document.getElementById('min-stay')?.value || '',
+        advance_payment: document.getElementById('advance-payment')?.value || '',
         move_in_date: document.getElementById('move-in-date')?.value || '',
         landmarks: document.getElementById('nearby-landmarks')?.value || '',
         map_link: document.getElementById('location-link')?.value || '',
         rules: document.getElementById('property-rules')?.value || '',
         amenities: checkedAmenities,
+        amenity_fees: amenityFees,
         contact_name: document.getElementById('contact-name')?.value.trim() || '',
         contact_phone: document.getElementById('contact-number')?.value.trim() || '',
         lat: document.getElementById('property-lat')?.value || '',

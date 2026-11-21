@@ -80,11 +80,26 @@
 
    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 18px;">
     <div>
-     <label for="min-stay" style="display: block; margin-bottom: 6px; font-weight: 600; color: #2C1E16;">Minimum Stay</label>
+     <label for="property-area" style="display: block; margin-bottom: 6px; font-weight: 600; color: #2C1E16;">📐 Lot / Floor Area (Sukat ng Lupa/Unit)</label>
+     <input type="text" id="property-area" placeholder="e.g., 24 sqm, 40 sqm lot" style="width: 100%; padding: 12px; border: 1.5px solid #D8D2C7; border-radius: 10px; font-size: 15px;">
+    </div>
+    <div>
+     <label for="min-occupants" style="display: block; margin-bottom: 6px; font-weight: 600; color: #2C1E16;">👥 Occupants Allowed (Minimum / Max Titira)</label>
+     <input type="text" id="min-occupants" placeholder="e.g., Min 1 - Max 3 persons" style="width: 100%; padding: 12px; border: 1.5px solid #D8D2C7; border-radius: 10px; font-size: 15px;">
+    </div>
+   </div>
+
+   <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 18px;">
+    <div>
+     <label for="min-stay" style="display: block; margin-bottom: 6px; font-weight: 600; color: #2C1E16;">⏳ Minimum Stay</label>
      <input type="text" id="min-stay" placeholder="e.g., 6 months, 1 year" style="width: 100%; padding: 12px; border: 1.5px solid #D8D2C7; border-radius: 10px; font-size: 15px;">
     </div>
     <div>
-     <label for="move-in-date" style="display: block; margin-bottom: 6px; font-weight: 600; color: #2C1E16;">Move-in Date Available</label>
+     <label for="advance-payment" style="display: block; margin-bottom: 6px; font-weight: 600; color: #2C1E16;">💵 Advance / Deposit Payment</label>
+     <input type="text" id="advance-payment" placeholder="e.g., 1 mo. advance + 1 mo. deposit" style="width: 100%; padding: 12px; border: 1.5px solid #D8D2C7; border-radius: 10px; font-size: 15px;">
+    </div>
+    <div>
+     <label for="move-in-date" style="display: block; margin-bottom: 6px; font-weight: 600; color: #2C1E16;">📅 Move-in Date Available</label>
      <input type="date" id="move-in-date" style="width: 100%; padding: 12px; border: 1.5px solid #D8D2C7; border-radius: 10px; font-size: 15px;">
     </div>
    </div>
@@ -101,16 +116,41 @@
    </div>
 
    <div style="margin-bottom: 20px;">
-    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #2C1E16;">✨ Amenities &amp; Inclusions</label>
-    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)); gap: 10px; background: #FAF8F5; padding: 14px; border-radius: 10px; border: 1px solid #EAE5DC;">
-     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px;"><input type="checkbox" name="amenity" value="Wi-Fi"> 📶 Wi-Fi</label>
-     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px;"><input type="checkbox" name="amenity" value="Aircon"> ❄️ Aircon</label>
-     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px;"><input type="checkbox" name="amenity" value="Water Included"> 💧 Water Included</label>
-     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px;"><input type="checkbox" name="amenity" value="Electric Included"> ⚡ Electric Included</label>
-     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px;"><input type="checkbox" name="amenity" value="Kitchen Access"> 🍳 Kitchen Access</label>
-     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px;"><input type="checkbox" name="amenity" value="Parking"> 🚗 Parking</label>
-     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px;"><input type="checkbox" name="amenity" value="Private Bathroom"> 🚿 Private Bathroom</label>
-     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px;"><input type="checkbox" name="amenity" value="Pet Friendly"> 🐾 Pet Friendly</label>
+    <label style="display: block; margin-bottom: 4px; font-weight: 700; color: #2C1E16;">✨ Amenities, Inclusions &amp; Utility / Advance Payments</label>
+    <p style="font-size: 13px; color: #64748B; margin: 0 0 10px;">Check the available amenities and optionally enter the required payment or advance (e.g., <em>Included</em>, <em>₱300/mo</em>, <em>₱1,000 advance</em>, <em>Sub-metered</em>).</p>
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; background: #FAF8F5; padding: 14px; border-radius: 12px; border: 1px solid #EAE5DC;">
+     <div style="display: flex; align-items: center; gap: 8px; background: #FFFFFF; padding: 8px 10px; border-radius: 8px; border: 1px solid #EAE5DC;">
+      <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13.5px; font-weight: 600; white-space: nowrap;"><input type="checkbox" name="amenity" value="Water Included"> 💧 Tubig / Water</label>
+      <input type="text" data-amenity-fee="Water Included" placeholder="e.g., ₱300/mo or Included" style="flex: 1; min-width: 90px; padding: 6px 8px; border: 1px solid #D8D2C7; border-radius: 6px; font-size: 12.5px;">
+     </div>
+     <div style="display: flex; align-items: center; gap: 8px; background: #FFFFFF; padding: 8px 10px; border-radius: 8px; border: 1px solid #EAE5DC;">
+      <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13.5px; font-weight: 600; white-space: nowrap;"><input type="checkbox" name="amenity" value="Electric Included"> ⚡ Kuryente</label>
+      <input type="text" data-amenity-fee="Electric Included" placeholder="e.g., Sub-meter / ₱1k adv" style="flex: 1; min-width: 90px; padding: 6px 8px; border: 1px solid #D8D2C7; border-radius: 6px; font-size: 12.5px;">
+     </div>
+     <div style="display: flex; align-items: center; gap: 8px; background: #FFFFFF; padding: 8px 10px; border-radius: 8px; border: 1px solid #EAE5DC;">
+      <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13.5px; font-weight: 600; white-space: nowrap;"><input type="checkbox" name="amenity" value="Wi-Fi"> 📶 Wi-Fi</label>
+      <input type="text" data-amenity-fee="Wi-Fi" placeholder="e.g., Included or ₱500/mo" style="flex: 1; min-width: 90px; padding: 6px 8px; border: 1px solid #D8D2C7; border-radius: 6px; font-size: 12.5px;">
+     </div>
+     <div style="display: flex; align-items: center; gap: 8px; background: #FFFFFF; padding: 8px 10px; border-radius: 8px; border: 1px solid #EAE5DC;">
+      <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13.5px; font-weight: 600; white-space: nowrap;"><input type="checkbox" name="amenity" value="Aircon"> ❄️ Aircon</label>
+      <input type="text" data-amenity-fee="Aircon" placeholder="e.g., Included / +₱500" style="flex: 1; min-width: 90px; padding: 6px 8px; border: 1px solid #D8D2C7; border-radius: 6px; font-size: 12.5px;">
+     </div>
+     <div style="display: flex; align-items: center; gap: 8px; background: #FFFFFF; padding: 8px 10px; border-radius: 8px; border: 1px solid #EAE5DC;">
+      <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13.5px; font-weight: 600; white-space: nowrap;"><input type="checkbox" name="amenity" value="Kitchen Access"> 🍳 Kitchen</label>
+      <input type="text" data-amenity-fee="Kitchen Access" placeholder="e.g., Free / Shared" style="flex: 1; min-width: 90px; padding: 6px 8px; border: 1px solid #D8D2C7; border-radius: 6px; font-size: 12.5px;">
+     </div>
+     <div style="display: flex; align-items: center; gap: 8px; background: #FFFFFF; padding: 8px 10px; border-radius: 8px; border: 1px solid #EAE5DC;">
+      <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13.5px; font-weight: 600; white-space: nowrap;"><input type="checkbox" name="amenity" value="Parking"> 🚗 Parking</label>
+      <input type="text" data-amenity-fee="Parking" placeholder="e.g., ₱1,500/mo or Free" style="flex: 1; min-width: 90px; padding: 6px 8px; border: 1px solid #D8D2C7; border-radius: 6px; font-size: 12.5px;">
+     </div>
+     <div style="display: flex; align-items: center; gap: 8px; background: #FFFFFF; padding: 8px 10px; border-radius: 8px; border: 1px solid #EAE5DC;">
+      <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13.5px; font-weight: 600; white-space: nowrap;"><input type="checkbox" name="amenity" value="Private Bathroom"> 🚿 Private CR</label>
+      <input type="text" data-amenity-fee="Private Bathroom" placeholder="e.g., Included" style="flex: 1; min-width: 90px; padding: 6px 8px; border: 1px solid #D8D2C7; border-radius: 6px; font-size: 12.5px;">
+     </div>
+     <div style="display: flex; align-items: center; gap: 8px; background: #FFFFFF; padding: 8px 10px; border-radius: 8px; border: 1px solid #EAE5DC;">
+      <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13.5px; font-weight: 600; white-space: nowrap;"><input type="checkbox" name="amenity" value="Pet Friendly"> 🐾 Pet Friendly</label>
+      <input type="text" data-amenity-fee="Pet Friendly" placeholder="e.g., Small pets / ₱500 dep" style="flex: 1; min-width: 90px; padding: 6px 8px; border: 1px solid #D8D2C7; border-radius: 6px; font-size: 12.5px;">
+     </div>
     </div>
    </div>
 
