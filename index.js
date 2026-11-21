@@ -86,6 +86,18 @@ const AMENITY_ICONS = {
 const META_OPEN = '[HOUSINGO_META]';
 const META_CLOSE = '[/HOUSINGO_META]';
 
+function normalizeSafeUrl(rawUrl) {
+    const val = String(rawUrl || '').trim();
+    if (!val) return '';
+    const withProto = /^https?:\/\//i.test(val) ? val : `https://${val}`;
+    try {
+        const parsed = new URL(withProto);
+        return (parsed.protocol === 'http:' || parsed.protocol === 'https:') ? parsed.href : '';
+    } catch {
+        return '';
+    }
+}
+
 function encodePropertyDescription(plainText, meta = {}) {
     const cleanText = (plainText || '').trim();
     const cleanedMeta = {
@@ -103,6 +115,7 @@ function encodePropertyDescription(plainText, meta = {}) {
         amenity_fees: meta.amenity_fees && typeof meta.amenity_fees === 'object' ? meta.amenity_fees : {},
         contact_name: (meta.contact_name || '').trim(),
         contact_phone: (meta.contact_phone || '').trim(),
+        social_link: normalizeSafeUrl(meta.social_link || ''),
         lat: meta.lat !== undefined && meta.lat !== '' && !Number.isNaN(Number(meta.lat)) ? Number(meta.lat) : null,
         lng: meta.lng !== undefined && meta.lng !== '' && !Number.isNaN(Number(meta.lng)) ? Number(meta.lng) : null,
     };
@@ -1244,6 +1257,7 @@ async function openPropertyDetails(propertyId) {
                 <strong style="color:#2C1E16;">Landlord:</strong> ${escapeHtml(meta.contact_name || property.landlord?.full_name || 'Property Owner')}
                 ${property.landlord?.is_verified ? ' <span style="color:#2E7D32;font-weight:700;">✔ Verified</span>' : ''}
                 ${(meta.contact_phone || property.landlord?.phone) ? `<br><strong style="color:#2C1E16;">Phone:</strong> ${escapeHtml(meta.contact_phone || property.landlord?.phone)}` : ''}
+                ${meta.social_link ? `<div style="margin-top:10px;"><a href="${escapeHtml(normalizeSafeUrl(meta.social_link))}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;background:#1877F2;color:#FFFFFF;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;">💬 Open Facebook / Messenger ↗</a></div>` : ''}
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:26px;">
                 ${canEditThisProperty ? `<button class="btn" onclick="document.getElementById('property-modal').classList.remove('active'); openEditPropertyForm('${property.property_id}')" style="flex:1;min-width:160px;padding:12px;">✏️ Edit Property Details</button>` : ''}
@@ -1641,6 +1655,7 @@ async function openEditPropertyForm(propertyId) {
         setVal('property-availability-status', prop.availability_status || 'available');
         setVal('contact-name', meta.contact_name || currentUser?.full_name || '');
         setVal('contact-number', meta.contact_phone || currentUser?.phone || '');
+        setVal('contact-social-link', meta.social_link || '');
         setVal('property-lat', meta.lat ?? '');
         setVal('property-lng', meta.lng ?? '');
 
@@ -1732,6 +1747,7 @@ async function handlePostProperty(event) {
         amenity_fees: amenityFees,
         contact_name: document.getElementById('contact-name')?.value.trim() || '',
         contact_phone: document.getElementById('contact-number')?.value.trim() || '',
+        social_link: document.getElementById('contact-social-link')?.value.trim() || '',
         lat: document.getElementById('property-lat')?.value || '',
         lng: document.getElementById('property-lng')?.value || '',
     });
