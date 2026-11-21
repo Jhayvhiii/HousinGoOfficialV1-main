@@ -1,19 +1,53 @@
 <!-- Contact Us Page -->
-<main class="container" id="contact-page" style="display: none;">
- <div style="max-width: 700px; margin: 60px auto; background-color: #FFFFFF; padding: 50px 40px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
-  <h1 style="font-size: 36px; margin-bottom: 15px; color: #8B4513; text-align: center;">Contact Us</h1>
-  <p style="text-align: center; margin-bottom: 40px; color: #654321; font-size: 16px;">Have questions or concerns? We'd love to hear from you!</p>
-  <form id="contact-form" onsubmit="handleContact(event)">
-   <div style="margin-bottom: 20px;"><label for="contact-name" style="display: block; margin-bottom: 8px; font-weight: 600; color: #8B4513;">Name</label> <input type="text" id="contact-name" required style="width: 100%; padding: 12px; border: 2px solid #ADD8E6; border-radius: 8px; font-size: 16px; color: #8B4513;">
+<main id="contact-page" style="display: none;">
+ <div class="dash-shell dash-fullscreen">
+  <div class="dash-hero-bar">
+   <div>
+    <span class="dash-role-pill">📞 Support</span>
+    <h1 style="font-size: 32px; color: #FFFFFF; margin: 10px 0 4px; letter-spacing: -0.02em;">Contact Us</h1>
+    <p style="color: rgba(255,255,255,0.88); font-size: 14px; margin: 0;">Have questions, feedback, or concerns? Send our team a message anytime.</p>
    </div>
-   <div style="margin-bottom: 20px;"><label for="contact-mobile" style="display: block; margin-bottom: 8px; font-weight: 600; color: #8B4513;">Mobile Number</label> <input type="tel" id="contact-mobile" required style="width: 100%; padding: 12px; border: 2px solid #ADD8E6; border-radius: 8px; font-size: 16px; color: #8B4513;">
+  </div>
+
+  <div class="settings-card" style="max-width: 760px; margin: 0 auto;">
+   <div class="settings-card-header">
+    <div class="settings-card-icon">✉️</div>
+    <div>
+     <h2 style="font-size: 20px; font-weight: 700; color: #1E293B; margin: 0;">Send Us a Message</h2>
+     <p style="font-size: 13px; color: #64748B; margin: 2px 0 0;">We usually respond within 24 hours.</p>
+    </div>
    </div>
-   <div style="margin-bottom: 20px;"><label for="contact-email" style="display: block; margin-bottom: 8px; font-weight: 600; color: #8B4513;">Email Address</label> <input type="email" id="contact-email" required style="width: 100%; padding: 12px; border: 2px solid #ADD8E6; border-radius: 8px; font-size: 16px; color: #8B4513;">
-   </div>
-   <div style="margin-bottom: 20px;"><label for="contact-subject" style="display: block; margin-bottom: 8px; font-weight: 600; color: #8B4513;">Subject</label> <input type="text" id="contact-subject" required style="width: 100%; padding: 12px; border: 2px solid #ADD8E6; border-radius: 8px; font-size: 16px; color: #8B4513;">
-   </div>
-   <div style="margin-bottom: 25px;"><label for="contact-message" style="display: block; margin-bottom: 8px; font-weight: 600; color: #8B4513;">Message</label> <textarea id="contact-message" required rows="6" style="width: 100%; padding: 12px; border: 2px solid #ADD8E6; border-radius: 8px; font-size: 16px; color: #8B4513; resize: vertical; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;"></textarea>
-   </div><button type="submit" class="btn" style="width: 100%; padding: 15px; font-size: 18px;">Send Message</button>
-  </form>
+
+   <form id="contact-form" onsubmit="handleContact(event)">
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+     <div class="auth-input-wrap">
+      <label for="contact-name" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; color: #334155;">Full Name</label>
+      <input type="text" id="contact-name" required placeholder="Juan Dela Cruz" style="width: 100%; padding: 11px 14px; border: 1.5px solid #D8D2C7; border-radius: 10px; font-size: 15px; color: #1E293B;">
+     </div>
+     <div class="auth-input-wrap">
+      <label for="contact-mobile" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; color: #334155;">Mobile Number</label>
+      <input type="tel" id="contact-mobile" required placeholder="09XX XXX XXXX" style="width: 100%; padding: 11px 14px; border: 1.5px solid #D8D2C7; border-radius: 10px; font-size: 15px; color: #1E293B;">
+     </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+     <div class="auth-input-wrap">
+      <label for="contact-email" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; color: #334155;">Email Address</label>
+      <input type="email" id="contact-email" required placeholder="you@example.com" style="width: 100%; padding: 11px 14px; border: 1.5px solid #D8D2C7; border-radius: 10px; font-size: 15px; color: #1E293B;">
+     </div>
+     <div class="auth-input-wrap">
+      <label for="contact-subject" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; color: #334155;">Subject</label>
+      <input type="text" id="contact-subject" required placeholder="How can we help?" style="width: 100%; padding: 11px 14px; border: 1.5px solid #D8D2C7; border-radius: 10px; font-size: 15px; color: #1E293B;">
+     </div>
+    </div>
+
+    <div class="auth-input-wrap" style="margin-bottom: 22px;">
+     <label for="contact-message" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; color: #334155;">Message</label>
+     <textarea id="contact-message" required rows="5" placeholder="Write your message here..." style="width: 100%; padding: 12px 14px; border: 1.5px solid #D8D2C7; border-radius: 10px; font-size: 15px; color: #1E293B; resize: vertical;"></textarea>
+    </div>
+
+    <button type="submit" class="btn" style="width: 100%; padding: 14px; font-size: 16px;">📩 Send Message</button>
+   </form>
+  </div>
  </div>
 </main>

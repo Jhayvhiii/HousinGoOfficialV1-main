@@ -698,11 +698,22 @@ async function handleRegister(event) {
 function loadUserSettings() {
     if (!currentUser) return;
     const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+    const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val || ''; };
+
     setVal('settings-firstname', currentUser.first_name);
     setVal('settings-lastname', currentUser.last_name);
     setVal('settings-email', currentUser.email);
     setVal('settings-mobile', currentUser.phone);
-    setVal('settings-role', `${currentUser.role.toUpperCase()}${currentUser.role === 'landlord' ? (currentUser.is_verified ? ' (Verified)' : ' (Pending Verification)') : ''}`);
+    const roleLabel = `${currentUser.role.toUpperCase()}${currentUser.role === 'landlord' ? (currentUser.is_verified ? ' (Verified)' : ' (Pending Verification)') : ''}`;
+    setVal('settings-role', roleLabel);
+
+    const roleEmoji = currentUser.role === 'admin' ? '🛡️' : currentUser.role === 'landlord' ? '🔑' : '🔍';
+    setTxt('settings-role-pill', `${roleEmoji} ${roleLabel}`);
+    setTxt('settings-display-name', currentUser.full_name || 'Account Settings');
+    setTxt('settings-display-email', currentUser.email || 'Manage your personal information and password security.');
+    const initials = (currentUser.full_name || 'U').split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+    setTxt('settings-avatar', initials || 'U');
+
     const emailEl = document.getElementById('settings-email');
     if (emailEl) emailEl.readOnly = true;
 }

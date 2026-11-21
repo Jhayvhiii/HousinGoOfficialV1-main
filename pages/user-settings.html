@@ -1,34 +1,99 @@
-<!-- User Settings Page -->
-<main class="container" id="user-settings-page" style="display: none;">
- <div style="max-width: 800px; margin: 60px auto; background-color: #FFFFFF; padding: 50px 40px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
-  <h1 style="font-size: 36px; margin-bottom: 30px; color: #8B4513; text-align: center;">Account Settings</h1><!-- Personal Information Section -->
-  <div style="margin-bottom: 40px;">
-   <h2 style="font-size: 24px; margin-bottom: 20px; color: #8B4513; border-bottom: 2px solid #ADD8E6; padding-bottom: 10px;">Personal Information</h2>
-   <form id="update-profile-form" onsubmit="handleUpdateProfile(event)">
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
-     <div><label for="settings-firstname" style="display: block; margin-bottom: 8px; font-weight: 600; color: #8B4513;">First Name</label> <input type="text" id="settings-firstname" required style="width: 100%; padding: 12px; border: 2px solid #ADD8E6; border-radius: 8px; font-size: 16px; color: #8B4513;">
+<!-- User Settings Page (All Roles: Tenant, Landlord, Admin) -->
+<main id="user-settings-page" style="display: none;">
+ <div class="dash-shell dash-fullscreen">
+  <!-- Ocean-Blue Header Banner with Live Profile Summary -->
+  <div class="dash-hero-bar">
+   <div style="display: flex; align-items: center; gap: 18px; flex-wrap: wrap;">
+    <div id="settings-avatar" class="settings-hero-avatar">U</div>
+    <div>
+     <span id="settings-role-pill" class="dash-role-pill">👤 Account</span>
+     <h1 id="settings-display-name" style="font-size: 30px; color: #FFFFFF; margin: 8px 0 3px; letter-spacing: -0.02em;">Account Settings</h1>
+     <p id="settings-display-email" style="color: rgba(255,255,255,0.88); font-size: 14px; margin: 0;">Manage your personal information and password security.</p>
+    </div>
+   </div>
+  </div>
+
+  <!-- 2-Column Modern Settings Cards -->
+  <div class="settings-cards-grid">
+   <!-- Personal Information Card -->
+   <section class="settings-card">
+    <div class="settings-card-header">
+     <div class="settings-card-icon">👤</div>
+     <div>
+      <h2 style="font-size: 20px; font-weight: 700; color: #1E293B; margin: 0;">Personal Information</h2>
+      <p style="font-size: 13px; color: #64748B; margin: 2px 0 0;">Update your display name and contact phone number.</p>
      </div>
-     <div><label for="settings-lastname" style="display: block; margin-bottom: 8px; font-weight: 600; color: #8B4513;">Last Name</label> <input type="text" id="settings-lastname" required style="width: 100%; padding: 12px; border: 2px solid #ADD8E6; border-radius: 8px; font-size: 16px; color: #8B4513;">
+    </div>
+
+    <form id="update-profile-form" onsubmit="handleUpdateProfile(event)">
+     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px;">
+      <div class="auth-input-wrap">
+       <label for="settings-firstname" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; color: #334155;">First Name</label>
+       <input type="text" id="settings-firstname" required style="width: 100%; padding: 11px 14px; border: 1.5px solid #D8D2C7; border-radius: 10px; font-size: 15px; color: #1E293B;">
+      </div>
+      <div class="auth-input-wrap">
+       <label for="settings-lastname" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; color: #334155;">Last Name</label>
+       <input type="text" id="settings-lastname" required style="width: 100%; padding: 11px 14px; border: 1.5px solid #D8D2C7; border-radius: 10px; font-size: 15px; color: #1E293B;">
+      </div>
+     </div>
+
+     <div class="auth-input-wrap" style="margin-bottom: 16px;">
+      <label for="settings-email" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; color: #334155;">Email Address</label>
+      <input type="email" id="settings-email" required readonly style="width: 100%; padding: 11px 14px; border: 1.5px solid #EAE5DC; border-radius: 10px; font-size: 15px; color: #64748B; background-color: #F8FAFC;">
+     </div>
+
+     <div class="auth-input-wrap" style="margin-bottom: 16px;">
+      <label for="settings-mobile" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; color: #334155;">Mobile Number</label>
+      <input type="tel" id="settings-mobile" required placeholder="09XX XXX XXXX" style="width: 100%; padding: 11px 14px; border: 1.5px solid #D8D2C7; border-radius: 10px; font-size: 15px; color: #1E293B;">
+     </div>
+
+     <div style="margin-bottom: 22px;">
+      <label for="settings-role" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; color: #334155;">Account Role</label>
+      <input type="text" id="settings-role" readonly style="width: 100%; padding: 11px 14px; border: 1.5px solid #EAE5DC; border-radius: 10px; font-size: 15px; font-weight: 600; color: #0F4C81; background-color: #EEF6FA;">
+     </div>
+
+     <button type="submit" class="btn" style="width: 100%; padding: 13px; font-size: 15px;">💾 Save Profile Changes</button>
+    </form>
+   </section>
+
+   <!-- Security / Change Password Card -->
+   <section class="settings-card">
+    <div class="settings-card-header">
+     <div class="settings-card-icon" style="background: #FEF3C7;">🔐</div>
+     <div>
+      <h2 style="font-size: 20px; font-weight: 700; color: #1E293B; margin: 0;">Security &amp; Password</h2>
+      <p style="font-size: 13px; color: #64748B; margin: 2px 0 0;">Keep your account safe with a strong password.</p>
      </div>
     </div>
-    <div style="margin-bottom: 20px;"><label for="settings-email" style="display: block; margin-bottom: 8px; font-weight: 600; color: #8B4513;">Email Address</label> <input type="email" id="settings-email" required style="width: 100%; padding: 12px; border: 2px solid #ADD8E6; border-radius: 8px; font-size: 16px; color: #8B4513;">
-    </div>
-    <div style="margin-bottom: 20px;"><label for="settings-mobile" style="display: block; margin-bottom: 8px; font-weight: 600; color: #8B4513;">Mobile Number</label> <input type="tel" id="settings-mobile" required style="width: 100%; padding: 12px; border: 2px solid #ADD8E6; border-radius: 8px; font-size: 16px; color: #8B4513;">
-    </div>
-    <div style="margin-bottom: 20px;"><label for="settings-role" style="display: block; margin-bottom: 8px; font-weight: 600; color: #8B4513;">Account Type</label> <input type="text" id="settings-role" readonly style="width: 100%; padding: 12px; border: 2px solid #E0E0E0; border-radius: 8px; font-size: 16px; color: #8B4513; background-color: #F5F5F5;">
-    </div><button type="submit" class="btn" style="width: 100%; padding: 15px; font-size: 18px; margin-bottom: 20px;">Update Profile</button>
-   </form>
-  </div><!-- Change Password Section -->
-  <div style="margin-bottom: 40px;">
-   <h2 style="font-size: 24px; margin-bottom: 20px; color: #8B4513; border-bottom: 2px solid #ADD8E6; padding-bottom: 10px;">Change Password</h2>
-   <form id="change-password-form" onsubmit="handleChangePassword(event)">
-    <div style="margin-bottom: 20px;"><label for="current-password" style="display: block; margin-bottom: 8px; font-weight: 600; color: #8B4513;">Current Password</label> <input type="password" id="current-password" required style="width: 100%; padding: 12px; border: 2px solid #ADD8E6; border-radius: 8px; font-size: 16px; color: #8B4513;">
-    </div>
-    <div style="margin-bottom: 20px;"><label for="new-password" style="display: block; margin-bottom: 8px; font-weight: 600; color: #8B4513;">New Password</label> <input type="password" id="new-password" required style="width: 100%; padding: 12px; border: 2px solid #ADD8E6; border-radius: 8px; font-size: 16px; color: #8B4513;">
-    </div>
-    <div style="margin-bottom: 20px;"><label for="confirm-new-password" style="display: block; margin-bottom: 8px; font-weight: 600; color: #8B4513;">Confirm New Password</label> <input type="password" id="confirm-new-password" required style="width: 100%; padding: 12px; border: 2px solid #ADD8E6; border-radius: 8px; font-size: 16px; color: #8B4513;">
-    </div><button type="submit" class="btn" style="width: 100%; padding: 15px; font-size: 18px;">Change Password</button>
-   </form>
+
+    <form id="change-password-form" onsubmit="handleChangePassword(event)">
+     <div class="auth-input-wrap" style="margin-bottom: 16px;">
+      <label for="current-password" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; color: #334155;">Current Password</label>
+      <div style="position: relative;">
+       <input type="password" id="current-password" required placeholder="Enter current password" style="width: 100%; padding: 11px 44px 11px 14px; border: 1.5px solid #D8D2C7; border-radius: 10px; font-size: 15px; color: #1E293B;">
+       <button type="button" class="password-toggle-btn" data-toggle-password="current-password" aria-label="Toggle password visibility">👁️</button>
+      </div>
+     </div>
+
+     <div class="auth-input-wrap" style="margin-bottom: 16px;">
+      <label for="new-password" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; color: #334155;">New Password</label>
+      <div style="position: relative;">
+       <input type="password" id="new-password" required minlength="6" placeholder="Minimum 6 characters" style="width: 100%; padding: 11px 44px 11px 14px; border: 1.5px solid #D8D2C7; border-radius: 10px; font-size: 15px; color: #1E293B;">
+       <button type="button" class="password-toggle-btn" data-toggle-password="new-password" aria-label="Toggle password visibility">👁️</button>
+      </div>
+     </div>
+
+     <div class="auth-input-wrap" style="margin-bottom: 22px;">
+      <label for="confirm-new-password" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; color: #334155;">Confirm New Password</label>
+      <div style="position: relative;">
+       <input type="password" id="confirm-new-password" required minlength="6" placeholder="Re-enter new password" style="width: 100%; padding: 11px 44px 11px 14px; border: 1.5px solid #D8D2C7; border-radius: 10px; font-size: 15px; color: #1E293B;">
+       <button type="button" class="password-toggle-btn" data-toggle-password="confirm-new-password" aria-label="Toggle password visibility">👁️</button>
+      </div>
+     </div>
+
+     <button type="submit" class="btn" style="width: 100%; padding: 13px; font-size: 15px;">🔒 Update Password</button>
+    </form>
+   </section>
   </div>
  </div>
 </main>
