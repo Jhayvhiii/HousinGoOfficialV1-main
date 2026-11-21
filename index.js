@@ -300,8 +300,13 @@ async function checkAuthState() {
         window.authService.onAuthStateChange(async (event, session, profile) => {
             if (event === 'SIGNED_OUT') {
                 currentUser = null;
+                clearProtectedDashboardContent();
                 updateNavForLoggedInUser();
                 updateLandlordVerificationUI();
+                const protectedPages = ['admin-dashboard', 'landlord-dashboard', 'tenant-dashboard', 'post-property', 'user-settings'];
+                if (protectedPages.includes(window.__currentPageName)) {
+                    showPage('login');
+                }
             } else if (session?.user) {
                 await applyAuthenticatedUser(session, profile);
             }
@@ -309,11 +314,29 @@ async function checkAuthState() {
     }
 }
 
+function clearProtectedDashboardContent() {
+    const idsToClear = [
+        'admin-users-list', 'admin-properties-list', 'admin-complaints-list', 'admin-system-records',
+        'landlord-properties-list', 'landlord-applications-list', 'landlord-inquiries-list',
+        'tenant-saved-properties', 'tenant-reviews', 'tenant-complaints',
+        'conversations-container', 'chat-messages', 'notifications-list'
+    ];
+    idsToClear.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = '';
+    });
+    ['property-modal', 'messages-modal', 'new-message-modal', 'notifications-modal', 'complaint-modal'].forEach(id => {
+        document.getElementById(id)?.classList.remove('active');
+    });
+}
+
 function updateNavForLoggedInUser() {
     const navList = document.querySelector('#nav-menu ul');
     const profileDropdown = document.getElementById('user-profile-dropdown');
     const userNameDisplay = document.getElementById('user-name-display');
     const floatingChat = document.getElementById('floating-chat-button');
+    const hamburger = document.getElementById('hamburger');
+    const navMenu = document.getElementById('nav-menu');
 
     if (!navList) {
         console.error('❌ #nav-menu ul not found.');
@@ -333,6 +356,12 @@ function updateNavForLoggedInUser() {
         if (profileDropdown) profileDropdown.style.display = 'block';
         if (userNameDisplay) userNameDisplay.textContent = `👤 ${currentUser.full_name} (${roleLabel})`;
         if (floatingChat) floatingChat.style.display = 'block';
+        // Hide 3-line hamburger menu when logged in so it never overlaps the profile dropdown
+        if (hamburger) {
+            hamburger.style.setProperty('display', 'none', 'important');
+            hamburger.classList.remove('active');
+        }
+        if (navMenu) navMenu.classList.remove('active');
     } else {
         navList.innerHTML = `
             <li><a href="#" data-nav="home" onclick="showPage('home'); return false;">Home</a></li>
@@ -344,6 +373,7 @@ function updateNavForLoggedInUser() {
         `;
         if (profileDropdown) profileDropdown.style.display = 'none';
         if (floatingChat) floatingChat.style.display = 'none';
+        if (hamburger) hamburger.style.removeProperty('display');
     }
     setActiveNavLink(window.__currentPageName || 'home');
 }
@@ -375,14 +405,14 @@ async function logout() {
         console.error('Logout error:', error);
     } finally {
         currentUser = null;
+        clearProtectedDashboardContent();
         updateNavForLoggedInUser();
         updateLandlordVerificationUI();
-        setActiveNavLink(pageName);
 
         const dd = document.getElementById('profile-dropdown-menu');
         if (dd) dd.style.display = 'none';
         showToast('Logged out successfully!', 'info');
-        showPage('home');
+        showPage('login');
     }
 }
 
@@ -1377,6 +1407,9 @@ async function loadLandlordDashboard() {
                         </div>
                         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                             ${statusBadgeHtml(a.status)}
+                            ${a.status === 'approved' ? `
+                                <button class="btn-secondary" onclick="handleLandlordVacated('${a.application_id}', '${a.property?.property_id || ''}')" style="padding:7px 14px;font-size:13px;background:#DC2626 !important;color:#FFFFFF !important;border-color:#DC2626 !important;">Vacated</button>
+                            ` : ''}
                             ${a.status === 'pending' ? `
                                 <button class="btn" onclick="handleLandlordAppDecision('${a.application_id}', 'approved')" style="padding:7px 14px;font-size:13px;background:#2E7D32;color:#fff;">✔ Approve</button>
                                 <button class="btn-secondary" onclick="handleLandlordAppDecision('${a.application_id}', 'rejected')" style="padding:7px 14px;font-size:13px;color:#B42318;border-color:#FF6B6B;">✖ Reject</button>
@@ -1439,6 +1472,20 @@ async function handleLandlordAppDecision(applicationId, status) {
         loadLandlordDashboard();
     } catch (error) {
         showToast(`Failed to update application: ${error.message}`, 'error');
+    }
+}
+
+async function handleLandlordVacated(applicationId, propertyId) {
+    if (!confirm('Mark this tenant as Vacated? The property will be set back to Available.')) return;
+    try {
+        await window.applicationService.updateStatus(applicationId, 'cancelled');
+        if (propertyId) {
+            await window.propertyService.updateProperty(propertyId, { availability_status: 'available' });
+        }
+        showToast('Tenant marked as Vacated. Property is now Available!', 'info');
+        loadLandlordDashboard();
+    } catch (error) {
+        showToast(`Failed to mark as vacated: ${error.message}`, 'error');
     }
 }
 
