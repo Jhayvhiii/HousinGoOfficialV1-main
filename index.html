@@ -29,17 +29,14 @@
       <div class="logo" id="site-name" onclick="showPage('home')" style="cursor: pointer;"><img src="assets/logo.svg" alt="HousinGo" style="height: 60px; width: auto; vertical-align: middle;">
       </div>
      </div>
-     <!-- Upper-Right: User Profile Dropdown -->
+     <!-- Upper-Right: Notification Bell Only (shown when logged in) -->
      <div class="header-right-actions" style="display: flex; align-items: center; gap: 10px; margin-left: auto;">
-      <!-- User Profile Dropdown (Hidden by default) -->
       <div id="user-profile-dropdown" style="display: none; position: relative;">
-       <button id="profile-btn" type="button" onclick="toggleProfileDropdown()" style="display: inline-flex; align-items: center; gap: 8px; background: #F8FAFC; border: 1.5px solid #D8D2C7; color: #2C1E16; font-size: 15px; font-weight: 600; cursor: pointer; padding: 8px 14px; border-radius: 999px; transition: all 0.2s ease; position: relative;">
-        <span id="user-name-display" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">👤 User</span>
-        <span id="profile-caret" style="flex-shrink: 0; font-size: 11px; color: #0F4C81; transition: transform 0.2s ease;">▼</span>
-        <span id="user-notification-indicator" style="display: none; position: absolute; top: 4px; right: 6px; background: #FF4444; width: 8px; height: 8px; border-radius: 50%; border: 2px solid white;"></span>
+       <button id="profile-btn" type="button" onclick="showNotifications()" aria-label="Notifications" title="Notifications" style="display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; background: #F8FAFC; border: 1.5px solid #D8D2C7; color: #0F4C81; font-size: 20px; cursor: pointer; border-radius: 50%; transition: all 0.2s ease; position: relative;">
+        🔔
+        <span id="notification-badge" style="display: none; position: absolute; top: -4px; right: -4px; background: #EF4444; color: white; border-radius: 999px; min-width: 20px; height: 20px; padding: 0 5px; font-size: 11px; font-weight: 700; line-height: 20px; text-align: center; border: 2px solid white;">0</span>
+        <span id="user-notification-indicator" style="display: none;"></span>
        </button>
-       <div id="profile-dropdown-menu" style="display: none; position: absolute; top: 100%; right: 0; background: white; border: 2px solid #ADD8E6; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); min-width: 200px; z-index: 1001;"><a href="#" onclick="showPage('user-settings'); return false;" style="display: block; padding: 12px 20px; color: #8B4513; text-decoration: none; border-bottom: 1px solid #F5F5DC; transition: background-color 0.3s;">⚙️ Settings</a> <a href="#" onclick="showNotifications(); return false;" style="display: block; padding: 12px 20px; color: #8B4513; text-decoration: none; border-bottom: 1px solid #F5F5DC; transition: background-color 0.3s; position: relative;"> 🔔 Notifications <span id="notification-badge" style="display: none; position: absolute; top: 8px; right: 15px; background: #FF6B6B; color: white; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; text-align: center; line-height: 20px;">0</span> </a> <a href="#" onclick="logout(); return false;" style="display: block; padding: 12px 20px; color: #8B4513; text-decoration: none; transition: background-color 0.3s;">🚪 Logout</a>
-       </div>
       </div>
      </div>
     </div>
@@ -53,6 +50,15 @@
     <span style="font-weight: 800; font-size: 18px; color: #0F4C81;">🏠 HousinGo Menu</span>
     <button type="button" onclick="closeNavDrawer()" aria-label="Close menu" style="background: #F1F5F9; border: none; width: 34px; height: 34px; border-radius: 8px; font-size: 20px; color: #334155; cursor: pointer; display: flex; align-items: center; justify-content: center;">×</button>
    </div>
+   <!-- Logged-in User Info Card at Top of Navbar -->
+   <div id="side-nav-user-info" class="side-nav-user-card" style="display: none;">
+    <div id="side-nav-avatar" class="side-nav-avatar">U</div>
+    <div style="min-width: 0; flex: 1;">
+     <div id="user-name-display" style="font-weight: 700; font-size: 15px; color: #1E293B; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">User</div>
+     <div id="user-email-display" style="font-size: 12px; color: #64748B; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></div>
+     <span id="user-role-display" class="side-nav-role-badge">Tenant</span>
+    </div>
+   </div>
    <ul>
     <li><a href="#" onclick="showPage('home'); return false;">🏠 Home</a></li>
     <li><a href="#" onclick="showPage('about'); return false;">ℹ️ About Us</a></li>
@@ -61,6 +67,9 @@
     <li><a href="#" onclick="showPage('contact'); return false;">📞 Contact Us</a></li>
     <li><a href="#" onclick="showPage('help'); return false;">❓ Help</a></li>
    </ul>
+   <div id="side-nav-footer" class="side-nav-footer" style="display: none;">
+    <button type="button" onclick="logout()" class="side-nav-logout-btn">🚪 Logout</button>
+   </div>
   </nav>
 
   <!-- Focused Page Modules (loaded dynamically from /pages/*.html) -->

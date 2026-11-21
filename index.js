@@ -335,7 +335,12 @@ function updateNavForLoggedInUser() {
     const navList = document.querySelector('#nav-menu ul');
     const profileDropdown = document.getElementById('user-profile-dropdown');
     const userNameDisplay = document.getElementById('user-name-display');
+    const userEmailDisplay = document.getElementById('user-email-display');
+    const userRoleDisplay = document.getElementById('user-role-display');
+    const sideNavUserInfo = document.getElementById('side-nav-user-info');
+    const sideNavAvatar = document.getElementById('side-nav-avatar');
     const floatingChat = document.getElementById('floating-chat-button');
+    const sideNavFooter = document.getElementById('side-nav-footer');
     const hamburger = document.getElementById('hamburger');
     const navMenu = document.getElementById('nav-menu');
 
@@ -379,14 +384,23 @@ function updateNavForLoggedInUser() {
             <li><a href="#" data-nav="home" onclick="showPage('home'); return false;">🏠 Home</a></li>
             <li><a href="#" data-nav="${dash}" onclick="showPage('${dash}'); return false;">📊 Dashboard</a></li>
             ${roleDrawerItems}
-            <li class="mobile-nav-section-label">Pages</li>
+            <li class="mobile-nav-section-label">Account &amp; Pages</li>
+            <li><a href="#" data-nav="user-settings" onclick="showPage('user-settings'); return false;">⚙️ Account Settings</a></li>
             <li><a href="#" data-nav="about" onclick="showPage('about'); return false;">ℹ️ About Us</a></li>
             <li><a href="#" data-nav="contact" onclick="showPage('contact'); return false;">📞 Contact Us</a></li>
             <li><a href="#" data-nav="help" onclick="showPage('help'); return false;">❓ Help</a></li>
         `;
         if (profileDropdown) profileDropdown.style.display = 'block';
-        if (userNameDisplay) userNameDisplay.textContent = `👤 ${currentUser.full_name} (${roleLabel})`;
+        if (sideNavUserInfo) sideNavUserInfo.style.display = 'flex';
+        if (userNameDisplay) userNameDisplay.textContent = currentUser.full_name;
+        if (userEmailDisplay) userEmailDisplay.textContent = currentUser.email || '';
+        if (userRoleDisplay) userRoleDisplay.textContent = roleLabel;
+        if (sideNavAvatar) {
+            const initials = (currentUser.full_name || 'U').split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+            sideNavAvatar.textContent = initials || 'U';
+        }
         if (floatingChat) floatingChat.style.display = 'block';
+        if (sideNavFooter) sideNavFooter.style.display = 'block';
         if (hamburger) {
             hamburger.style.removeProperty('display');
             hamburger.classList.remove('active');
@@ -404,7 +418,9 @@ function updateNavForLoggedInUser() {
             <li><a href="#" data-nav="register" onclick="showPage('register'); return false;">✨ Register</a></li>
         `;
         if (profileDropdown) profileDropdown.style.display = 'none';
+        if (sideNavUserInfo) sideNavUserInfo.style.display = 'none';
         if (floatingChat) floatingChat.style.display = 'none';
+        if (sideNavFooter) sideNavFooter.style.display = 'none';
         if (hamburger) hamburger.style.removeProperty('display');
     }
     setActiveNavLink(window.__currentPageName || 'home');
