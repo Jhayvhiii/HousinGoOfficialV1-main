@@ -261,6 +261,7 @@ async function applyAuthenticatedUser(session, profile) {
     updateNavForLoggedInUser();
     updateLandlordVerificationUI();
     refreshNotificationBadge();
+    if (cachedAvailableProperties.length) renderHomeGrid(cachedAvailableProperties);
     initOptionalStreamClient(session).catch(() => { });
     return currentUser;
 }
@@ -746,6 +747,8 @@ function renderPropertyCard(p) {
         ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px;">${meta.amenities.slice(0, 3).map(a => `<span style="background:#FAF8F5;border:1px solid #EAE5DC;color:#475569;font-size:11px;padding:3px 8px;border-radius:999px;">${AMENITY_ICONS[a] || '✓'} ${escapeHtml(a)}</span>`).join('')}${meta.amenities.length > 3 ? `<span style="font-size:11px;color:#64748B;padding:3px 4px;">+${meta.amenities.length - 3} more</span>` : ''}</div>`
         : '';
 
+    const showApplyBtn = !currentUser || currentUser.role === 'tenant';
+
     return `
         <div class="property-card" data-property-id="${p.property_id}" onmouseenter="highlightMapPin('${p.property_id}', true)" onmouseleave="highlightMapPin('${p.property_id}', false)" style="background:#fff;overflow:hidden;display:flex;flex-direction:column;">
             <div class="property-card-media">
@@ -766,7 +769,7 @@ function renderPropertyCard(p) {
                 <p style="font-size:13.5px;color:#475569;line-height:1.55;margin-bottom:16px;flex:1;">${escapeHtml(cleanDesc.slice(0, 105))}${cleanDesc.length > 105 ? '…' : ''}</p>
                 <div style="display:flex;gap:8px;margin-top:auto;">
                     <button class="btn" onclick="openPropertyDetails('${p.property_id}')" style="flex:1;padding:10px;font-size:14px;">View Details</button>
-                    <button class="btn-secondary" onclick="applyForProperty('${p.property_id}')" style="padding:10px 14px;font-size:14px;">Apply</button>
+                    ${showApplyBtn ? `<button class="btn-secondary" onclick="applyForProperty('${p.property_id}')" style="padding:10px 14px;font-size:14px;">Apply</button>` : ''}
                 </div>
             </div>
         </div>
@@ -1212,7 +1215,7 @@ async function openPropertyDetails(propertyId) {
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:26px;">
                 ${canEditThisProperty ? `<button class="btn" onclick="document.getElementById('property-modal').classList.remove('active'); openEditPropertyForm('${property.property_id}')" style="flex:1;min-width:160px;padding:12px;">✏️ Edit Property Details</button>` : ''}
-                ${!isOwner ? `<button class="btn" onclick="applyForProperty('${property.property_id}')" style="flex:1;min-width:140px;padding:12px;">📝 Apply Now</button>` : ''}
+                ${!isOwner && (!currentUser || currentUser.role === 'tenant') ? `<button class="btn" onclick="applyForProperty('${property.property_id}')" style="flex:1;min-width:140px;padding:12px;">📝 Apply Now</button>` : ''}
                 ${!isOwner && property.landlord_id ? `<button class="btn-secondary" onclick="openMessageToUser('${property.landlord_id}', '${escapeJsAttr(property.landlord?.full_name || 'Landlord')}', '${property.property_id}')" style="flex:1;min-width:140px;padding:12px;">💬 Message Landlord</button>` : ''}
                 ${currentUser && !isOwner ? `<button class="btn-secondary" onclick="openComplaintModal('${property.property_id}', '${property.landlord_id}', '${escapeJsAttr(property.title)}')" style="padding:12px 16px;color:#B42318;border-color:#FF6B6B;">🚨 Report</button>` : ''}
             </div>
