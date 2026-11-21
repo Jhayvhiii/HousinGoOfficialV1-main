@@ -1479,24 +1479,48 @@ async function loadLandlordDashboard() {
 
         if (listEl) {
             listEl.innerHTML = properties.length === 0
-                ? '<p style="color:#654321;">You haven\'t listed any properties yet.</p>'
-                : properties.map(p => `
-                    <div style="border:2px solid #ADD8E6;border-radius:10px;padding:18px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;">
-                        <div>
-                            <h3 style="color:#8B4513;margin:0 0 6px;">${escapeHtml(p.title)}</h3>
-                            <p style="color:#654321;margin:0 0 6px;">📍 ${escapeHtml(p.location)} · <strong>${formatPeso(p.price)}/mo</strong></p>
-                            <small style="color:#888;">Photos: ${Array.isArray(p.image_urls) ? p.image_urls.length : 0} · Updated: ${formatDate(p.updated_at || p.created_at)}</small>
+                ? '<div style="text-align:center;padding:36px 20px;background:#FAF8F5;border:1px dashed #D8D2C7;border-radius:14px;color:#64748B;">You haven\'t listed any properties yet. Click <strong>＋ Add New Property</strong> above to publish your first listing.</div>'
+                : properties.map(p => {
+                    const { meta } = parsePropertyDescription(p.description);
+                    const thumbUrl = Array.isArray(p.image_urls) && p.image_urls[0] ? p.image_urls[0] : '';
+                    const thumbHtml = thumbUrl
+                        ? `<img src="${escapeHtml(thumbUrl)}" alt="${escapeHtml(p.title)}">`
+                        : '<span>🏠</span>';
+                    const chips = [
+                        meta.type ? `🏷️ ${escapeHtml(meta.type)}` : '',
+                        meta.slots ? `🛏️ ${meta.slots} slot${meta.slots > 1 ? 's' : ''}` : '',
+                        meta.area ? `📐 ${escapeHtml(meta.area)}` : '',
+                        `📷 ${Array.isArray(p.image_urls) ? p.image_urls.length : 0} photo${(p.image_urls?.length || 0) === 1 ? '' : 's'}`,
+                    ].filter(Boolean).map(c => `<span style="background:#FAF8F5;border:1px solid #EAE5DC;color:#475569;font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:999px;">${c}</span>`).join('');
+
+                    return `
+                    <div class="landlord-listing-card">
+                        <div class="landlord-listing-left">
+                            <div class="landlord-listing-thumb">${thumbHtml}</div>
+                            <div style="min-width:0;flex:1;">
+                                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
+                                    <h3 style="color:#1E293B;font-size:17px;font-weight:700;margin:0;">${escapeHtml(p.title)}</h3>
+                                    ${statusBadgeHtml(p.availability_status)}
+                                </div>
+                                <div style="font-size:13.5px;color:#64748B;margin-bottom:6px;">📍 ${escapeHtml(p.location)}</div>
+                                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
+                                    <span style="font-size:17px;font-weight:800;color:#0F4C81;">${formatPeso(p.price)}<span style="font-size:12px;font-weight:500;color:#64748B;"> /mo</span></span>
+                                    <small style="color:#94A3B8;">Updated ${formatDate(p.updated_at || p.created_at)}</small>
+                                </div>
+                                <div style="display:flex;gap:6px;flex-wrap:wrap;">${chips}</div>
+                            </div>
                         </div>
-                        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-                            <select onchange="handleLandlordStatusChange('${p.property_id}', this.value)" style="padding:8px 10px;border:2px solid #ADD8E6;border-radius:8px;font-weight:600;color:#8B4513;">
-                                ${['available', 'occupied', 'hidden'].map(st => `<option value="${st}" ${p.availability_status === st ? 'selected' : ''}>${st.charAt(0).toUpperCase() + st.slice(1)}</option>`).join('')}
+                        <div class="landlord-listing-actions">
+                            <select class="ll-status-select" onchange="handleLandlordStatusChange('${p.property_id}', this.value)" aria-label="Availability status">
+                                ${['available', 'occupied', 'hidden'].map(st => `<option value="${st}" ${p.availability_status === st ? 'selected' : ''}>${st === 'available' ? '✅ Available' : st === 'occupied' ? '🔒 Occupied' : '🙈 Hidden'}</option>`).join('')}
                             </select>
-                            <button class="btn-secondary" onclick="openPropertyDetails('${p.property_id}')" style="padding:8px 14px;font-size:13px;">👁️ Preview</button>
-                            <button class="btn-secondary" onclick="openEditPropertyForm('${p.property_id}')" style="padding:8px 14px;font-size:13px;">✏️ Edit Details</button>
-                            <button class="btn-secondary" onclick="handleLandlordDeleteProperty('${p.property_id}')" style="padding:8px 14px;font-size:13px;color:#B42318;border-color:#FF6B6B;">🗑 Delete</button>
+                            <button type="button" class="ll-btn-preview" onclick="openPropertyDetails('${p.property_id}')">👁️ Preview</button>
+                            <button type="button" class="ll-btn-edit" onclick="openEditPropertyForm('${p.property_id}')">✏️ Edit Details</button>
+                            <button type="button" class="ll-btn-delete" onclick="handleLandlordDeleteProperty('${p.property_id}')">🗑 Delete</button>
                         </div>
                     </div>
-                `).join('');
+                `;
+                }).join('');
         }
 
         if (appsEl) {
