@@ -1690,11 +1690,16 @@ html, body {
 
     #profile-btn {
         font-size: 13px !important;
-        padding: 7px 10px !important;
-        max-width: 185px;
-        white-space: nowrap;
+        padding: 7px 12px !important;
+        max-width: 210px;
+    }
+
+    #user-name-display {
+        max-width: 145px;
+        display: inline-block;
         overflow: hidden;
         text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     #profile-dropdown-menu {

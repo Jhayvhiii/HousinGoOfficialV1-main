@@ -38,7 +38,12 @@
       </ul>
      </nav>
      <!-- User Profile Dropdown (Hidden by default) -->
-     <div id="user-profile-dropdown" style="display: none; position: relative;"><button id="profile-btn" onclick="toggleProfileDropdown()" style="background: none; border: none; color: #8B4513; font-size: 16px; font-weight: 600; cursor: pointer; padding: 10px 15px; border-radius: 8px; transition: background-color 0.3s; position: relative;"> <span id="user-name-display">👤 User</span> ▼ <span id="user-notification-indicator" style="display: none; position: absolute; top: 8px; right: 8px; background: #FF4444; width: 8px; height: 8px; border-radius: 50%; border: 2px solid white;"></span> </button>
+     <div id="user-profile-dropdown" style="display: none; position: relative;">
+      <button id="profile-btn" type="button" onclick="toggleProfileDropdown()" style="display: inline-flex; align-items: center; gap: 8px; background: #F8FAFC; border: 1.5px solid #D8D2C7; color: #2C1E16; font-size: 15px; font-weight: 600; cursor: pointer; padding: 8px 14px; border-radius: 999px; transition: all 0.2s ease; position: relative;">
+       <span id="user-name-display" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">👤 User</span>
+       <span id="profile-caret" style="flex-shrink: 0; font-size: 11px; color: #0F4C81; transition: transform 0.2s ease;">▼</span>
+       <span id="user-notification-indicator" style="display: none; position: absolute; top: 4px; right: 6px; background: #FF4444; width: 8px; height: 8px; border-radius: 50%; border: 2px solid white;"></span>
+      </button>
       <div id="profile-dropdown-menu" style="display: none; position: absolute; top: 100%; right: 0; background: white; border: 2px solid #ADD8E6; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); min-width: 200px; z-index: 1001;"><a href="#" onclick="showPage('user-settings'); return false;" style="display: block; padding: 12px 20px; color: #8B4513; text-decoration: none; border-bottom: 1px solid #F5F5DC; transition: background-color 0.3s;">⚙️ Settings</a> <a href="#" onclick="showNotifications(); return false;" style="display: block; padding: 12px 20px; color: #8B4513; text-decoration: none; border-bottom: 1px solid #F5F5DC; transition: background-color 0.3s; position: relative;"> 🔔 Notifications <span id="notification-badge" style="display: none; position: absolute; top: 8px; right: 15px; background: #FF6B6B; color: white; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; text-align: center; line-height: 20px;">0</span> </a> <a href="#" onclick="logout(); return false;" style="display: block; padding: 12px 20px; color: #8B4513; text-decoration: none; transition: background-color 0.3s;">🚪 Logout</a>
       </div>
      </div>

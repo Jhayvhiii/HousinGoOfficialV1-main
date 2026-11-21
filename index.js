@@ -423,8 +423,11 @@ function goToDashboard() {
 
 function toggleProfileDropdown() {
     const menu = document.getElementById('profile-dropdown-menu');
+    const caret = document.getElementById('profile-caret');
     if (!menu) return console.error('❌ #profile-dropdown-menu not found.');
-    menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+    const isOpen = menu.style.display === 'block';
+    menu.style.display = isOpen ? 'none' : 'block';
+    if (caret) caret.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
 }
 
 // ============================================================================
