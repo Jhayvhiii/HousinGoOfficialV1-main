@@ -116,6 +116,8 @@ function encodePropertyDescription(plainText, meta = {}) {
         contact_name: (meta.contact_name || '').trim(),
         contact_phone: (meta.contact_phone || '').trim(),
         social_link: normalizeSafeUrl(meta.social_link || ''),
+        landlord_profile: meta.landlord_profile && typeof meta.landlord_profile === 'object' ? meta.landlord_profile : null,
+        payment_info: meta.payment_info && typeof meta.payment_info === 'object' ? meta.payment_info : null,
         lat: meta.lat !== undefined && meta.lat !== '' && !Number.isNaN(Number(meta.lat)) ? Number(meta.lat) : null,
         lng: meta.lng !== undefined && meta.lng !== '' && !Number.isNaN(Number(meta.lng)) ? Number(meta.lng) : null,
     };
@@ -205,13 +207,14 @@ function getFriendlyAuthError(error) {
 // ============================================================================
 function normalizeUserProfile(profile, authUser = null) {
     if (!profile && !authUser) return null;
-    const fullName = (profile?.full_name || authUser?.user_metadata?.full_name || '').trim();
+    const meta = authUser?.user_metadata || {};
+    const fullName = (profile?.full_name || meta.full_name || '').trim();
     const parts = fullName ? fullName.split(/\s+/) : ['User'];
-    const role = (profile?.role || authUser?.user_metadata?.role || 'tenant').toLowerCase();
+    const role = (profile?.role || meta.role || 'tenant').toLowerCase();
     const status = (profile?.status || 'active').toLowerCase();
     const id = profile?.id || authUser?.id;
     const email = profile?.email || authUser?.email || '';
-    const phone = profile?.phone || authUser?.user_metadata?.phone || '';
+    const phone = profile?.phone || meta.phone || '';
 
     return {
         id,
@@ -226,6 +229,17 @@ function normalizeUserProfile(profile, authUser = null) {
         status,
         is_verified: Boolean(profile?.is_verified),
         created_at: profile?.created_at || null,
+        avatar_url: meta.avatar_url || '',
+        bio: meta.bio || '',
+        hobbies: meta.hobbies || '',
+        house_address: meta.house_address || '',
+        payment_methods: Array.isArray(meta.payment_methods) ? meta.payment_methods : [],
+        payment_gcash: meta.payment_gcash || '',
+        payment_maya: meta.payment_maya || '',
+        payment_bank: meta.payment_bank || '',
+        payment_card: meta.payment_card || '',
+        qrph_url: meta.qrph_url || '',
+        wishlist: Array.isArray(meta.wishlist) ? meta.wishlist : [],
     };
 }
 
@@ -375,16 +389,21 @@ function updateNavForLoggedInUser() {
             roleDrawerItems = `
                 <li class="mobile-nav-section-label">Landlord Dashboard</li>
                 <li class="mobile-only-nav-item"><a href="#" onclick="openDashboardSection('landlord-dashboard', 'landlord', 'landlord-tab-listings'); return false;">🏠 My Listings</a></li>
-                <li class="mobile-only-nav-item"><a href="#" onclick="openDashboardSection('landlord-dashboard', 'landlord', 'landlord-tab-apps'); return false;">📩 Applications Received</a></li>
-                <li class="mobile-only-nav-item"><a href="#" onclick="openDashboardSection('landlord-dashboard', 'landlord', 'landlord-tab-inquiries'); return false;">💬 Tenant Inquiries</a></li>
+                <li class="mobile-only-nav-item"><a href="#" onclick="openDashboardSection('landlord-dashboard', 'landlord', 'landlord-tab-apps'); return false;">📩 Applications</a></li>
+                <li class="mobile-only-nav-item"><a href="#" onclick="openDashboardSection('landlord-dashboard', 'landlord', 'landlord-tab-inquiries'); return false;">💬 Inquiries</a></li>
+                <li class="mobile-only-nav-item"><a href="#" onclick="openDashboardSection('landlord-dashboard', 'landlord', 'landlord-tab-feedback'); return false;">⭐ Feedback</a></li>
+                <li class="mobile-only-nav-item"><a href="#" onclick="openDashboardSection('landlord-dashboard', 'landlord', 'landlord-tab-payments'); return false;">💳 Payment &amp; QR Ph</a></li>
+                <li class="mobile-only-nav-item"><a href="#" onclick="openDashboardSection('landlord-dashboard', 'landlord', 'landlord-tab-profile'); return false;">👤 Account Profile</a></li>
                 <li class="mobile-only-nav-item"><a href="#" onclick="openCreatePropertyForm(); return false;">＋ Add New Property</a></li>
             `;
         } else if (currentUser.role === 'tenant') {
             roleDrawerItems = `
                 <li class="mobile-nav-section-label">Tenant Dashboard</li>
                 <li class="mobile-only-nav-item"><a href="#" onclick="openDashboardSection('tenant-dashboard', 'tenant', 'tenant-tab-apps'); return false;">📋 My Applications</a></li>
+                <li class="mobile-only-nav-item"><a href="#" onclick="openDashboardSection('tenant-dashboard', 'tenant', 'tenant-tab-wishlist'); return false;">❤️ Wishlist</a></li>
                 <li class="mobile-only-nav-item"><a href="#" onclick="openDashboardSection('tenant-dashboard', 'tenant', 'tenant-tab-reviews'); return false;">⭐ My Reviews</a></li>
                 <li class="mobile-only-nav-item"><a href="#" onclick="openDashboardSection('tenant-dashboard', 'tenant', 'tenant-tab-complaints'); return false;">🚨 My Complaints</a></li>
+                <li class="mobile-only-nav-item"><a href="#" onclick="openDashboardSection('tenant-dashboard', 'tenant', 'tenant-tab-profile'); return false;">👤 Account Profile</a></li>
             `;
         } else if (currentUser.role === 'admin') {
             roleDrawerItems = `
@@ -413,8 +432,12 @@ function updateNavForLoggedInUser() {
         if (userEmailDisplay) userEmailDisplay.textContent = currentUser.email || '';
         if (userRoleDisplay) userRoleDisplay.textContent = roleLabel;
         if (sideNavAvatar) {
-            const initials = (currentUser.full_name || 'U').split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
-            sideNavAvatar.textContent = initials || 'U';
+            if (currentUser.avatar_url) {
+                sideNavAvatar.innerHTML = `<img src="${escapeHtml(currentUser.avatar_url)}" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+            } else {
+                const initials = (currentUser.full_name || 'U').split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+                sideNavAvatar.textContent = initials || 'U';
+            }
         }
         if (floatingChat) floatingChat.style.display = 'block';
         if (sideNavFooter) sideNavFooter.style.display = 'block';
@@ -792,12 +815,14 @@ function renderPropertyCard(p) {
         : '';
 
     const showApplyBtn = !currentUser || currentUser.role === 'tenant';
+    const isWishlisted = currentUser?.role === 'tenant' && isInWishlist(p.property_id);
 
     return `
         <div class="property-card" data-property-id="${p.property_id}" onmouseenter="highlightMapPin('${p.property_id}', true)" onmouseleave="highlightMapPin('${p.property_id}', false)" style="background:#fff;overflow:hidden;display:flex;flex-direction:column;">
             <div class="property-card-media">
                 ${imgHtml}
                 <div class="property-card-badge">${statusBadgeHtml(p.availability_status || 'available')}</div>
+                ${currentUser?.role === 'tenant' ? `<button type="button" onclick="toggleWishlist('${p.property_id}')" title="${isWishlisted ? 'Remove from Wishlist' : 'Save to Wishlist'}" style="position:absolute;top:10px;right:10px;z-index:3;width:36px;height:36px;border-radius:50%;border:none;background:rgba(255,255,255,0.92);cursor:pointer;font-size:17px;box-shadow:0 3px 10px rgba(0,0,0,0.16);display:flex;align-items:center;justify-content:center;">${isWishlisted ? '❤️' : '🤍'}</button>` : ''}
                 <div class="property-card-price-pill">${formatPeso(p.price)}<span style="font-weight:400;font-size:11px;"> /mo</span></div>
             </div>
             <div style="padding:18px;flex:1;display:flex;flex-direction:column;">
@@ -1249,6 +1274,32 @@ async function openPropertyDetails(propertyId) {
                </div>`
             : '';
 
+        const llProfile = meta.landlord_profile || {};
+        const llName = meta.contact_name || property.landlord?.full_name || 'Property Owner';
+        const llPhone = meta.contact_phone || property.landlord?.phone || '';
+        const llEmail = llProfile.email || property.landlord?.email || '';
+        const llAvatar = llProfile.avatar_url || '';
+        const llInitials = llName.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'L';
+
+        const payInfo = meta.payment_info || {};
+        const payMethods = Array.isArray(payInfo.methods) ? payInfo.methods : [];
+        const hasPaymentDetails = payMethods.length > 0 || payInfo.gcash || payInfo.maya || payInfo.bank || payInfo.card || payInfo.qrph_url;
+        const paymentSectionHtml = hasPaymentDetails
+            ? `<div style="background:#EFF6FF;border:1px solid #BFDBFE;padding:16px;border-radius:12px;margin-bottom:20px;">
+                 <strong style="display:block;color:#0F4C81;font-size:15px;margin-bottom:8px;">💳 Accepted Modes of Payment &amp; QR Ph</strong>
+                 ${payMethods.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">${payMethods.map(m => `<span style="background:#FFFFFF;border:1px solid #93C5FD;color:#1E3A8A;font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;">${escapeHtml(m)}</span>`).join('')}</div>` : ''}
+                 <div style="font-size:13.5px;color:#1E293B;line-height:1.65;">
+                   ${payInfo.gcash ? `<div>💙 <strong>GCash:</strong> ${escapeHtml(payInfo.gcash)}</div>` : ''}
+                   ${payInfo.maya ? `<div>💚 <strong>Maya:</strong> ${escapeHtml(payInfo.maya)}</div>` : ''}
+                   ${payInfo.bank ? `<div>🏦 <strong>Bank Transfer:</strong> ${escapeHtml(payInfo.bank)}</div>` : ''}
+                   ${payInfo.card ? `<div>💳 <strong>Credit / Debit Card:</strong> ${escapeHtml(payInfo.card)}</div>` : ''}
+                 </div>
+                 ${payInfo.qrph_url ? `<div style="margin-top:12px;"><div style="font-size:12px;font-weight:700;color:#0F4C81;margin-bottom:6px;">📲 Scan QR Ph to Pay:</div><a href="${escapeHtml(payInfo.qrph_url)}" target="_blank" rel="noopener noreferrer"><img src="${escapeHtml(payInfo.qrph_url)}" alt="QR Ph Code" style="max-width:200px;max-height:200px;border-radius:10px;border:2px solid #FFFFFF;box-shadow:0 4px 12px rgba(0,0,0,0.12);"></a></div>` : ''}
+               </div>`
+            : '';
+
+        const isWishlisted = currentUser?.role === 'tenant' && isInWishlist(property.property_id);
+
         bodyEl.innerHTML = `
             ${galleryHtml}
             <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
@@ -1264,16 +1315,32 @@ async function openPropertyDetails(propertyId) {
                 <p style="color:#475569;line-height:1.7;margin:0;white-space:pre-line;">${escapeHtml(cleanDesc || 'No description provided.')}</p>
             </div>
             ${rulesDetailHtml}
-            <div style="background:#FAF8F5;border:1px solid #EAE5DC;padding:15px;border-radius:10px;margin-bottom:20px;">
-                <strong style="color:#2C1E16;">Landlord:</strong> ${escapeHtml(meta.contact_name || property.landlord?.full_name || 'Property Owner')}
-                ${property.landlord?.is_verified ? ' <span style="color:#2E7D32;font-weight:700;">✔ Verified</span>' : ''}
-                ${(meta.contact_phone || property.landlord?.phone) ? `<br><strong style="color:#2C1E16;">Phone:</strong> ${escapeHtml(meta.contact_phone || property.landlord?.phone)}` : ''}
-                ${meta.social_link ? `<div style="margin-top:10px;"><a href="${escapeHtml(normalizeSafeUrl(meta.social_link))}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;background:#1877F2;color:#FFFFFF;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;">💬 Open Facebook / Messenger ↗</a></div>` : ''}
+            ${paymentSectionHtml}
+            <div style="background:#FAF8F5;border:1px solid #EAE5DC;padding:18px;border-radius:12px;margin-bottom:20px;">
+                <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.05em;color:#64748B;margin-bottom:10px;">👤 Property Manager / Landlord Information</div>
+                <div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;">
+                    <div style="width:56px;height:56px;border-radius:50%;overflow:hidden;background:linear-gradient(135deg,#0F4C81,#0288D1);color:#fff;font-weight:800;font-size:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                        ${llAvatar ? `<img src="${escapeHtml(llAvatar)}" alt="${escapeHtml(llName)}" style="width:100%;height:100%;object-fit:cover;">` : escapeHtml(llInitials)}
+                    </div>
+                    <div style="flex:1;min-width:200px;font-size:14px;color:#334155;line-height:1.65;">
+                        <div style="font-size:16px;font-weight:700;color:#1E293B;">
+                            ${escapeHtml(llName)}
+                            ${property.landlord?.is_verified ? ' <span style="color:#2E7D32;font-size:12.5px;font-weight:700;">✔ Verified Landlord</span>' : ''}
+                        </div>
+                        ${llPhone ? `<div>📞 <strong>Contact:</strong> ${escapeHtml(llPhone)}</div>` : ''}
+                        ${llEmail ? `<div>📧 <strong>Email:</strong> ${escapeHtml(llEmail)}</div>` : ''}
+                        ${llProfile.house_address ? `<div>🏡 <strong>Address:</strong> ${escapeHtml(llProfile.house_address)}</div>` : ''}
+                        ${llProfile.bio ? `<div style="margin-top:6px;color:#475569;">ℹ️ ${escapeHtml(llProfile.bio)}</div>` : ''}
+                        ${llProfile.hobbies ? `<div style="margin-top:4px;font-size:13px;color:#64748B;">🎯 <strong>Hobbies:</strong> ${escapeHtml(llProfile.hobbies)}</div>` : ''}
+                        ${meta.social_link ? `<div style="margin-top:10px;"><a href="${escapeHtml(normalizeSafeUrl(meta.social_link))}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;background:#1877F2;color:#FFFFFF;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;">💬 Open Facebook / Messenger ↗</a></div>` : ''}
+                    </div>
+                </div>
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:26px;">
                 ${canEditThisProperty ? `<button class="btn" onclick="document.getElementById('property-modal').classList.remove('active'); openEditPropertyForm('${property.property_id}')" style="flex:1;min-width:160px;padding:12px;">✏️ Edit Property Details</button>` : ''}
                 ${!isOwner && (!currentUser || currentUser.role === 'tenant') ? `<button class="btn" onclick="applyForProperty('${property.property_id}')" style="flex:1;min-width:140px;padding:12px;">📝 Apply Now</button>` : ''}
-                ${!isOwner && property.landlord_id ? `<button class="btn-secondary" onclick="openMessageToUser('${property.landlord_id}', '${escapeJsAttr(property.landlord?.full_name || 'Landlord')}', '${property.property_id}')" style="flex:1;min-width:140px;padding:12px;">💬 Message Landlord</button>` : ''}
+                ${currentUser?.role === 'tenant' ? `<button class="btn-secondary" onclick="toggleWishlist('${property.property_id}'); openPropertyDetails('${property.property_id}')" style="padding:12px 16px;">${isWishlisted ? '❤️ Wishlisted' : '🤍 Add to Wishlist'}</button>` : ''}
+                ${!isOwner && property.landlord_id ? `<button class="btn-secondary" onclick="openMessageToUser('${property.landlord_id}', '${escapeJsAttr(llName)}', '${property.property_id}')" style="flex:1;min-width:140px;padding:12px;">💬 Message Landlord</button>` : ''}
                 ${currentUser && !isOwner ? `<button class="btn-secondary" onclick="openComplaintModal('${property.property_id}', '${property.landlord_id}', '${escapeJsAttr(property.title)}')" style="padding:12px 16px;color:#B42318;border-color:#FF6B6B;">🚨 Report</button>` : ''}
             </div>
             <hr style="border:none;border-top:2px solid #EAE5DC;margin:20px 0;">
@@ -1382,10 +1449,32 @@ async function loadTenantDashboard() {
         ]);
 
         const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = String(v); };
+        const wishlistIds = getWishlistIds();
         setTxt('tenant-stat-total', apps.length);
         setTxt('tenant-stat-approved', apps.filter(a => a.status === 'approved').length);
-        setTxt('tenant-stat-pending', apps.filter(a => a.status === 'pending').length);
+        setTxt('tenant-stat-wishlist', wishlistIds.length);
         setTxt('tenant-stat-reviews', reviews.length);
+
+        // Render Tenant Wishlist tab
+        renderTenantWishlistTab(wishlistIds);
+
+        // Populate Tenant Account Profile form + Reviews Activity
+        populateRoleProfileForm('tenant');
+        const profileReviewsEl = document.getElementById('tenant-profile-reviews');
+        if (profileReviewsEl) {
+            profileReviewsEl.innerHTML = reviews.length === 0
+                ? '<p style="color:#64748B;">No reviews posted yet. Open any property to leave a review.</p>'
+                : reviews.map(r => `
+                    <div style="border-bottom:1px solid #EAE5DC;padding:12px 0;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                            <strong style="color:#1E293B;">${escapeHtml(r.property?.title || 'Property')}</strong>
+                            <span style="color:#D97706;font-weight:700;">${renderStars(r.rating)} (${r.rating}/5)</span>
+                        </div>
+                        <p style="color:#475569;margin:4px 0;font-size:13.5px;">${escapeHtml(r.comment || '')}</p>
+                        <small style="color:#94A3B8;">${formatDate(r.created_at)}</small>
+                    </div>
+                `).join('');
+        }
 
         if (appsEl) {
             appsEl.innerHTML = apps.length === 0
@@ -1465,18 +1554,52 @@ async function loadLandlordDashboard() {
     const listEl = document.getElementById('landlord-properties-list');
     const appsEl = document.getElementById('landlord-applications-list');
     const inqEl = document.getElementById('landlord-inquiries-list');
+    const fbEl = document.getElementById('landlord-feedback-list');
 
     if (listEl) listEl.innerHTML = '<p>Loading your properties...</p>';
     if (appsEl) appsEl.innerHTML = '<p>Loading applications...</p>';
     if (inqEl) inqEl.innerHTML = '<p>Loading inquiries...</p>';
+    if (fbEl) fbEl.innerHTML = '<p>Loading tenant feedback...</p>';
+
+    populateRoleProfileForm('landlord');
+    populateLandlordPaymentForm();
 
     try {
-        const [properties, summary, applications, inquiries] = await Promise.all([
+        const [properties, summary, applications, inquiries, feedback] = await Promise.all([
             window.propertyService.getLandlordProperties(currentUser.id),
             window.propertyService.getLandlordSummary(currentUser.id),
             window.applicationService.getLandlordApplications(currentUser.id),
             window.inquiryService.getUserInquiries(currentUser.id),
+            window.reviewService.getLandlordReviews(currentUser.id).catch(() => []),
         ]);
+
+        if (fbEl) {
+            if (!feedback.length) {
+                fbEl.innerHTML = '<div style="text-align:center;padding:36px 20px;background:#FAF8F5;border:1px dashed #D8D2C7;border-radius:14px;color:#64748B;">No tenant feedback or reviews on your properties yet.</div>';
+            } else {
+                const avg = (feedback.reduce((s, r) => s + Number(r.rating || 0), 0) / feedback.length).toFixed(1);
+                fbEl.innerHTML = `
+                    <div style="background:#EEF6FA;border:1px solid #C8E2F2;border-radius:12px;padding:14px 18px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+                        <strong style="color:#0F4C81;">⭐ Overall Rating Across Your Listings: ${avg} / 5.0</strong>
+                        <span style="font-size:13px;color:#475569;">${feedback.length} review${feedback.length === 1 ? '' : 's'}</span>
+                    </div>
+                    ${feedback.map(r => `
+                        <div class="settings-card" style="padding:16px;margin-bottom:12px;">
+                            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px;">
+                                <div>
+                                    <strong style="color:#1E293B;">${escapeHtml(r.tenant?.full_name || 'Tenant')}</strong>
+                                    <span style="color:#64748B;font-size:13px;"> reviewed </span>
+                                    <strong style="color:#0F4C81;">${escapeHtml(r.property?.title || 'Property')}</strong>
+                                </div>
+                                <span style="color:#D97706;font-weight:700;">${renderStars(r.rating)} (${r.rating}/5)</span>
+                            </div>
+                            <p style="color:#475569;margin:6px 0;">${escapeHtml(r.comment || 'No written comment.')}</p>
+                            <small style="color:#94A3B8;">${formatDateTime(r.created_at)}</small>
+                        </div>
+                    `).join('')}
+                `;
+            }
+        }
 
         const totalProps = summary?.total_properties ?? properties.length;
         const availProps = summary?.available ?? properties.filter(p => p.availability_status === 'available').length;
@@ -1783,6 +1906,21 @@ async function handlePostProperty(event) {
         contact_name: document.getElementById('contact-name')?.value.trim() || '',
         contact_phone: document.getElementById('contact-number')?.value.trim() || '',
         social_link: document.getElementById('contact-social-link')?.value.trim() || '',
+        landlord_profile: {
+            avatar_url: currentUser.avatar_url || '',
+            bio: currentUser.bio || '',
+            hobbies: currentUser.hobbies || '',
+            house_address: currentUser.house_address || '',
+            email: currentUser.email || '',
+        },
+        payment_info: {
+            methods: currentUser.payment_methods || [],
+            gcash: currentUser.payment_gcash || '',
+            maya: currentUser.payment_maya || '',
+            bank: currentUser.payment_bank || '',
+            card: currentUser.payment_card || '',
+            qrph_url: currentUser.qrph_url || '',
+        },
         lat: document.getElementById('property-lat')?.value || '',
         lng: document.getElementById('property-lng')?.value || '',
     });
@@ -1824,6 +1962,263 @@ async function handlePostProperty(event) {
     } finally {
         submitBtn.disabled = false;
         submitBtn.textContent = editId ? 'Save Changes' : 'Publish Property';
+    }
+}
+
+// ============================================================================
+// Wishlist, Role Account Profiles, and Landlord Payment & QR Ph Helpers
+// ============================================================================
+function getWishlistIds() {
+    if (!currentUser) return [];
+    const fromMeta = Array.isArray(currentUser.wishlist) ? currentUser.wishlist : [];
+    const localKey = `housingo_wishlist_${currentUser.id}`;
+    try {
+        const local = JSON.parse(localStorage.getItem(localKey) || '[]');
+        return Array.from(new Set([...fromMeta, ...(Array.isArray(local) ? local : [])]));
+    } catch {
+        return fromMeta;
+    }
+}
+
+function isInWishlist(propertyId) {
+    return getWishlistIds().includes(propertyId);
+}
+
+async function toggleWishlist(propertyId) {
+    if (!currentUser || currentUser.role !== 'tenant') {
+        return showToast('Log in as a Tenant to save properties to your Wishlist.', 'warning');
+    }
+    const current = getWishlistIds();
+    const exists = current.includes(propertyId);
+    const updated = exists ? current.filter(id => id !== propertyId) : [...current, propertyId];
+
+    currentUser.wishlist = updated;
+    localStorage.setItem(`housingo_wishlist_${currentUser.id}`, JSON.stringify(updated));
+    showToast(exists ? 'Removed from Wishlist.' : 'Saved to Wishlist ❤️', exists ? 'info' : 'success');
+
+    if (cachedAvailableProperties.length) renderHomeGrid(cachedAvailableProperties);
+    const statEl = document.getElementById('tenant-stat-wishlist');
+    if (statEl) statEl.textContent = String(updated.length);
+    renderTenantWishlistTab(updated);
+
+    try {
+        await window.authService.updateUserMetadata({ wishlist: updated });
+    } catch (err) {
+        console.warn('Could not sync wishlist to Auth metadata:', err);
+    }
+}
+
+async function renderTenantWishlistTab(wishlistIds) {
+    const el = document.getElementById('tenant-wishlist-list');
+    if (!el) return;
+    if (!wishlistIds || wishlistIds.length === 0) {
+        el.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:36px 20px;background:#FAF8F5;border:1px dashed #D8D2C7;border-radius:14px;color:#64748B;">Your wishlist is empty. Tap the 🤍 heart on any rental property to save it here!</div>';
+        return;
+    }
+    if (!cachedAvailableProperties.length) {
+        cachedAvailableProperties = await window.propertyService.getAvailableProperties().catch(() => []);
+    }
+    const items = cachedAvailableProperties.filter(p => wishlistIds.includes(p.property_id));
+    if (!items.length) {
+        el.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;color:#64748B;">Saved properties are currently unavailable.</div>';
+        return;
+    }
+    el.innerHTML = items.map(renderPropertyCard).join('');
+}
+
+function compressImageToDataUrl(file, maxSize = 480) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('Failed to read image file.'));
+        reader.onload = (ev) => {
+            const img = new Image();
+            img.onerror = () => reject(new Error('Invalid image file.'));
+            img.onload = () => {
+                const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.max(1, Math.round(img.width * scale));
+                canvas.height = Math.max(1, Math.round(img.height * scale));
+                canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+                resolve(canvas.toDataURL('image/jpeg', 0.82));
+            };
+            img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+function populateRoleProfileForm(role) {
+    if (!currentUser) return;
+    const prefix = role === 'landlord' ? 'll' : 'tn';
+    const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
+    setVal(`${prefix}-profile-name`, currentUser.full_name);
+    setVal(`${prefix}-profile-email`, currentUser.email);
+    setVal(`${prefix}-profile-phone`, currentUser.phone);
+    setVal(`${prefix}-profile-bio`, currentUser.bio);
+    setVal(`${prefix}-profile-hobbies`, currentUser.hobbies);
+    if (role === 'landlord') setVal('ll-profile-address', currentUser.house_address);
+
+    const avEl = document.getElementById(`${prefix}-profile-avatar-preview`);
+    if (avEl) {
+        if (currentUser.avatar_url) {
+            avEl.innerHTML = `<img src="${escapeHtml(currentUser.avatar_url)}" alt="Avatar" style="width:100%;height:100%;object-fit:cover;">`;
+        } else {
+            const initials = (currentUser.full_name || 'U').split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+            avEl.textContent = initials || '👤';
+        }
+    }
+}
+
+function populateLandlordPaymentForm() {
+    if (!currentUser) return;
+    const methods = new Set(currentUser.payment_methods || []);
+    document.querySelectorAll('#landlord-payment-form input[name="ll-pay-method"]').forEach(cb => {
+        cb.checked = methods.has(cb.value);
+    });
+    const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
+    setVal('ll-pay-gcash', currentUser.payment_gcash);
+    setVal('ll-pay-maya', currentUser.payment_maya);
+    setVal('ll-pay-bank', currentUser.payment_bank);
+    setVal('ll-pay-card', currentUser.payment_card);
+
+    const preview = document.getElementById('ll-qrph-preview');
+    if (preview) {
+        preview.innerHTML = currentUser.qrph_url
+            ? `<img src="${escapeHtml(currentUser.qrph_url)}" alt="QR Ph" style="max-width:190px;max-height:190px;border-radius:10px;border:2px solid #C8E2F2;">`
+            : '<small style="color:#64748B;">No QR Ph image uploaded yet.</small>';
+    }
+}
+
+async function syncLandlordMetaToProperties() {
+    if (!currentUser || currentUser.role !== 'landlord') return;
+    try {
+        const props = await window.propertyService.getLandlordProperties(currentUser.id);
+        for (const p of props) {
+            const { text, meta } = parsePropertyDescription(p.description);
+            const updatedDesc = encodePropertyDescription(text, {
+                ...meta,
+                landlord_profile: {
+                    avatar_url: currentUser.avatar_url || '',
+                    bio: currentUser.bio || '',
+                    hobbies: currentUser.hobbies || '',
+                    house_address: currentUser.house_address || '',
+                    email: currentUser.email || '',
+                },
+                payment_info: {
+                    methods: currentUser.payment_methods || [],
+                    gcash: currentUser.payment_gcash || '',
+                    maya: currentUser.payment_maya || '',
+                    bank: currentUser.payment_bank || '',
+                    card: currentUser.payment_card || '',
+                    qrph_url: currentUser.qrph_url || '',
+                },
+            });
+            await window.propertyService.updateProperty(p.property_id, { description: updatedDesc });
+        }
+    } catch (err) {
+        console.warn('Could not sync landlord metadata to existing listings:', err);
+    }
+}
+
+async function handleSaveRoleProfile(event, role) {
+    event.preventDefault();
+    if (!currentUser) return;
+    const prefix = role === 'landlord' ? 'll' : 'tn';
+    const btn = document.getElementById(`${prefix}-save-profile-btn`);
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Saving...'; }
+
+    try {
+        const fullName = document.getElementById(`${prefix}-profile-name`)?.value.trim() || currentUser.full_name;
+        const phone = document.getElementById(`${prefix}-profile-phone`)?.value.trim() || '';
+        const bio = document.getElementById(`${prefix}-profile-bio`)?.value.trim() || '';
+        const hobbies = document.getElementById(`${prefix}-profile-hobbies`)?.value.trim() || '';
+        const houseAddress = role === 'landlord' ? (document.getElementById('ll-profile-address')?.value.trim() || '') : currentUser.house_address;
+        const photoFile = document.getElementById(`${prefix}-profile-photo`)?.files?.[0];
+
+        let avatarUrl = currentUser.avatar_url || '';
+        if (photoFile) {
+            if (role === 'landlord' && currentUser.is_verified) {
+                try {
+                    avatarUrl = await window.propertyService.uploadPropertyImage(currentUser.id, photoFile);
+                } catch {
+                    avatarUrl = await compressImageToDataUrl(photoFile, 240);
+                }
+            } else {
+                avatarUrl = await compressImageToDataUrl(photoFile, 240);
+            }
+        }
+
+        const updatedProfile = await window.authService.updateProfile(currentUser.id, { full_name: fullName, phone });
+        const updatedAuthUser = await window.authService.updateUserMetadata({
+            full_name: fullName,
+            phone,
+            avatar_url: avatarUrl,
+            bio,
+            hobbies,
+            house_address: houseAddress,
+        });
+
+        currentUser = normalizeUserProfile(updatedProfile, updatedAuthUser);
+        updateNavForLoggedInUser();
+        populateRoleProfileForm(role);
+
+        if (role === 'landlord') {
+            await syncLandlordMetaToProperties();
+        }
+        showToast('Account profile saved successfully!', 'success');
+    } catch (error) {
+        console.error('Save role profile error:', error);
+        showToast(`Failed to save profile: ${error.message}`, 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = role === 'landlord' ? '💾 Save Landlord Profile' : '💾 Save Tenant Profile'; }
+    }
+}
+
+async function handleSaveLandlordPayments(event) {
+    event.preventDefault();
+    if (!currentUser || currentUser.role !== 'landlord') return;
+    const btn = document.getElementById('ll-save-payments-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Saving...'; }
+
+    try {
+        const methods = Array.from(document.querySelectorAll('#landlord-payment-form input[name="ll-pay-method"]:checked')).map(cb => cb.value);
+        const payment_gcash = document.getElementById('ll-pay-gcash')?.value.trim() || '';
+        const payment_maya = document.getElementById('ll-pay-maya')?.value.trim() || '';
+        const payment_bank = document.getElementById('ll-pay-bank')?.value.trim() || '';
+        const payment_card = document.getElementById('ll-pay-card')?.value.trim() || '';
+        const qrFile = document.getElementById('ll-qrph-file')?.files?.[0];
+
+        let qrph_url = currentUser.qrph_url || '';
+        if (qrFile) {
+            if (currentUser.is_verified) {
+                try {
+                    qrph_url = await window.propertyService.uploadPropertyImage(currentUser.id, qrFile);
+                } catch {
+                    qrph_url = await compressImageToDataUrl(qrFile, 420);
+                }
+            } else {
+                qrph_url = await compressImageToDataUrl(qrFile, 420);
+            }
+        }
+
+        const updatedAuthUser = await window.authService.updateUserMetadata({
+            payment_methods: methods,
+            payment_gcash,
+            payment_maya,
+            payment_bank,
+            payment_card,
+            qrph_url,
+        });
+
+        currentUser = normalizeUserProfile(currentUser, updatedAuthUser);
+        populateLandlordPaymentForm();
+        await syncLandlordMetaToProperties();
+        showToast('Payment methods & QR Ph saved and synced to your listings! 💳', 'success');
+    } catch (error) {
+        console.error('Save payment methods error:', error);
+        showToast(`Failed to save payment methods: ${error.message}`, 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '💾 Save Payment Methods'; }
     }
 }
 

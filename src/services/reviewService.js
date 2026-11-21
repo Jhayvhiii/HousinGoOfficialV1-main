@@ -40,6 +40,31 @@ export const reviewService = {
     return data || [];
   },
 
+  async getLandlordReviews(landlordId) {
+    const supabase = getClient();
+    const { data: props, error: propErr } = await supabase
+      .from('properties')
+      .select('property_id, title')
+      .eq('landlord_id', landlordId);
+
+    if (propErr) throw propErr;
+    if (!props || props.length === 0) return [];
+
+    const propIds = props.map(p => p.property_id);
+    const { data, error } = await supabase
+      .from('reviews')
+      .select(`
+        *,
+        tenant:profiles!reviews_tenant_id_fkey(id, full_name, email),
+        property:properties(property_id, title, location)
+      `)
+      .in('property_id', propIds)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  },
+
   async upsertReview({ property_id, tenant_id, rating, comment }) {
     const supabase = getClient();
     const numRating = Number(rating);

@@ -5,7 +5,7 @@
    <div>
     <span class="dash-role-pill">🔍 Tenant Workspace</span>
     <h1 style="font-size: 32px; color: #FFFFFF; margin: 10px 0 4px; letter-spacing: -0.02em;">Tenant Dashboard</h1>
-    <p style="color: rgba(255,255,255,0.88); font-size: 14px; margin: 0;">Track your rental applications, reviews, and reports in one place.</p>
+    <p style="color: rgba(255,255,255,0.88); font-size: 14px; margin: 0;">Track your applications, wishlist, reviews, payment guides, and personal profile.</p>
    </div>
    <div style="display: flex; gap: 10px; flex-wrap: wrap; align-self: flex-start; position: relative; z-index: 1;">
     <button class="btn dash-hero-cta" onclick="showPage('home')">🏠 Browse Rentals</button>
@@ -28,12 +28,12 @@
     </div>
     <div class="kpi-icon">✅</div>
    </div>
-   <div class="kpi-card amber">
+   <div class="kpi-card red">
     <div>
-     <div class="kpi-label">Pending</div>
-     <p class="kpi-value" style="color: #D97706;" id="tenant-stat-pending">0</p>
+     <div class="kpi-label">Wishlist</div>
+     <p class="kpi-value" style="color: #DC2626;" id="tenant-stat-wishlist">0</p>
     </div>
-    <div class="kpi-icon">⏳</div>
+    <div class="kpi-icon">❤️</div>
    </div>
    <div class="kpi-card">
     <div>
@@ -44,20 +44,95 @@
    </div>
   </div>
 
+  <!-- Tabbed Navigation -->
   <div class="dash-tabs" data-tab-group="tenant">
    <button type="button" class="dash-tab-btn active" data-tab-target="tenant-tab-apps" onclick="switchDashboardTab('tenant', 'tenant-tab-apps')">📋 My Applications</button>
+   <button type="button" class="dash-tab-btn" data-tab-target="tenant-tab-wishlist" onclick="switchDashboardTab('tenant', 'tenant-tab-wishlist')">❤️ Wishlist</button>
    <button type="button" class="dash-tab-btn" data-tab-target="tenant-tab-reviews" onclick="switchDashboardTab('tenant', 'tenant-tab-reviews')">⭐ My Reviews</button>
    <button type="button" class="dash-tab-btn" data-tab-target="tenant-tab-complaints" onclick="switchDashboardTab('tenant', 'tenant-tab-complaints')">🚨 My Complaints</button>
+   <button type="button" class="dash-tab-btn" data-tab-target="tenant-tab-profile" onclick="switchDashboardTab('tenant', 'tenant-tab-profile')">👤 Account Profile</button>
   </div>
 
+  <!-- Applications Tab -->
   <div id="tenant-tab-apps" class="dash-tab-panel active" data-tab-group="tenant">
    <div id="tenant-saved-properties"></div>
   </div>
+
+  <!-- Wishlist Tab -->
+  <div id="tenant-tab-wishlist" class="dash-tab-panel" data-tab-group="tenant">
+   <div id="tenant-wishlist-list" class="properties-grid"></div>
+  </div>
+
+  <!-- Reviews Tab -->
   <div id="tenant-tab-reviews" class="dash-tab-panel" data-tab-group="tenant">
    <div id="tenant-reviews"></div>
   </div>
+
+  <!-- Complaints Tab -->
   <div id="tenant-tab-complaints" class="dash-tab-panel" data-tab-group="tenant">
    <div id="tenant-complaints"></div>
+  </div>
+
+  <!-- Tenant Account Profile + Reviews Activity Tab -->
+  <div id="tenant-tab-profile" class="dash-tab-panel" data-tab-group="tenant">
+   <div class="settings-cards-grid">
+    <section class="settings-card">
+     <div class="settings-card-header">
+      <div id="tn-profile-avatar-preview" class="settings-card-icon" style="width: 58px; height: 58px; border-radius: 50%; overflow: hidden; font-size: 22px; font-weight: 800; color: #0F4C81;">👤</div>
+      <div>
+       <h2 style="font-size: 20px; font-weight: 700; color: #1E293B; margin: 0;">Tenant Account Profile</h2>
+       <p style="font-size: 13px; color: #64748B; margin: 2px 0 0;">Keep your photo, personal info, hobbies, and contact details updated.</p>
+      </div>
+     </div>
+
+     <form id="tenant-profile-form" onsubmit="handleSaveRoleProfile(event, 'tenant')">
+      <div style="margin-bottom: 14px;">
+       <label for="tn-profile-photo" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; color: #334155;">📷 Profile Photo</label>
+       <input type="file" id="tn-profile-photo" accept="image/*" style="width: 100%; padding: 10px; border: 1.5px solid #D8D2C7; border-radius: 10px;">
+      </div>
+
+      <div style="margin-bottom: 14px;">
+       <label for="tn-profile-name" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; color: #334155;">Full Name</label>
+       <input type="text" id="tn-profile-name" required style="width: 100%; padding: 11px 14px; border: 1.5px solid #D8D2C7; border-radius: 10px; font-size: 15px;">
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
+       <div>
+        <label for="tn-profile-email" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; color: #334155;">Email Address</label>
+        <input type="email" id="tn-profile-email" readonly style="width: 100%; padding: 11px 14px; border: 1.5px solid #EAE5DC; border-radius: 10px; font-size: 15px; background: #F8FAFC; color: #64748B;">
+       </div>
+       <div>
+        <label for="tn-profile-phone" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; color: #334155;">Contact Number</label>
+        <input type="tel" id="tn-profile-phone" placeholder="09XX XXX XXXX" style="width: 100%; padding: 11px 14px; border: 1.5px solid #D8D2C7; border-radius: 10px; font-size: 15px;">
+       </div>
+      </div>
+
+      <div style="margin-bottom: 14px;">
+       <label for="tn-profile-bio" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; color: #334155;">Personal Info / Occupation</label>
+       <textarea id="tn-profile-bio" rows="3" placeholder="e.g., BGC Software Engineer, quiet and tidy tenant..." style="width: 100%; padding: 11px 14px; border: 1.5px solid #D8D2C7; border-radius: 10px; font-size: 15px; resize: vertical;"></textarea>
+      </div>
+
+      <div style="margin-bottom: 20px;">
+       <label for="tn-profile-hobbies" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; color: #334155;">🎯 Hobbies &amp; Interests</label>
+       <input type="text" id="tn-profile-hobbies" placeholder="e.g., Running, Reading, Cooking, Gaming" style="width: 100%; padding: 11px 14px; border: 1.5px solid #D8D2C7; border-radius: 10px; font-size: 15px;">
+      </div>
+
+      <button type="submit" id="tn-save-profile-btn" class="btn" style="width: 100%; padding: 13px; font-size: 15px;">💾 Save Tenant Profile</button>
+     </form>
+    </section>
+
+    <!-- Tenant Reviews Activity inside Account Profile -->
+    <section class="settings-card">
+     <div class="settings-card-header">
+      <div class="settings-card-icon" style="background: #FEF3C7;">⭐</div>
+      <div>
+       <h2 style="font-size: 20px; font-weight: 700; color: #1E293B; margin: 0;">My Reviews &amp; Activity</h2>
+       <p style="font-size: 13px; color: #64748B; margin: 2px 0 0;">Reviews you have posted across HousinGo properties.</p>
+      </div>
+     </div>
+     <div id="tenant-profile-reviews"></div>
+    </section>
+   </div>
   </div>
  </div>
 </main>

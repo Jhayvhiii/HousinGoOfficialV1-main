@@ -140,6 +140,19 @@ export const authService = {
   },
 
   /**
+   * Update extended user metadata in Supabase Auth (avatar_url, bio, hobbies,
+   * house_address, payment_methods, qrph_url, wishlist, etc.).
+   */
+  async updateUserMetadata(metaUpdates) {
+    const supabase = getClient();
+    const { data, error } = await supabase.auth.updateUser({
+      data: metaUpdates,
+    });
+    if (error) throw error;
+    return data.user;
+  },
+
+  /**
    * Change current user's password.
    */
   async changePassword(newPassword) {

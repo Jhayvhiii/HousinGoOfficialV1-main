@@ -6,7 +6,7 @@
    <div>
     <span class="dash-role-pill">🔑 Landlord Workspace</span>
     <h1 style="font-size: 32px; color: #FFFFFF; margin: 10px 0 4px; letter-spacing: -0.02em;">Landlord Dashboard</h1>
-    <p style="color: rgba(255,255,255,0.88); font-size: 14px; margin: 0;">Manage your rental listings, review tenant applications, and reply to inquiries in real time.</p>
+    <p style="color: rgba(255,255,255,0.88); font-size: 14px; margin: 0;">Manage listings, applications, inquiries, tenant feedback, payment methods (QR Ph), and your profile.</p>
    </div>
    <button id="landlord-add-property-btn" class="btn dash-hero-cta" onclick="openCreatePropertyForm()">＋ Add New Property</button>
   </div>
@@ -53,20 +53,141 @@
   <!-- Tabbed Navigation -->
   <div class="dash-tabs" data-tab-group="landlord">
    <button type="button" class="dash-tab-btn active" data-tab-target="landlord-tab-listings" onclick="switchDashboardTab('landlord', 'landlord-tab-listings')">🏠 My Listings</button>
-   <button type="button" class="dash-tab-btn" data-tab-target="landlord-tab-apps" onclick="switchDashboardTab('landlord', 'landlord-tab-apps')">📩 Applications Received</button>
-   <button type="button" class="dash-tab-btn" data-tab-target="landlord-tab-inquiries" onclick="switchDashboardTab('landlord', 'landlord-tab-inquiries')">💬 Tenant Inquiries</button>
+   <button type="button" class="dash-tab-btn" data-tab-target="landlord-tab-apps" onclick="switchDashboardTab('landlord', 'landlord-tab-apps')">📩 Applications</button>
+   <button type="button" class="dash-tab-btn" data-tab-target="landlord-tab-inquiries" onclick="switchDashboardTab('landlord', 'landlord-tab-inquiries')">💬 Inquiries</button>
+   <button type="button" class="dash-tab-btn" data-tab-target="landlord-tab-feedback" onclick="switchDashboardTab('landlord', 'landlord-tab-feedback')">⭐ Feedback</button>
+   <button type="button" class="dash-tab-btn" data-tab-target="landlord-tab-payments" onclick="switchDashboardTab('landlord', 'landlord-tab-payments')">💳 Payment &amp; QR Ph</button>
+   <button type="button" class="dash-tab-btn" data-tab-target="landlord-tab-profile" onclick="switchDashboardTab('landlord', 'landlord-tab-profile')">👤 Account Profile</button>
   </div>
 
+  <!-- My Listings Tab -->
   <div id="landlord-tab-listings" class="dash-tab-panel active" data-tab-group="landlord">
    <div id="landlord-properties-list"></div>
   </div>
 
+  <!-- Applications Tab -->
   <div id="landlord-tab-apps" class="dash-tab-panel" data-tab-group="landlord">
    <div id="landlord-applications-list"></div>
   </div>
 
+  <!-- Inquiries Tab -->
   <div id="landlord-tab-inquiries" class="dash-tab-panel" data-tab-group="landlord">
    <div id="landlord-inquiries-list"></div>
+  </div>
+
+  <!-- Feedback Tab -->
+  <div id="landlord-tab-feedback" class="dash-tab-panel" data-tab-group="landlord">
+   <div id="landlord-feedback-list"></div>
+  </div>
+
+  <!-- Payment Methods & QR Ph Tab -->
+  <div id="landlord-tab-payments" class="dash-tab-panel" data-tab-group="landlord">
+   <div class="settings-card">
+    <div class="settings-card-header">
+     <div class="settings-card-icon">💳</div>
+     <div>
+      <h2 style="font-size: 20px; font-weight: 700; color: #1E293B; margin: 0;">Mode of Payment &amp; QR Ph Setup</h2>
+      <p style="font-size: 13px; color: #64748B; margin: 2px 0 0;">Tenants will see your accepted payment methods and QR Ph code when viewing your properties.</p>
+     </div>
+    </div>
+
+    <form id="landlord-payment-form" onsubmit="handleSaveLandlordPayments(event)">
+     <div style="margin-bottom: 18px;">
+      <label style="display: block; font-weight: 600; color: #334155; margin-bottom: 8px; font-size: 14px;">Accepted Payment Channels</label>
+      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; background: #FAF8F5; padding: 14px; border-radius: 10px; border: 1px solid #EAE5DC;">
+       <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; font-weight: 600;"><input type="checkbox" name="ll-pay-method" value="GCash"> 💙 GCash</label>
+       <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; font-weight: 600;"><input type="checkbox" name="ll-pay-method" value="Maya"> 💚 Maya</label>
+       <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; font-weight: 600;"><input type="checkbox" name="ll-pay-method" value="QR Ph"> 📲 QR Ph</label>
+       <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; font-weight: 600;"><input type="checkbox" name="ll-pay-method" value="Bank Transfer"> 🏦 Bank Transfer</label>
+       <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; font-weight: 600;"><input type="checkbox" name="ll-pay-method" value="Credit Card"> 💳 Credit / Debit Card</label>
+      </div>
+     </div>
+
+     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+      <div>
+       <label for="ll-pay-gcash" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; color: #334155;">💙 GCash Number &amp; Account Name</label>
+       <input type="text" id="ll-pay-gcash" placeholder="e.g., 0917 123 4567 — Juan Dela Cruz" style="width: 100%; padding: 11px 14px; border: 1.5px solid #D8D2C7; border-radius: 10px; font-size: 14.5px;">
+      </div>
+      <div>
+       <label for="ll-pay-maya" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; color: #334155;">💚 Maya Number &amp; Account Name</label>
+       <input type="text" id="ll-pay-maya" placeholder="e.g., 0918 765 4321 — Juan Dela Cruz" style="width: 100%; padding: 11px 14px; border: 1.5px solid #D8D2C7; border-radius: 10px; font-size: 14.5px;">
+      </div>
+     </div>
+
+     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+      <div>
+       <label for="ll-pay-bank" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; color: #334155;">🏦 Bank Transfer Details (BPI, BDO, UnionBank, etc.)</label>
+       <input type="text" id="ll-pay-bank" placeholder="e.g., BPI Savings 1234-5678-90 (Juan Dela Cruz)" style="width: 100%; padding: 11px 14px; border: 1.5px solid #D8D2C7; border-radius: 10px; font-size: 14.5px;">
+      </div>
+      <div>
+       <label for="ll-pay-card" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; color: #334155;">💳 Credit / Debit Card Note</label>
+       <input type="text" id="ll-pay-card" placeholder="e.g., Accepted via Maya/PayMongo link upon approval" style="width: 100%; padding: 11px 14px; border: 1.5px solid #D8D2C7; border-radius: 10px; font-size: 14.5px;">
+      </div>
+     </div>
+
+     <div style="margin-bottom: 20px; background: #FAF8F5; padding: 16px; border-radius: 12px; border: 1px solid #EAE5DC;">
+      <label for="ll-qrph-file" style="display: block; margin-bottom: 6px; font-weight: 700; font-size: 14px; color: #1E293B;">📲 Upload QR Ph / GCash / Maya QR Code Image</label>
+      <input type="file" id="ll-qrph-file" accept="image/*" style="width: 100%; padding: 10px; border: 1.5px solid #D8D2C7; border-radius: 8px; background: #FFFFFF;">
+      <div id="ll-qrph-preview" style="margin-top: 12px;"></div>
+     </div>
+
+     <button type="submit" id="ll-save-payments-btn" class="btn" style="padding: 13px 26px; font-size: 15px;">💾 Save Payment Methods</button>
+    </form>
+   </div>
+  </div>
+
+  <!-- Landlord Account Profile Tab -->
+  <div id="landlord-tab-profile" class="dash-tab-panel" data-tab-group="landlord">
+   <div class="settings-card">
+    <div class="settings-card-header">
+     <div id="ll-profile-avatar-preview" class="settings-card-icon" style="width: 58px; height: 58px; border-radius: 50%; overflow: hidden; font-size: 22px; font-weight: 800; color: #0F4C81;">👤</div>
+     <div>
+      <h2 style="font-size: 20px; font-weight: 700; color: #1E293B; margin: 0;">Landlord Account Profile</h2>
+      <p style="font-size: 13px; color: #64748B; margin: 2px 0 0;">This complete profile is shown to tenants viewing your properties.</p>
+     </div>
+    </div>
+
+    <form id="landlord-profile-form" onsubmit="handleSaveRoleProfile(event, 'landlord')">
+     <div style="margin-bottom: 16px;">
+      <label for="ll-profile-photo" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; color: #334155;">📷 Profile Photo</label>
+      <input type="file" id="ll-profile-photo" accept="image/*" style="width: 100%; padding: 10px; border: 1.5px solid #D8D2C7; border-radius: 10px;">
+     </div>
+
+     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+      <div>
+       <label for="ll-profile-name" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; color: #334155;">Full Name</label>
+       <input type="text" id="ll-profile-name" required style="width: 100%; padding: 11px 14px; border: 1.5px solid #D8D2C7; border-radius: 10px; font-size: 15px;">
+      </div>
+      <div>
+       <label for="ll-profile-email" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; color: #334155;">Email Address</label>
+       <input type="email" id="ll-profile-email" readonly style="width: 100%; padding: 11px 14px; border: 1.5px solid #EAE5DC; border-radius: 10px; font-size: 15px; background: #F8FAFC; color: #64748B;">
+      </div>
+     </div>
+
+     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+      <div>
+       <label for="ll-profile-phone" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; color: #334155;">Contact Number</label>
+       <input type="tel" id="ll-profile-phone" placeholder="09XX XXX XXXX" style="width: 100%; padding: 11px 14px; border: 1.5px solid #D8D2C7; border-radius: 10px; font-size: 15px;">
+      </div>
+      <div>
+       <label for="ll-profile-address" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; color: #334155;">House Address</label>
+       <input type="text" id="ll-profile-address" placeholder="e.g., 15th Ave, Brgy. East Rembo, Taguig City" style="width: 100%; padding: 11px 14px; border: 1.5px solid #D8D2C7; border-radius: 10px; font-size: 15px;">
+      </div>
+     </div>
+
+     <div style="margin-bottom: 16px;">
+      <label for="ll-profile-bio" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; color: #334155;">Personal Info / About Me</label>
+      <textarea id="ll-profile-bio" rows="3" placeholder="Tell tenants a bit about yourself and how you manage your properties..." style="width: 100%; padding: 11px 14px; border: 1.5px solid #D8D2C7; border-radius: 10px; font-size: 15px; resize: vertical;"></textarea>
+     </div>
+
+     <div style="margin-bottom: 20px;">
+      <label for="ll-profile-hobbies" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; color: #334155;">🎯 Hobbies &amp; Interests</label>
+      <input type="text" id="ll-profile-hobbies" placeholder="e.g., Gardening, Coffee, Cycling, Home Improvement" style="width: 100%; padding: 11px 14px; border: 1.5px solid #D8D2C7; border-radius: 10px; font-size: 15px;">
+     </div>
+
+     <button type="submit" id="ll-save-profile-btn" class="btn" style="padding: 13px 26px; font-size: 15px;">💾 Save Landlord Profile</button>
+    </form>
+   </div>
   </div>
  </div>
 </main>
