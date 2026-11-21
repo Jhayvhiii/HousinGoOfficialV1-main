@@ -23,18 +23,13 @@
   <header>
    <div class="container">
     <div class="header-content">
-     <div class="logo" id="site-name"><img src="assets/logo.svg" alt="HousinGo" style="height: 75px; width: auto; vertical-align: middle;">
+     <!-- Upper-Left: 3-Line Menu Button + Logo -->
+     <div class="header-left-group" style="display: flex; align-items: center; gap: 14px;">
+      <div class="hamburger" id="hamburger" aria-label="Open navigation menu" title="Menu" role="button" tabindex="0"><span></span> <span></span> <span></span></div>
+      <div class="logo" id="site-name" onclick="showPage('home')" style="cursor: pointer;"><img src="assets/logo.svg" alt="HousinGo" style="height: 60px; width: auto; vertical-align: middle;">
+      </div>
      </div>
-     <nav id="nav-menu">
-      <ul>
-       <li><a href="#" onclick="showPage('home'); return false;">Home</a></li>
-       <li><a href="#" onclick="showPage('about'); return false;">About Us</a></li>
-       <li><a href="#" onclick="showPage('login'); return false;">Log In</a></li>
-       <li><a href="#" onclick="showPage('register'); return false;">Register</a></li>
-       <li><a href="#" onclick="showPage('contact'); return false;">Contact Us</a></li>
-       <li><a href="#" onclick="showPage('help'); return false;">Help</a></li>
-      </ul>
-     </nav>
+     <!-- Upper-Right: User Profile Dropdown -->
      <div class="header-right-actions" style="display: flex; align-items: center; gap: 10px; margin-left: auto;">
       <!-- User Profile Dropdown (Hidden by default) -->
       <div id="user-profile-dropdown" style="display: none; position: relative;">
@@ -46,12 +41,27 @@
        <div id="profile-dropdown-menu" style="display: none; position: absolute; top: 100%; right: 0; background: white; border: 2px solid #ADD8E6; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); min-width: 200px; z-index: 1001;"><a href="#" onclick="showPage('user-settings'); return false;" style="display: block; padding: 12px 20px; color: #8B4513; text-decoration: none; border-bottom: 1px solid #F5F5DC; transition: background-color 0.3s;">⚙️ Settings</a> <a href="#" onclick="showNotifications(); return false;" style="display: block; padding: 12px 20px; color: #8B4513; text-decoration: none; border-bottom: 1px solid #F5F5DC; transition: background-color 0.3s; position: relative;"> 🔔 Notifications <span id="notification-badge" style="display: none; position: absolute; top: 8px; right: 15px; background: #FF6B6B; color: white; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; text-align: center; line-height: 20px;">0</span> </a> <a href="#" onclick="logout(); return false;" style="display: block; padding: 12px 20px; color: #8B4513; text-decoration: none; transition: background-color 0.3s;">🚪 Logout</a>
        </div>
       </div>
-      <!-- 3-Line Mobile Menu Button (cleanly placed beside profile dropdown, never overlapping) -->
-      <div class="hamburger" id="hamburger" aria-label="Toggle menu" role="button" tabindex="0"><span></span> <span></span> <span></span></div>
      </div>
     </div>
    </div>
   </header>
+
+  <!-- Left Slide-Out Navigation Drawer (Desktop & Mobile — opens only when 3-line menu is clicked) -->
+  <div id="nav-backdrop" class="nav-backdrop" onclick="closeNavDrawer()"></div>
+  <nav id="nav-menu" class="side-nav-drawer" aria-label="Main Navigation">
+   <div class="side-nav-header">
+    <span style="font-weight: 800; font-size: 18px; color: #0F4C81;">🏠 HousinGo Menu</span>
+    <button type="button" onclick="closeNavDrawer()" aria-label="Close menu" style="background: #F1F5F9; border: none; width: 34px; height: 34px; border-radius: 8px; font-size: 20px; color: #334155; cursor: pointer; display: flex; align-items: center; justify-content: center;">×</button>
+   </div>
+   <ul>
+    <li><a href="#" onclick="showPage('home'); return false;">🏠 Home</a></li>
+    <li><a href="#" onclick="showPage('about'); return false;">ℹ️ About Us</a></li>
+    <li><a href="#" onclick="showPage('login'); return false;">🔑 Log In</a></li>
+    <li><a href="#" onclick="showPage('register'); return false;">✨ Register</a></li>
+    <li><a href="#" onclick="showPage('contact'); return false;">📞 Contact Us</a></li>
+    <li><a href="#" onclick="showPage('help'); return false;">❓ Help</a></li>
+   </ul>
+  </nav>
 
   <!-- Focused Page Modules (loaded dynamically from /pages/*.html) -->
   <div id="app-pages"></div>

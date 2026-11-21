@@ -410,10 +410,27 @@ function updateNavForLoggedInUser() {
 }
 
 function openDashboardSection(dashboardPage, tabGroup, targetTabId) {
+    closeNavDrawer();
     showPage(dashboardPage);
     if (tabGroup && targetTabId) {
         switchDashboardTab(tabGroup, targetTabId);
     }
+}
+
+function toggleNavDrawer() {
+    const hamburger = document.getElementById('hamburger');
+    const navMenu = document.getElementById('nav-menu');
+    const backdrop = document.getElementById('nav-backdrop');
+    if (!navMenu) return;
+    const isOpen = navMenu.classList.toggle('active');
+    if (hamburger) hamburger.classList.toggle('active', isOpen);
+    if (backdrop) backdrop.classList.toggle('active', isOpen);
+}
+
+function closeNavDrawer() {
+    document.getElementById('hamburger')?.classList.remove('active');
+    document.getElementById('nav-menu')?.classList.remove('active');
+    document.getElementById('nav-backdrop')?.classList.remove('active');
 }
 
 function setActiveNavLink(pageName) {
@@ -531,10 +548,8 @@ function showPage(pageName) {
 
     const dd = document.getElementById('profile-dropdown-menu');
     if (dd) dd.style.display = 'none';
-    const hamburger = document.getElementById('hamburger');
-    const navMenu = document.getElementById('nav-menu');
-    if (hamburger) hamburger.classList.remove('active');
-    if (navMenu) navMenu.classList.remove('active');
+    // Close nav drawer
+    closeNavDrawer();
 
     if (pageName === 'home') loadHomeProperties();
     else if (pageName === 'tenant-dashboard') loadTenantDashboard();
@@ -2259,13 +2274,15 @@ function toggleFAQ(questionElement) {
 }
 
 function wireAllUIListeners() {
-    // Hamburger menu
+    // Hamburger menu (Desktop & Mobile left sidebar drawer)
     const hamburger = document.getElementById('hamburger');
-    const navMenu = document.getElementById('nav-menu');
-    if (hamburger && navMenu) {
-        hamburger.addEventListener('click', () => {
-            hamburger.classList.toggle('active');
-            navMenu.classList.toggle('active');
+    if (hamburger) {
+        hamburger.addEventListener('click', toggleNavDrawer);
+        hamburger.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                toggleNavDrawer();
+            }
         });
     }
 
