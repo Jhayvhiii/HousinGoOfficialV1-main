@@ -346,36 +346,74 @@ function updateNavForLoggedInUser() {
     if (currentUser) {
         const dash = getDashboardForRole(currentUser.role);
         const roleLabel = currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1);
+
+        let roleDrawerItems = '';
+        if (currentUser.role === 'landlord') {
+            roleDrawerItems = `
+                <li class="mobile-nav-section-label">Landlord Dashboard</li>
+                <li class="mobile-only-nav-item"><a href="#" onclick="openDashboardSection('landlord-dashboard', 'landlord', 'landlord-tab-listings'); return false;">🏠 My Listings</a></li>
+                <li class="mobile-only-nav-item"><a href="#" onclick="openDashboardSection('landlord-dashboard', 'landlord', 'landlord-tab-apps'); return false;">📩 Applications Received</a></li>
+                <li class="mobile-only-nav-item"><a href="#" onclick="openDashboardSection('landlord-dashboard', 'landlord', 'landlord-tab-inquiries'); return false;">💬 Tenant Inquiries</a></li>
+                <li class="mobile-only-nav-item"><a href="#" onclick="openCreatePropertyForm(); return false;">＋ Add New Property</a></li>
+            `;
+        } else if (currentUser.role === 'tenant') {
+            roleDrawerItems = `
+                <li class="mobile-nav-section-label">Tenant Dashboard</li>
+                <li class="mobile-only-nav-item"><a href="#" onclick="openDashboardSection('tenant-dashboard', 'tenant', 'tenant-tab-apps'); return false;">📋 My Applications</a></li>
+                <li class="mobile-only-nav-item"><a href="#" onclick="openDashboardSection('tenant-dashboard', 'tenant', 'tenant-tab-reviews'); return false;">⭐ My Reviews</a></li>
+                <li class="mobile-only-nav-item"><a href="#" onclick="openDashboardSection('tenant-dashboard', 'tenant', 'tenant-tab-complaints'); return false;">🚨 My Complaints</a></li>
+            `;
+        } else if (currentUser.role === 'admin') {
+            roleDrawerItems = `
+                <li class="mobile-nav-section-label">Admin Dashboard</li>
+                <li class="mobile-only-nav-item"><a href="#" onclick="openDashboardSection('admin-dashboard', 'admin', 'admin-tab-users'); return false;">👥 Manage Users</a></li>
+                <li class="mobile-only-nav-item"><a href="#" onclick="openDashboardSection('admin-dashboard', 'admin', 'admin-tab-properties'); return false;">🏠 Moderate Properties</a></li>
+                <li class="mobile-only-nav-item"><a href="#" onclick="openDashboardSection('admin-dashboard', 'admin', 'admin-tab-complaints'); return false;">🚨 Handle Complaints</a></li>
+                <li class="mobile-only-nav-item"><a href="#" onclick="openDashboardSection('admin-dashboard', 'admin', 'admin-tab-audit'); return false;">📜 Audit Log</a></li>
+            `;
+        }
+
         navList.innerHTML = `
-            <li><a href="#" data-nav="home" onclick="showPage('home'); return false;">Home</a></li>
-            <li><a href="#" data-nav="${dash}" onclick="showPage('${dash}'); return false;">Dashboard</a></li>
-            <li><a href="#" data-nav="about" onclick="showPage('about'); return false;">About Us</a></li>
-            <li><a href="#" data-nav="contact" onclick="showPage('contact'); return false;">Contact Us</a></li>
-            <li><a href="#" data-nav="help" onclick="showPage('help'); return false;">Help</a></li>
+            <li class="mobile-nav-section-label">Explore</li>
+            <li><a href="#" data-nav="home" onclick="showPage('home'); return false;">🏠 Home</a></li>
+            <li><a href="#" data-nav="${dash}" onclick="showPage('${dash}'); return false;">📊 Dashboard</a></li>
+            ${roleDrawerItems}
+            <li class="mobile-nav-section-label">Pages</li>
+            <li><a href="#" data-nav="about" onclick="showPage('about'); return false;">ℹ️ About Us</a></li>
+            <li><a href="#" data-nav="contact" onclick="showPage('contact'); return false;">📞 Contact Us</a></li>
+            <li><a href="#" data-nav="help" onclick="showPage('help'); return false;">❓ Help</a></li>
         `;
         if (profileDropdown) profileDropdown.style.display = 'block';
         if (userNameDisplay) userNameDisplay.textContent = `👤 ${currentUser.full_name} (${roleLabel})`;
         if (floatingChat) floatingChat.style.display = 'block';
-        // Hide 3-line hamburger menu when logged in so it never overlaps the profile dropdown
         if (hamburger) {
-            hamburger.style.setProperty('display', 'none', 'important');
+            hamburger.style.removeProperty('display');
             hamburger.classList.remove('active');
         }
         if (navMenu) navMenu.classList.remove('active');
     } else {
         navList.innerHTML = `
-            <li><a href="#" data-nav="home" onclick="showPage('home'); return false;">Home</a></li>
-            <li><a href="#" data-nav="about" onclick="showPage('about'); return false;">About Us</a></li>
-            <li><a href="#" data-nav="login" onclick="showPage('login'); return false;">Log In</a></li>
-            <li><a href="#" data-nav="register" onclick="showPage('register'); return false;">Register</a></li>
-            <li><a href="#" data-nav="contact" onclick="showPage('contact'); return false;">Contact Us</a></li>
-            <li><a href="#" data-nav="help" onclick="showPage('help'); return false;">Help</a></li>
+            <li class="mobile-nav-section-label">Explore</li>
+            <li><a href="#" data-nav="home" onclick="showPage('home'); return false;">🏠 Home</a></li>
+            <li><a href="#" data-nav="about" onclick="showPage('about'); return false;">ℹ️ About Us</a></li>
+            <li><a href="#" data-nav="contact" onclick="showPage('contact'); return false;">📞 Contact Us</a></li>
+            <li><a href="#" data-nav="help" onclick="showPage('help'); return false;">❓ Help</a></li>
+            <li class="mobile-nav-section-label">Account</li>
+            <li><a href="#" data-nav="login" onclick="showPage('login'); return false;">🔑 Log In</a></li>
+            <li><a href="#" data-nav="register" onclick="showPage('register'); return false;">✨ Register</a></li>
         `;
         if (profileDropdown) profileDropdown.style.display = 'none';
         if (floatingChat) floatingChat.style.display = 'none';
         if (hamburger) hamburger.style.removeProperty('display');
     }
     setActiveNavLink(window.__currentPageName || 'home');
+}
+
+function openDashboardSection(dashboardPage, tabGroup, targetTabId) {
+    showPage(dashboardPage);
+    if (tabGroup && targetTabId) {
+        switchDashboardTab(tabGroup, targetTabId);
+    }
 }
 
 function setActiveNavLink(pageName) {

@@ -1624,78 +1624,123 @@ html, body {
     overflow-x: hidden;
 }
 
+.mobile-only-nav-item,
+.mobile-nav-section-label {
+    display: none;
+}
+
 @media (max-width: 768px) {
     .container {
         max-width: 100% !important;
         padding: 0 14px !important;
     }
 
-    /* Clean Mobile Header */
+    /* Clean Mobile Header with Profile + 3-Line Menu neatly side by side */
     header {
         padding: 10px 0 !important;
     }
 
     .header-content {
-        gap: 10px !important;
+        gap: 8px !important;
         align-items: center !important;
+        flex-wrap: nowrap !important;
     }
 
     .logo img {
-        height: 48px !important;
+        height: 44px !important;
     }
 
-    /* Keep nav links cleanly accessible as horizontal pill strip on phones */
-    header nav {
-        position: static !important;
-        max-height: none !important;
-        overflow-x: auto !important;
-        overflow-y: hidden !important;
-        width: 100%;
-        background: transparent !important;
-        box-shadow: none !important;
-        order: 3;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: none;
-    }
-
-    header nav::-webkit-scrollbar {
-        display: none;
-    }
-
-    header nav ul {
-        flex-direction: row !important;
-        flex-wrap: nowrap !important;
-        padding: 6px 2px !important;
-        gap: 6px !important;
-        white-space: nowrap;
-    }
-
-    header nav a {
-        font-size: 13px !important;
-        padding: 7px 12px !important;
-        display: inline-block;
-        background: #F8FAFC;
-        border: 1px solid #EAE5DC;
+    .header-right-actions {
+        gap: 8px !important;
+        flex-shrink: 0;
     }
 
     #hamburger {
-        display: none !important;
+        display: flex !important;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        width: 40px;
+        height: 40px;
+        padding: 8px !important;
+        border-radius: 10px;
+        background: #F8FAFC;
+        border: 1.5px solid #D8D2C7;
+        flex-shrink: 0;
+    }
+
+    #hamburger span {
+        width: 20px !important;
+        height: 2.5px !important;
+        background-color: #0F4C81 !important;
+    }
+
+    /* Organized Slide-Down Drawer inside 3-Line Menu */
+    header nav {
+        position: absolute !important;
+        top: 100% !important;
+        left: 0 !important;
+        right: 0 !important;
+        width: 100% !important;
+        background: #FFFFFF !important;
+        border-top: 1px solid #EAE5DC;
+        border-bottom: 2px solid #0F4C81;
+        box-shadow: 0 14px 32px rgba(15, 23, 42, 0.16) !important;
+        max-height: 0 !important;
+        overflow: hidden !important;
+        transition: max-height 0.28s ease !important;
+        z-index: 2200 !important;
+    }
+
+    header nav.active {
+        max-height: 82vh !important;
+        overflow-y: auto !important;
+    }
+
+    header nav ul {
+        flex-direction: column !important;
+        padding: 14px 16px 18px !important;
+        gap: 6px !important;
+    }
+
+    header nav a {
+        display: block !important;
+        width: 100%;
+        font-size: 14px !important;
+        padding: 10px 14px !important;
+        border-radius: 10px !important;
+        background: #FAF8F5;
+        border: 1px solid #EAE5DC;
+    }
+
+    .mobile-only-nav-item {
+        display: list-item !important;
+    }
+
+    .mobile-nav-section-label {
+        display: list-item !important;
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #64748B;
+        padding: 10px 6px 4px;
+        list-style: none;
     }
 
     #user-profile-dropdown {
         width: auto !important;
         margin-top: 0 !important;
-        margin-left: auto;
     }
 
     #profile-btn {
         font-size: 13px !important;
-        padding: 7px 12px !important;
-        max-width: 210px;
+        padding: 7px 11px !important;
+        max-width: 175px;
     }
 
     #user-name-display {
-        max-width: 145px;
+        max-width: 115px;
         display: inline-block;
         overflow: hidden;
         text-overflow: ellipsis;
