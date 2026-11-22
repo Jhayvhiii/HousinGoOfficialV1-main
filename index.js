@@ -118,10 +118,27 @@ function encodePropertyDescription(plainText, meta = {}) {
         social_link: normalizeSafeUrl(meta.social_link || ''),
         landlord_profile: meta.landlord_profile && typeof meta.landlord_profile === 'object' ? meta.landlord_profile : null,
         payment_info: meta.payment_info && typeof meta.payment_info === 'object' ? meta.payment_info : null,
+        approval_status: meta.approval_status || '',
+        rejection_reason: (meta.rejection_reason || '').trim(),
         lat: meta.lat !== undefined && meta.lat !== '' && !Number.isNaN(Number(meta.lat)) ? Number(meta.lat) : null,
         lng: meta.lng !== undefined && meta.lng !== '' && !Number.isNaN(Number(meta.lng)) ? Number(meta.lng) : null,
     };
     return `${cleanText}\n\n${META_OPEN}${JSON.stringify(cleanedMeta)}${META_CLOSE}`;
+}
+
+function parseComplaintReason(rawReason) {
+    const raw = String(rawReason || '').trim();
+    const match = raw.match(/^\[([^\]]+)\]\s*(.*)$/s);
+    if (match) {
+        return { category: match[1].trim(), details: match[2].trim() };
+    }
+    return { category: 'Other Concerns', details: raw };
+}
+
+function getPropertyApprovalState(property, meta = null) {
+    const parsedMeta = meta || parsePropertyDescription(property?.description).meta;
+    if (parsedMeta.approval_status) return parsedMeta.approval_status;
+    return property?.availability_status === 'hidden' ? 'pending_approval' : 'approved';
 }
 
 function parsePropertyDescription(rawDescription) {
@@ -1518,16 +1535,22 @@ async function loadTenantDashboard() {
         if (complaintsEl) {
             complaintsEl.innerHTML = complaints.length === 0
                 ? '<p style="color:#654321;">No complaints filed.</p>'
-                : complaints.map(c => `
+                : complaints.map(c => {
+                    const { category, details } = parseComplaintReason(c.reason);
+                    return `
                     <div style="border:1.5px solid #EAE6D6;border-radius:10px;padding:16px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
                         <div>
-                            <strong style="color:#8B4513;">${escapeHtml(c.property?.title || 'General Complaint')}</strong>
-                            <p style="color:#654321;margin:4px 0;">${escapeHtml(c.reason)}</p>
-                            <small style="color:#888;">Filed: ${formatDate(c.created_at)}</small>
+                            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
+                                <strong style="color:#1E293B;">${escapeHtml(c.property?.title || 'General Complaint')}</strong>
+                                <span style="background:#FEE2E2;color:#991B1B;font-size:11.5px;font-weight:700;padding:2px 9px;border-radius:999px;">🏷️ ${escapeHtml(category)}</span>
+                            </div>
+                            <p style="color:#475569;margin:4px 0;">${escapeHtml(details)}</p>
+                            <small style="color:#94A3B8;">Filed: ${formatDate(c.created_at)}</small>
                         </div>
                         ${statusBadgeHtml(c.status)}
                     </div>
-                `).join('');
+                `;
+                }).join('');
         }
     } catch (error) {
         console.error('Tenant dashboard error:', error);
@@ -1627,6 +1650,17 @@ async function loadLandlordDashboard() {
                         `📷 ${Array.isArray(p.image_urls) ? p.image_urls.length : 0} photo${(p.image_urls?.length || 0) === 1 ? '' : 's'}`,
                     ].filter(Boolean).map(c => `<span style="background:#FAF8F5;border:1px solid #EAE5DC;color:#475569;font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:999px;">${c}</span>`).join('');
 
+                    const approvalState = getPropertyApprovalState(p, meta);
+                    const approvalBadge = approvalState === 'pending_approval'
+                        ? '<span style="display:inline-block;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700;background:#FEF3C7;color:#92400E;">⏳ Pending Admin Approval</span>'
+                        : approvalState === 'rejected'
+                        ? '<span style="display:inline-block;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700;background:#FEE2E2;color:#991B1B;">❌ Rejected by Admin</span>'
+                        : statusBadgeHtml(p.availability_status);
+                    const rejectionNoteHtml = (approvalState === 'rejected' && meta.rejection_reason)
+                        ? `<div style="margin-top:6px;padding:8px 10px;background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;font-size:12.5px;color:#991B1B;"><strong>Admin Note:</strong> ${escapeHtml(meta.rejection_reason)} — <em>Edit details to resubmit for approval.</em></div>`
+                        : '';
+                    const isAwaitingAdmin = approvalState === 'pending_approval' || approvalState === 'rejected';
+
                     return `
                     <div class="landlord-listing-card">
                         <div class="landlord-listing-left">
@@ -1634,7 +1668,7 @@ async function loadLandlordDashboard() {
                             <div style="min-width:0;flex:1;">
                                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
                                     <h3 style="color:#1E293B;font-size:17px;font-weight:700;margin:0;">${escapeHtml(p.title)}</h3>
-                                    ${statusBadgeHtml(p.availability_status)}
+                                    ${approvalBadge}
                                 </div>
                                 <div style="font-size:13.5px;color:#64748B;margin-bottom:6px;">📍 ${escapeHtml(p.location)}</div>
                                 <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
@@ -1642,11 +1676,15 @@ async function loadLandlordDashboard() {
                                     <small style="color:#94A3B8;">Updated ${formatDate(p.updated_at || p.created_at)}</small>
                                 </div>
                                 <div style="display:flex;gap:6px;flex-wrap:wrap;">${chips}</div>
+                                ${rejectionNoteHtml}
                             </div>
                         </div>
                         <div class="landlord-listing-actions">
-                            <select class="ll-status-select" onchange="handleLandlordStatusChange('${p.property_id}', this.value)" aria-label="Availability status">
-                                ${['available', 'occupied', 'hidden'].map(st => `<option value="${st}" ${p.availability_status === st ? 'selected' : ''}>${st === 'available' ? '✅ Available' : st === 'occupied' ? '🔒 Occupied' : '🙈 Hidden'}</option>`).join('')}
+                            <select class="ll-status-select" ${isAwaitingAdmin ? 'disabled title="Awaiting admin approval before listing can go live"' : ''} onchange="handleLandlordStatusChange('${p.property_id}', this.value)" aria-label="Availability status">
+                                ${isAwaitingAdmin
+                                    ? '<option selected>⏳ Awaiting Approval</option>'
+                                    : ['available', 'occupied', 'hidden'].map(st => `<option value="${st}" ${p.availability_status === st ? 'selected' : ''}>${st === 'available' ? '✅ Available' : st === 'occupied' ? '🔒 Occupied' : '🙈 Hidden'}</option>`).join('')
+                                }
                             </select>
                             <button type="button" class="ll-btn-preview" onclick="openPropertyDetails('${p.property_id}')">👁️ Preview</button>
                             <button type="button" class="ll-btn-edit" onclick="openEditPropertyForm('${p.property_id}')">✏️ Edit Details</button>
@@ -1879,7 +1917,29 @@ async function handlePostProperty(event) {
     const location = document.getElementById('property-address')?.value.trim() || '';
     const price = Number(document.getElementById('monthly-rent')?.value || 0);
     const plainDescription = document.getElementById('property-description')?.value.trim() || '';
-    const availability_status = document.getElementById('property-availability-status')?.value || 'available';
+    const requestedStatus = document.getElementById('property-availability-status')?.value || 'available';
+
+    // New landlord uploads MUST pass Admin verification first (hidden from tenants until approved)
+    let finalAvailability = requestedStatus;
+    let approvalStatus = 'approved';
+    if (currentUser.role !== 'admin') {
+        if (!editId) {
+            finalAvailability = 'hidden';
+            approvalStatus = 'pending_approval';
+        } else {
+            try {
+                const existingProp = await window.propertyService.getPropertyById(editId);
+                const prevApproval = getPropertyApprovalState(existingProp);
+                if (prevApproval === 'pending_approval' || prevApproval === 'rejected') {
+                    finalAvailability = 'hidden';
+                    approvalStatus = 'pending_approval';
+                }
+            } catch {
+                // fallback to requested
+            }
+        }
+    }
+
     const checkedAmenities = Array.from(document.querySelectorAll('#post-property-form input[name="amenity"]:checked')).map(cb => cb.value);
     const amenityFees = {};
     document.querySelectorAll('#post-property-form input[data-amenity-fee]').forEach(inp => {
@@ -1921,6 +1981,8 @@ async function handlePostProperty(event) {
             card: currentUser.payment_card || '',
             qrph_url: currentUser.qrph_url || '',
         },
+        approval_status: approvalStatus,
+        rejection_reason: '',
         lat: document.getElementById('property-lat')?.value || '',
         lng: document.getElementById('property-lng')?.value || '',
     });
@@ -1928,7 +1990,7 @@ async function handlePostProperty(event) {
     const submitBtn = document.getElementById('post-property-submit-btn');
 
     submitBtn.disabled = true;
-    submitBtn.textContent = editId ? '⏳ Saving...' : '⏳ Publishing...';
+    submitBtn.textContent = editId ? '⏳ Saving...' : '⏳ Submitting for Approval...';
 
     try {
         const uploadedUrls = [...editingExistingImageUrls];
@@ -1941,15 +2003,25 @@ async function handlePostProperty(event) {
 
         if (editId) {
             await window.propertyService.updateProperty(editId, {
-                title, location, price, description, availability_status, image_urls: uploadedUrls,
+                title, location, price, description, availability_status: finalAvailability, image_urls: uploadedUrls,
             });
-            showToast('Property updated successfully!', 'success');
+            showToast(
+                approvalStatus === 'pending_approval'
+                    ? 'Property updated and resubmitted for Admin verification!'
+                    : 'Property updated successfully!',
+                'success'
+            );
         } else {
             await window.propertyService.createProperty({
                 landlord_id: currentUser.id,
-                title, location, price, description, availability_status, image_urls: uploadedUrls,
+                title, location, price, description, availability_status: finalAvailability, image_urls: uploadedUrls,
             });
-            showToast('Property published successfully! 🎉', 'success');
+            showToast(
+                approvalStatus === 'pending_approval'
+                    ? 'Property submitted! It will be visible to tenants once approved by Admin. ⏳'
+                    : 'Property published successfully! 🎉',
+                'success'
+            );
         }
 
         document.getElementById('post-property-form')?.reset();
@@ -2310,33 +2382,110 @@ async function loadAdminProperties() {
     el.innerHTML = '<p>Loading properties...</p>';
 
     try {
-        const props = await window.adminService.getAllProperties({
+        const filterVal = document.getElementById('admin-prop-status-filter')?.value || '';
+        const allProps = await window.adminService.getAllProperties({
             search: document.getElementById('admin-prop-search')?.value || '',
-            status: document.getElementById('admin-prop-status-filter')?.value || '',
+            status: filterVal === 'pending_approval' ? '' : filterVal,
         });
 
+        // Count pending properties for Admin KPI card
+        const pendingCount = allProps.filter(p => getPropertyApprovalState(p) === 'pending_approval').length;
+        const pendingEl = document.getElementById('admin-pending-properties');
+        if (pendingEl && !filterVal) pendingEl.textContent = String(pendingCount);
+
+        const props = filterVal === 'pending_approval'
+            ? allProps.filter(p => getPropertyApprovalState(p) === 'pending_approval')
+            : allProps;
+
         if (!props.length) {
-            el.innerHTML = '<p style="color:#654321;">No properties found.</p>';
+            el.innerHTML = '<p style="color:#64748B;">No properties found.</p>';
             return;
         }
 
-        el.innerHTML = props.map(p => `
-            <div style="border:1.5px solid #ADD8E6;border-radius:10px;padding:14px 16px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+        el.innerHTML = props.map(p => {
+            const { meta } = parsePropertyDescription(p.description);
+            const approvalState = getPropertyApprovalState(p, meta);
+            const approvalBadge = approvalState === 'pending_approval'
+                ? '<span style="display:inline-block;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700;background:#FEF3C7;color:#92400E;">⏳ Pending Approval</span>'
+                : approvalState === 'rejected'
+                ? '<span style="display:inline-block;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700;background:#FEE2E2;color:#991B1B;">❌ Rejected</span>'
+                : statusBadgeHtml(p.availability_status);
+
+            return `
+            <div style="border:1.5px solid ${approvalState === 'pending_approval' ? '#FCD34D' : '#EAE5DC'};background:${approvalState === 'pending_approval' ? '#FFFDF5' : '#FFFFFF'};border-radius:12px;padding:16px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
                 <div>
-                    <strong style="color:#8B4513;">${escapeHtml(p.title)}</strong> — <strong style="color:#0288D1;">${formatPeso(p.price)}/mo</strong>
-                    <div style="font-size:13px;color:#654321;">📍 ${escapeHtml(p.location)} · Landlord: ${escapeHtml(p.landlord?.full_name || '—')}</div>
+                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
+                        <strong style="color:#1E293B;font-size:15.5px;">${escapeHtml(p.title)}</strong>
+                        <strong style="color:#0F4C81;">${formatPeso(p.price)}/mo</strong>
+                        ${approvalBadge}
+                    </div>
+                    <div style="font-size:13px;color:#64748B;">📍 ${escapeHtml(p.location)} · Landlord: ${escapeHtml(p.landlord?.full_name || '—')} · Photos: ${Array.isArray(p.image_urls) ? p.image_urls.length : 0}</div>
                 </div>
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                    ${statusBadgeHtml(p.availability_status)}
-                    <select onchange="adminModerateProperty('${p.property_id}', this.value)" style="padding:7px 10px;border:2px solid #ADD8E6;border-radius:8px;font-size:12px;">
+                    <button class="ll-btn-preview" onclick="openPropertyDetails('${p.property_id}')" style="padding:7px 12px;font-size:12px;">👁️ Inspect</button>
+                    ${approvalState !== 'approved' ? `<button class="btn" onclick="adminApproveProperty('${p.property_id}')" style="padding:7px 12px;font-size:12px;background:#2E7D32 !important;">✅ Approve</button>` : ''}
+                    ${approvalState !== 'rejected' ? `<button class="btn-secondary" onclick="adminRejectProperty('${p.property_id}')" style="padding:7px 12px;font-size:12px;color:#B42318;border-color:#FCA5A5;">❌ Reject</button>` : ''}
+                    <select onchange="adminModerateProperty('${p.property_id}', this.value)" style="padding:7px 10px;border:1.5px solid #D8D2C7;border-radius:8px;font-size:12px;">
                         ${['available', 'occupied', 'hidden', 'removed'].map(st => `<option value="${st}" ${p.availability_status === st ? 'selected' : ''}>${st}</option>`).join('')}
                     </select>
-                    <button class="btn-secondary" onclick="adminDeleteProperty('${p.property_id}', '${escapeJsAttr(p.title)}')" style="padding:7px 12px;font-size:12px;color:#B42318;border-color:#FF6B6B;">Delete</button>
+                    <button class="ll-btn-delete" onclick="adminDeleteProperty('${p.property_id}', '${escapeJsAttr(p.title)}')" style="padding:7px 12px;font-size:12px;">Delete</button>
                 </div>
             </div>
-        `).join('');
+        `;
+        }).join('');
     } catch (error) {
         el.innerHTML = `<div class="auth-alert show error">${escapeHtml(error.message)}</div>`;
+    }
+}
+
+async function adminApproveProperty(propertyId) {
+    try {
+        const prop = await window.propertyService.getPropertyById(propertyId);
+        const { text, meta } = parsePropertyDescription(prop.description);
+        const updatedDesc = encodePropertyDescription(text, {
+            ...meta,
+            approval_status: 'approved',
+            rejection_reason: '',
+        });
+        await window.propertyService.updateProperty(propertyId, {
+            availability_status: 'available',
+            description: updatedDesc,
+        });
+        await window.adminService.logAction(currentUser.id, 'approve_property', {
+            property_id: propertyId,
+            title: prop.title,
+        });
+        showToast(`"${prop.title}" approved and is now visible to tenants! ✅`, 'success');
+        loadAdminDashboard();
+    } catch (error) {
+        showToast(`Failed to approve property: ${error.message}`, 'error');
+    }
+}
+
+async function adminRejectProperty(propertyId) {
+    const reason = prompt('Enter reason for rejecting this listing (shown to the landlord):', 'Incomplete or unverified property details.');
+    if (reason === null) return;
+    try {
+        const prop = await window.propertyService.getPropertyById(propertyId);
+        const { text, meta } = parsePropertyDescription(prop.description);
+        const updatedDesc = encodePropertyDescription(text, {
+            ...meta,
+            approval_status: 'rejected',
+            rejection_reason: reason.trim() || 'Incomplete or invalid listing details.',
+        });
+        await window.propertyService.updateProperty(propertyId, {
+            availability_status: 'hidden',
+            description: updatedDesc,
+        });
+        await window.adminService.logAction(currentUser.id, 'reject_property', {
+            property_id: propertyId,
+            title: prop.title,
+            reason: reason.trim(),
+        });
+        showToast(`"${prop.title}" rejected and kept hidden from tenants.`, 'info');
+        loadAdminDashboard();
+    } catch (error) {
+        showToast(`Failed to reject property: ${error.message}`, 'error');
     }
 }
 
@@ -2368,28 +2517,38 @@ async function loadAdminComplaints() {
 
     try {
         const statusFilter = document.getElementById('admin-complaint-status-filter')?.value || '';
-        const list = await window.complaintService.getAllComplaints(statusFilter);
+        const categoryFilter = document.getElementById('admin-complaint-category-filter')?.value || '';
+        let list = await window.complaintService.getAllComplaints(statusFilter);
+        if (categoryFilter) {
+            list = list.filter(c => parseComplaintReason(c.reason).category === categoryFilter);
+        }
 
         if (!list.length) {
-            el.innerHTML = '<p style="color:#654321;">No complaints found.</p>';
+            el.innerHTML = '<p style="color:#64748B;">No complaints found.</p>';
             return;
         }
 
-        el.innerHTML = list.map(c => `
-            <div style="border:1.5px solid #FFCDD2;background:#FFFDFD;border-radius:10px;padding:15px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:12px;">
+        el.innerHTML = list.map(c => {
+            const { category, details } = parseComplaintReason(c.reason);
+            return `
+            <div style="border:1.5px solid #FECACA;background:#FFFDFD;border-radius:12px;padding:15px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:12px;">
                 <div style="flex:1;min-width:240px;">
-                    <strong style="color:#8B4513;">${escapeHtml(c.property?.title || 'General Complaint')}</strong>
-                    <p style="color:#654321;margin:6px 0;">${escapeHtml(c.reason)}</p>
-                    <small style="color:#654321;">Reported by: ${escapeHtml(c.reporter?.full_name || 'User')} · ${formatDateTime(c.created_at)}${c.resolved_at ? ` · Resolved: ${formatDate(c.resolved_at)}` : ''}</small>
+                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
+                        <strong style="color:#1E293B;">${escapeHtml(c.property?.title || 'General Complaint')}</strong>
+                        <span style="background:#FEE2E2;color:#991B1B;font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:999px;">🏷️ ${escapeHtml(category)}</span>
+                    </div>
+                    <p style="color:#475569;margin:6px 0;">${escapeHtml(details)}</p>
+                    <small style="color:#64748B;">Reported by: ${escapeHtml(c.reporter?.full_name || 'User')} · ${formatDateTime(c.created_at)}${c.resolved_at ? ` · Resolved: ${formatDate(c.resolved_at)}` : ''}</small>
                 </div>
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                     ${statusBadgeHtml(c.status)}
-                    <select onchange="adminUpdateComplaint('${c.complaint_id}', this.value)" style="padding:7px 10px;border:2px solid #ADD8E6;border-radius:8px;font-size:12px;">
+                    <select onchange="adminUpdateComplaint('${c.complaint_id}', this.value)" style="padding:7px 10px;border:1.5px solid #D8D2C7;border-radius:8px;font-size:12px;">
                         ${['open', 'under_review', 'resolved', 'dismissed'].map(st => `<option value="${st}" ${c.status === st ? 'selected' : ''}>${st.replace(/_/g, ' ')}</option>`).join('')}
                     </select>
                 </div>
             </div>
-        `).join('');
+        `;
+        }).join('');
     } catch (error) {
         el.innerHTML = `<div class="auth-alert show error">${escapeHtml(error.message)}</div>`;
     }
@@ -2442,6 +2601,8 @@ function openComplaintModal(propertyId = '', reportedUserId = '', contextLabel =
     document.getElementById('complaint-context-label').textContent = contextLabel
         ? `Reporting listing: ${contextLabel}`
         : 'Submit a general complaint or platform report';
+    const catEl = document.getElementById('complaint-category');
+    if (catEl) catEl.value = '';
     document.getElementById('complaint-reason').value = '';
     modal.classList.add('active');
 }
@@ -2453,6 +2614,10 @@ function closeComplaintModal() {
 async function handleSubmitComplaint(event) {
     event.preventDefault();
     if (!currentUser) return;
+    const category = document.getElementById('complaint-category')?.value.trim() || '';
+    const details = document.getElementById('complaint-reason')?.value.trim() || '';
+    if (!category) return showToast('Please select a complaint category.', 'warning');
+
     const btn = document.getElementById('complaint-submit-btn');
     btn.disabled = true;
     btn.textContent = 'Submitting...';
@@ -2461,7 +2626,7 @@ async function handleSubmitComplaint(event) {
             reported_by: currentUser.id,
             property_id: document.getElementById('complaint-property-id').value || null,
             reported_user_id: document.getElementById('complaint-reported-user-id').value || null,
-            reason: document.getElementById('complaint-reason').value,
+            reason: `[${category}] ${details}`,
         });
         showToast('Complaint submitted. Our admin team will review it.', 'success');
         closeComplaintModal();

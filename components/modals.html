@@ -96,10 +96,22 @@
    <form id="complaint-form" onsubmit="handleSubmitComplaint(event)">
     <input type="hidden" id="complaint-property-id" value="">
     <input type="hidden" id="complaint-reported-user-id" value="">
-    <p id="complaint-context-label" style="margin-bottom: 14px; color: #654321; font-size: 14px; font-weight: 600;"></p>
+    <p id="complaint-context-label" style="margin-bottom: 14px; color: #64748B; font-size: 14px; font-weight: 600;"></p>
+    <div style="margin-bottom: 16px;">
+     <label for="complaint-category" style="display: block; margin-bottom: 6px; font-weight: 600; color: #2C1E16;">Complaint Category</label>
+     <select id="complaint-category" required style="width: 100%; padding: 11px 12px; border: 1.5px solid #D8D2C7; border-radius: 10px; font-size: 15px; color: #1E293B; background: #FFFFFF;">
+      <option value="">-- Select a category --</option>
+      <option value="Fake Property Information">Fake Property Information</option>
+      <option value="Misleading Photos">Misleading Photos</option>
+      <option value="Incorrect Rental Price">Incorrect Rental Price</option>
+      <option value="Unresponsive Landlord">Unresponsive Landlord</option>
+      <option value="Suspicious Listing">Suspicious Listing</option>
+      <option value="Other Concerns">Other Concerns</option>
+     </select>
+    </div>
     <div style="margin-bottom: 20px;">
-     <label for="complaint-reason" style="display: block; margin-bottom: 8px; font-weight: 600; color: #8B4513;">Describe the issue:</label>
-     <textarea id="complaint-reason" required rows="5" placeholder="Explain what happened (e.g. misleading listing, unresponsive landlord, policy violation)..." style="width: 100%; padding: 12px; border: 2px solid #ADD8E6; border-radius: 8px; font-size: 15px; color: #8B4513; resize: vertical;"></textarea>
+     <label for="complaint-reason" style="display: block; margin-bottom: 6px; font-weight: 600; color: #2C1E16;">Additional Details:</label>
+     <textarea id="complaint-reason" required rows="4" placeholder="Describe the issue clearly so our admin team can investigate..." style="width: 100%; padding: 12px; border: 1.5px solid #D8D2C7; border-radius: 10px; font-size: 15px; color: #1E293B; resize: vertical;"></textarea>
     </div>
     <div style="display: flex; gap: 12px;">
      <button type="button" class="btn-secondary" onclick="closeComplaintModal()" style="flex: 1; padding: 12px;">Cancel</button>

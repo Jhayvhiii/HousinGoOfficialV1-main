@@ -26,6 +26,13 @@
     </div>
     <div class="kpi-icon">🏠</div>
    </div>
+   <div class="kpi-card amber">
+    <div>
+     <div class="kpi-label">Pending Approval</div>
+     <p class="kpi-value" style="color: #D97706;" id="admin-pending-properties">0</p>
+    </div>
+    <div class="kpi-icon">⏳</div>
+   </div>
    <div class="kpi-card red">
     <div>
      <div class="kpi-label">Open Complaints</div>
@@ -66,12 +73,13 @@
   <div id="admin-tab-properties" class="dash-tab-panel" data-tab-group="admin">
    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px;">
     <input type="text" id="admin-prop-search" placeholder="Search title or location..." style="flex: 1; min-width: 200px; padding: 10px 14px; border: 1.5px solid #D8D2C7; border-radius: 10px;">
-    <select id="admin-prop-status-filter" style="padding: 10px 14px; border: 1.5px solid #D8D2C7; border-radius: 10px;">
-     <option value="">All Availability</option>
-     <option value="available">Available</option>
-     <option value="occupied">Occupied</option>
-     <option value="hidden">Hidden</option>
-     <option value="removed">Removed</option>
+    <select id="admin-prop-status-filter" onchange="loadAdminProperties()" style="padding: 10px 14px; border: 1.5px solid #D8D2C7; border-radius: 10px;">
+     <option value="">All Listings</option>
+     <option value="pending_approval">⏳ Pending Admin Approval</option>
+     <option value="available">✅ Approved / Available</option>
+     <option value="occupied">🔒 Occupied</option>
+     <option value="hidden">🙈 Hidden</option>
+     <option value="removed">🗑 Removed</option>
     </select>
     <button class="btn" onclick="loadAdminProperties()" style="padding: 10px 18px;">Filter</button>
    </div>
@@ -86,6 +94,15 @@
      <option value="under_review">Under Review</option>
      <option value="resolved">Resolved</option>
      <option value="dismissed">Dismissed</option>
+    </select>
+    <select id="admin-complaint-category-filter" onchange="loadAdminComplaints()" style="padding: 10px 14px; border: 1.5px solid #D8D2C7; border-radius: 10px;">
+     <option value="">All Categories</option>
+     <option value="Fake Property Information">Fake Property Information</option>
+     <option value="Misleading Photos">Misleading Photos</option>
+     <option value="Incorrect Rental Price">Incorrect Rental Price</option>
+     <option value="Unresponsive Landlord">Unresponsive Landlord</option>
+     <option value="Suspicious Listing">Suspicious Listing</option>
+     <option value="Other Concerns">Other Concerns</option>
     </select>
    </div>
    <div id="admin-complaints-list"></div>
