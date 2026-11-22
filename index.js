@@ -2157,17 +2157,42 @@ function populateRoleProfileForm(role) {
             if (!pEl) return;
             if (docs[key]) {
                 pEl.innerHTML = `
-                    <div style="display:flex;align-items:center;gap:10px;">
-                        <a href="${escapeHtml(docs[key])}" target="_blank" rel="noopener noreferrer">
-                            <img src="${escapeHtml(docs[key])}" alt="${escapeHtml(label)}" style="width:58px;height:58px;object-fit:cover;border-radius:8px;border:1.5px solid #C8E2F2;">
-                        </a>
-                        <span style="font-size:12px;font-weight:700;color:#2E7D32;">✅ Uploaded</span>
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <a href="${escapeHtml(docs[key])}" target="_blank" rel="noopener noreferrer">
+                                <img src="${escapeHtml(docs[key])}" alt="${escapeHtml(label)}" style="width:58px;height:58px;object-fit:cover;border-radius:8px;border:1.5px solid #C8E2F2;">
+                            </a>
+                            <span style="font-size:12px;font-weight:700;color:#2E7D32;">✅ Saved &amp; Visible to Admin</span>
+                        </div>
+                        <button type="button" class="ll-btn-delete" onclick="deleteLandlordVerificationDoc('${key}')" style="padding:4px 10px;font-size:11.5px;">🗑️ Delete</button>
                     </div>
                 `;
             } else {
                 pEl.innerHTML = '<small style="color:#94A3B8;">⏳ Not uploaded yet</small>';
             }
         });
+
+        const delPhotoBtn = document.getElementById('ll-delete-photo-btn');
+        if (delPhotoBtn) delPhotoBtn.style.display = currentUser.avatar_url ? 'inline-flex' : 'none';
+
+        const statusEl = document.getElementById('ll-profile-sync-status');
+        if (statusEl) {
+            const uploadedCount = docFields.filter(d => Boolean(docs[d.key])).length;
+            const hasDetails = Boolean(currentUser.avatar_url || currentUser.house_address || currentUser.bio || currentUser.hobbies || uploadedCount > 0);
+            if (hasDetails) {
+                statusEl.innerHTML = `
+                    <div style="background:#ECFDF5;border:1px solid #A7F3D0;color:#065F46;padding:12px 14px;border-radius:10px;font-size:13px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+                        <span>✅ <strong>Saved &amp; Visible to Admin:</strong> Your profile details and <strong>${uploadedCount}/4</strong> verification documents are reflected in the Admin panel.</span>
+                    </div>
+                `;
+            } else {
+                statusEl.innerHTML = `
+                    <div style="background:#FFFBEB;border:1px solid #FDE68A;color:#92400E;padding:12px 14px;border-radius:10px;font-size:13px;">
+                        ⚠️ <strong>No profile details saved yet.</strong> Fill in your details or upload your verification documents, then click <strong>💾 Save</strong> so Admin can see them.
+                    </div>
+                `;
+            }
+        }
     }
 
     const avEl = document.getElementById(`${prefix}-profile-avatar-preview`);
@@ -2272,6 +2297,10 @@ async function handleSaveRoleProfile(event, role) {
         populateRoleProfileForm(role);
 
         if (role === 'landlord') {
+            ['ll-profile-photo', 'll-doc-title', 'll-doc-business-permit', 'll-doc-tax-receipt', 'll-doc-valid-ids'].forEach(id => {
+                const inp = document.getElementById(id);
+                if (inp) inp.value = '';
+            });
             await window.inquiryService.syncLandlordProfileForAdmin(currentUser.id, {
                 full_name: fullName,
                 email: currentUser.email || '',
@@ -2290,7 +2319,100 @@ async function handleSaveRoleProfile(event, role) {
         console.error('Save role profile error:', error);
         showToast(`Failed to save profile: ${error.message}`, 'error');
     } finally {
-        if (btn) { btn.disabled = false; btn.textContent = role === 'landlord' ? '💾 Save Landlord Profile' : '💾 Save Tenant Profile'; }
+        if (btn) { btn.disabled = false; btn.textContent = role === 'landlord' ? '💾 Save' : '💾 Save Tenant Profile'; }
+    }
+}
+
+async function deleteLandlordProfilePhoto() {
+    if (!currentUser || currentUser.role !== 'landlord') return;
+    if (!confirm('Remove your saved profile photo? This will also update what Admin sees.')) return;
+    try {
+        const updatedAuthUser = await window.authService.updateUserMetadata({ avatar_url: '' });
+        currentUser = normalizeUserProfile(currentUser, updatedAuthUser);
+        const photoInp = document.getElementById('ll-profile-photo');
+        if (photoInp) photoInp.value = '';
+        updateNavForLoggedInUser();
+        populateRoleProfileForm('landlord');
+        await window.inquiryService.syncLandlordProfileForAdmin(currentUser.id, {
+            full_name: currentUser.full_name || '',
+            email: currentUser.email || '',
+            phone: currentUser.phone || '',
+            avatar_url: '',
+            bio: currentUser.bio || '',
+            hobbies: currentUser.hobbies || '',
+            house_address: currentUser.house_address || '',
+            verification_docs: currentUser.verification_docs || {},
+        });
+        showToast('Profile photo deleted and updated for Admin.', 'info');
+    } catch (error) {
+        showToast(`Failed to delete photo: ${error.message}`, 'error');
+    }
+}
+
+async function deleteLandlordVerificationDoc(docKey) {
+    if (!currentUser || currentUser.role !== 'landlord') return;
+    if (!confirm('Delete this uploaded verification document? This will also update what Admin sees.')) return;
+    try {
+        const nextDocs = { ...(currentUser.verification_docs || {}) };
+        delete nextDocs[docKey];
+        const updatedAuthUser = await window.authService.updateUserMetadata({ verification_docs: nextDocs });
+        currentUser = normalizeUserProfile(currentUser, updatedAuthUser);
+        populateRoleProfileForm('landlord');
+        await window.inquiryService.syncLandlordProfileForAdmin(currentUser.id, {
+            full_name: currentUser.full_name || '',
+            email: currentUser.email || '',
+            phone: currentUser.phone || '',
+            avatar_url: currentUser.avatar_url || '',
+            bio: currentUser.bio || '',
+            hobbies: currentUser.hobbies || '',
+            house_address: currentUser.house_address || '',
+            verification_docs: nextDocs,
+        });
+        showToast('Verification document deleted and updated for Admin.', 'info');
+    } catch (error) {
+        showToast(`Failed to delete document: ${error.message}`, 'error');
+    }
+}
+
+async function handleDeleteLandlordProfile() {
+    if (!currentUser || currentUser.role !== 'landlord') return;
+    if (!confirm('Delete your saved Landlord Account Profile details (photo, address, about me, hobbies, and verification documents)? This will also clear them from Admin review.')) return;
+
+    const delBtn = document.getElementById('ll-delete-profile-btn');
+    if (delBtn) { delBtn.disabled = true; delBtn.textContent = '⏳ Deleting...'; }
+
+    try {
+        const updatedAuthUser = await window.authService.updateUserMetadata({
+            avatar_url: '',
+            bio: '',
+            hobbies: '',
+            house_address: '',
+            verification_docs: {},
+        });
+        currentUser = normalizeUserProfile(currentUser, updatedAuthUser);
+        ['ll-profile-photo', 'll-doc-title', 'll-doc-business-permit', 'll-doc-tax-receipt', 'll-doc-valid-ids'].forEach(id => {
+            const inp = document.getElementById(id);
+            if (inp) inp.value = '';
+        });
+        updateNavForLoggedInUser();
+        populateRoleProfileForm('landlord');
+
+        await window.inquiryService.syncLandlordProfileForAdmin(currentUser.id, {
+            full_name: currentUser.full_name || '',
+            email: currentUser.email || '',
+            phone: currentUser.phone || '',
+            avatar_url: '',
+            bio: '',
+            hobbies: '',
+            house_address: '',
+            verification_docs: {},
+        });
+        showToast('Landlord profile details deleted and reflected in Admin panel.', 'info');
+    } catch (error) {
+        console.error('Delete landlord profile error:', error);
+        showToast(`Failed to delete profile details: ${error.message}`, 'error');
+    } finally {
+        if (delBtn) { delBtn.disabled = false; delBtn.textContent = '🗑️ Delete'; }
     }
 }
 

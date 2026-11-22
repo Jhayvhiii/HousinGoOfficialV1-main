@@ -90,9 +90,14 @@
      </div>
     </div>
 
+    <div id="ll-profile-sync-status" style="margin-bottom: 16px;"></div>
+
     <form id="landlord-profile-form" onsubmit="handleSaveRoleProfile(event, 'landlord')">
      <div style="margin-bottom: 16px;">
-      <label for="ll-profile-photo" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; color: #334155;">📷 Profile Photo</label>
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px;">
+       <label for="ll-profile-photo" style="font-weight: 600; font-size: 14px; color: #334155; margin: 0;">📷 Profile Photo</label>
+       <button type="button" id="ll-delete-photo-btn" class="ll-btn-delete" onclick="deleteLandlordProfilePhoto()" style="display: none; padding: 4px 10px; font-size: 12px;">🗑️ Delete Photo</button>
+      </div>
       <input type="file" id="ll-profile-photo" accept="image/*" style="width: 100%; padding: 10px; border: 1.5px solid #D8D2C7; border-radius: 10px;">
      </div>
 
@@ -163,7 +168,10 @@
       <input type="text" id="ll-profile-hobbies" placeholder="e.g., Gardening, Coffee, Cycling, Home Improvement" style="width: 100%; padding: 11px 14px; border: 1.5px solid #D8D2C7; border-radius: 10px; font-size: 15px;">
      </div>
 
-     <button type="submit" id="ll-save-profile-btn" class="btn" style="padding: 13px 26px; font-size: 15px;">💾 Save Landlord Profile</button>
+     <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+      <button type="submit" id="ll-save-profile-btn" class="btn" style="padding: 13px 26px; font-size: 15px;">💾 Save</button>
+      <button type="button" id="ll-delete-profile-btn" class="ll-btn-delete" onclick="handleDeleteLandlordProfile()" style="padding: 13px 24px; font-size: 15px;">🗑️ Delete</button>
+     </div>
     </form>
    </div>
   </div>
