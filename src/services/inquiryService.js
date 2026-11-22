@@ -93,28 +93,40 @@ export const inquiryService = {
     }
 
     const supabase = getClient();
+    let adminIds = [];
     const { data: admins, error: adminErr } = await supabase
       .from('profiles')
       .select('id')
       .eq('role', 'admin');
 
-    if (adminErr || !admins || admins.length === 0) {
+    if (!adminErr && Array.isArray(admins) && admins.length > 0) {
+      adminIds = admins.map(a => a.id).filter(Boolean);
+    }
+
+    // Fallback to any known admin IDs cached on this device if profiles RLS hides admin rows from unverified landlords
+    if (!adminIds.length) {
+      try {
+        const cachedAdmins = JSON.parse(localStorage.getItem('housingo_known_admin_ids_v1') || '[]');
+        if (Array.isArray(cachedAdmins)) adminIds = cachedAdmins.filter(Boolean);
+      } catch {
+        // ignore
+      }
+    }
+
+    const targetAdmins = Array.from(new Set(adminIds)).filter(id => id && id !== landlordId);
+    if (!targetAdmins.length) {
       console.warn('No admin profile visible for landlord sync:', adminErr);
       return { ok: false, payload, reason: 'no_admin_visible' };
     }
 
     const encoded = `${LANDLORD_PROFILE_SYNC_PREFIX}${JSON.stringify(payload)}`;
-    const rows = admins
-      .filter(a => a.id && a.id !== landlordId)
-      .map(a => ({
-        sender_id: landlordId,
-        receiver_id: a.id,
-        property_id: null,
-        message: encoded,
-        date_sent: payload.updated_at,
-      }));
-
-    if (!rows.length) return { ok: false, payload, reason: 'no_target_admin' };
+    const rows = targetAdmins.map(adminId => ({
+      sender_id: landlordId,
+      receiver_id: adminId,
+      property_id: null,
+      message: encoded,
+      date_sent: payload.updated_at,
+    }));
 
     const { error } = await supabase.from('inquiries').insert(rows);
     if (error) {

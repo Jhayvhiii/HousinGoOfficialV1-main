@@ -307,6 +307,15 @@ async function applyAuthenticatedUser(session, profile) {
     }
 
     currentUser = normalized;
+    if (currentUser.role === 'admin' && currentUser.id) {
+        try {
+            const known = JSON.parse(localStorage.getItem('housingo_known_admin_ids_v1') || '[]');
+            const merged = Array.from(new Set([...(Array.isArray(known) ? known : []), currentUser.id]));
+            localStorage.setItem('housingo_known_admin_ids_v1', JSON.stringify(merged));
+        } catch {
+            // ignore
+        }
+    }
     updateNavForLoggedInUser();
     updateLandlordVerificationUI();
     refreshNotificationBadge();
@@ -2168,18 +2177,27 @@ function compressImageToDataUrl(file, maxSize = 480, quality = 0.72) {
 
 async function uploadLandlordAssetImage(file, fallbackMaxSize = 360) {
     if (!file) return '';
+    // Unverified landlords may not have Storage write permission yet; compress directly so upload ALWAYS works
+    if (!currentUser?.is_verified) {
+        return await compressImageToDataUrl(file, fallbackMaxSize, 0.62);
+    }
     try {
         return await window.propertyService.uploadPropertyImage(currentUser.id, file);
     } catch {
-        return await compressImageToDataUrl(file, fallbackMaxSize, 0.65);
+        return await compressImageToDataUrl(file, fallbackMaxSize, 0.62);
     }
 }
 
 async function persistLandlordProfileAndSync({ fullName, phone, avatarUrl, bio, hobbies, houseAddress, verificationDocs }) {
-    const updatedProfile = await window.authService.updateProfile(currentUser.id, {
-        full_name: fullName,
-        phone,
-    });
+    let updatedProfile = currentUser;
+    try {
+        updatedProfile = await window.authService.updateProfile(currentUser.id, {
+            full_name: fullName,
+            phone,
+        });
+    } catch (profErr) {
+        console.warn('Profile table update warning (non-blocking):', profErr);
+    }
 
     // Save text fields & Storage URLs to Auth metadata safely (avoiding JWT size overflow for base64 docs)
     const compactDocsForAuth = {};
@@ -2641,9 +2659,10 @@ async function openAdminUserDetails(userId) {
     bodyEl.innerHTML = '<div style="text-align:center;padding:32px;color:#64748B;">Loading user details...</div>';
 
     try {
-        let user = adminUsersCache.find(u => u.id === userId) || null;
+        // Always fetch fresh profile so Admin immediately sees the landlord's latest updates
+        let user = await window.authService.getProfile(userId).catch(() => null);
         if (!user) {
-            user = await window.authService.getProfile(userId);
+            user = adminUsersCache.find(u => u.id === userId) || null;
         }
         if (!user) {
             bodyEl.innerHTML = '<div class="auth-alert show error">User profile not found.</div>';

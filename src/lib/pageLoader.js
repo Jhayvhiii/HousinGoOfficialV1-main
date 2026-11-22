@@ -9,7 +9,7 @@ import { getSupabaseClient } from './supabaseClient.js';
 import { authService } from '../services/authService.js';
 import { propertyService } from '../services/propertyService.js';
 import { applicationService } from '../services/applicationService.js';
-import { inquiryService } from '../services/inquiryService.js?v=6';
+import { inquiryService } from '../services/inquiryService.js?v=7';
 import { reviewService } from '../services/reviewService.js';
 import { complaintService } from '../services/complaintService.js';
 import { adminService } from '../services/adminService.js';
@@ -77,7 +77,7 @@ async function bootstrapHousinGo() {
 
     // Load main application logic only AFTER all services & HTML partials are ready
     const appScript = document.createElement('script');
-    appScript.src = 'index.js?v=6';
+    appScript.src = 'index.js?v=7';
     appScript.onerror = () => console.error('❌ Failed to load index.js');
     document.body.appendChild(appScript);
   } catch (error) {
