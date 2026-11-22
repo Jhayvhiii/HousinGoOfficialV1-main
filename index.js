@@ -2370,6 +2370,9 @@ async function loadAdminDashboard() {
     }
 }
 
+let adminUsersCache = [];
+let activeAdminDetailUserId = null;
+
 async function loadAdminUsers() {
     const el = document.getElementById('admin-users-list');
     if (!el) return;
@@ -2381,29 +2384,296 @@ async function loadAdminUsers() {
             role: document.getElementById('admin-user-role-filter')?.value || '',
             status: document.getElementById('admin-user-status-filter')?.value || '',
         });
+        adminUsersCache = users;
 
         if (!users.length) {
-            el.innerHTML = '<p style="color:#654321;">No matching users found.</p>';
+            el.innerHTML = '<p style="color:#64748B;">No matching users found.</p>';
             return;
         }
 
-        el.innerHTML = users.map(u => `
-            <div style="border:1.5px solid #ADD8E6;border-radius:10px;padding:14px 16px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+        el.innerHTML = users.map(u => {
+            const roleBadgeColor = u.role === 'admin' ? '#7C3AED' : u.role === 'landlord' ? '#0F4C81' : '#0288D1';
+            const roleBadgeBg = u.role === 'admin' ? '#F3E8FF' : u.role === 'landlord' ? '#EBF5FF' : '#E0F2FE';
+            const canViewDetails = u.role === 'tenant' || u.role === 'landlord';
+            return `
+            <div style="border:1.5px solid #EAE5DC;background:#FFFFFF;border-radius:12px;padding:14px 16px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
                 <div>
-                    <strong style="color:#8B4513;">${escapeHtml(u.full_name)}</strong>
-                    <span style="margin-left:8px;font-size:12px;font-weight:700;text-transform:uppercase;color:#0288D1;">${escapeHtml(u.role)}</span>
-                    ${u.role === 'landlord' ? (u.is_verified ? ' <span style="color:#2E7D32;font-size:12px;font-weight:700;">✔ Verified</span>' : ' <span style="color:#B54708;font-size:12px;font-weight:700;">⏳ Unverified</span>') : ''}
-                    <div style="font-size:13px;color:#654321;">${escapeHtml(u.email)} ${u.phone ? `· ${escapeHtml(u.phone)}` : ''}</div>
+                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px;">
+                        <strong style="color:#1E293B;font-size:15px;">${escapeHtml(u.full_name)}</strong>
+                        <span style="padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;text-transform:uppercase;color:${roleBadgeColor};background:${roleBadgeBg};">${escapeHtml(u.role)}</span>
+                        ${u.role === 'landlord' ? (u.is_verified ? '<span style="color:#166534;background:#DCFCE7;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;">✔ Verified</span>' : '<span style="color:#92400E;background:#FEF3C7;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;">⏳ Unverified</span>') : ''}
+                    </div>
+                    <div style="font-size:13px;color:#64748B;">${escapeHtml(u.email)} ${u.phone ? `· ${escapeHtml(u.phone)}` : ''} · Joined ${formatDate(u.created_at)}</div>
                 </div>
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                     ${statusBadgeHtml(u.status)}
+                    ${canViewDetails ? `<button class="ll-btn-preview" onclick="openAdminUserDetails('${u.id}')" style="padding:7px 12px;font-size:12px;">👁️ View Details</button>` : ''}
                     ${u.role === 'landlord' ? `<button class="btn" onclick="adminVerifyLandlord('${u.id}', ${!u.is_verified})" style="padding:7px 12px;font-size:12px;">${u.is_verified ? 'Revoke Verify' : '✔ Verify Landlord'}</button>` : ''}
                     ${u.id !== currentUser.id ? `<button class="btn-secondary" onclick="adminToggleUserStatus('${u.id}', '${u.status === 'suspended' ? 'active' : 'suspended'}')" style="padding:7px 12px;font-size:12px;${u.status === 'suspended' ? 'color:#1B5E20;border-color:#2E7D32;' : 'color:#B42318;border-color:#FF6B6B;'}">${u.status === 'suspended' ? 'Activate' : 'Suspend'}</button>` : ''}
                 </div>
             </div>
-        `).join('');
+        `;
+        }).join('');
     } catch (error) {
         el.innerHTML = `<div class="auth-alert show error">${escapeHtml(error.message)}</div>`;
+    }
+}
+
+function closeAdminUserDetails() {
+    activeAdminDetailUserId = null;
+    document.getElementById('admin-user-details-modal')?.classList.remove('active');
+}
+
+async function openAdminUserDetails(userId) {
+    if (!currentUser || currentUser.role !== 'admin') return;
+    const modal = document.getElementById('admin-user-details-modal');
+    const titleEl = document.getElementById('admin-user-details-title');
+    const bodyEl = document.getElementById('admin-user-details-body');
+    if (!modal || !bodyEl) return;
+
+    activeAdminDetailUserId = userId;
+    modal.classList.add('active');
+    if (titleEl) titleEl.textContent = '👤 User Details';
+    bodyEl.innerHTML = '<div style="text-align:center;padding:32px;color:#64748B;">Loading user details...</div>';
+
+    try {
+        let user = adminUsersCache.find(u => u.id === userId) || null;
+        if (!user) {
+            user = await window.authService.getProfile(userId);
+        }
+        if (!user) {
+            bodyEl.innerHTML = '<div class="auth-alert show error">User profile not found.</div>';
+            return;
+        }
+
+        const isLandlord = user.role === 'landlord';
+        const isTenant = user.role === 'tenant';
+        const initials = (user.full_name || 'U').split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'U';
+        if (titleEl) titleEl.textContent = isLandlord ? '🔑 Landlord Details' : isTenant ? '🔍 Tenant Details' : '👤 User Details';
+
+        if (isLandlord) {
+            const [props, apps, reviews, complaints] = await Promise.all([
+                window.propertyService.getLandlordProperties(userId).catch(() => []),
+                window.applicationService.getLandlordApplications(userId).catch(() => []),
+                window.reviewService.getLandlordReviews(userId).catch(() => []),
+                window.complaintService.getMyComplaints(userId).catch(() => []),
+            ]);
+
+            // Extract extended landlord profile & payment info stored in their listing metadata (if any)
+            let extProfile = null;
+            let extPayment = null;
+            for (const p of props) {
+                const { meta } = parsePropertyDescription(p.description);
+                if (!extProfile && meta?.landlord_profile) extProfile = meta.landlord_profile;
+                if (!extPayment && meta?.payment_info) extPayment = meta.payment_info;
+                if (extProfile && extPayment) break;
+            }
+
+            const avgRating = reviews.length
+                ? (reviews.reduce((sum, r) => sum + Number(r.rating || 0), 0) / reviews.length).toFixed(1)
+                : '—';
+
+            const avatarHtml = extProfile?.avatar_url
+                ? `<img src="${escapeHtml(extProfile.avatar_url)}" alt="${escapeHtml(user.full_name)}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:2.5px solid #0F4C81;flex-shrink:0;">`
+                : `<div style="width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#0F4C81,#0288D1);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:22px;flex-shrink:0;">${escapeHtml(initials)}</div>`;
+
+            const paymentLines = [];
+            if (extPayment?.gcash) paymentLines.push(`GCash: ${escapeHtml(extPayment.gcash)}`);
+            if (extPayment?.maya) paymentLines.push(`Maya: ${escapeHtml(extPayment.maya)}`);
+            if (extPayment?.bank_name || extPayment?.bank_account) {
+                paymentLines.push(`Bank: ${escapeHtml([extPayment.bank_name, extPayment.bank_account].filter(Boolean).join(' · '))}`);
+            }
+            if (extPayment?.credit_card) paymentLines.push(`Card: ${escapeHtml(extPayment.credit_card)}`);
+
+            bodyEl.innerHTML = `
+                <div style="display:flex;align-items:center;gap:16px;padding:16px;background:#FAF8F5;border:1.5px solid #EAE5DC;border-radius:14px;margin-bottom:16px;flex-wrap:wrap;">
+                    ${avatarHtml}
+                    <div style="flex:1;min-width:200px;">
+                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
+                            <h3 style="margin:0;color:#1E293B;font-size:18px;">${escapeHtml(user.full_name)}</h3>
+                            <span style="padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;text-transform:uppercase;color:#0F4C81;background:#EBF5FF;">Landlord</span>
+                            ${user.is_verified
+                                ? '<span style="padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;color:#166534;background:#DCFCE7;">✔ Verified</span>'
+                                : '<span style="padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;color:#92400E;background:#FEF3C7;">⏳ Unverified</span>'}
+                            ${statusBadgeHtml(user.status)}
+                        </div>
+                        <div style="font-size:13px;color:#64748B;">Member since ${formatDate(user.created_at)}</div>
+                    </div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px;">
+                    <div style="background:#FFFFFF;border:1.5px solid #EAE5DC;border-radius:12px;padding:12px;text-align:center;">
+                        <div style="font-size:20px;font-weight:800;color:#0F4C81;">${props.length}</div>
+                        <div style="font-size:12px;color:#64748B;">Properties</div>
+                    </div>
+                    <div style="background:#FFFFFF;border:1.5px solid #EAE5DC;border-radius:12px;padding:12px;text-align:center;">
+                        <div style="font-size:20px;font-weight:800;color:#0288D1;">${apps.length}</div>
+                        <div style="font-size:12px;color:#64748B;">Applications</div>
+                    </div>
+                    <div style="background:#FFFFFF;border:1.5px solid #EAE5DC;border-radius:12px;padding:12px;text-align:center;">
+                        <div style="font-size:20px;font-weight:800;color:#D97706;">★ ${avgRating}</div>
+                        <div style="font-size:12px;color:#64748B;">${reviews.length} Review${reviews.length === 1 ? '' : 's'}</div>
+                    </div>
+                    <div style="background:#FFFFFF;border:1.5px solid #EAE5DC;border-radius:12px;padding:12px;text-align:center;">
+                        <div style="font-size:20px;font-weight:800;color:#B42318;">${complaints.length}</div>
+                        <div style="font-size:12px;color:#64748B;">Complaints Filed</div>
+                    </div>
+                </div>
+
+                <div style="background:#FFFFFF;border:1.5px solid #EAE5DC;border-radius:12px;padding:16px;margin-bottom:16px;">
+                    <h4 style="margin:0 0 10px;color:#1E293B;font-size:14.5px;">📋 Account &amp; Profile Information</h4>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;font-size:13.5px;color:#334155;">
+                        <div><strong style="color:#64748B;">Email:</strong><br>${escapeHtml(user.email || '—')}</div>
+                        <div><strong style="color:#64748B;">Phone:</strong><br>${escapeHtml(user.phone || 'Not provided')}</div>
+                        <div><strong style="color:#64748B;">House Address:</strong><br>${escapeHtml(extProfile?.house_address || 'Not provided')}</div>
+                        <div><strong style="color:#64748B;">Hobbies / Interests:</strong><br>${escapeHtml(extProfile?.hobbies || 'Not provided')}</div>
+                    </div>
+                    ${extProfile?.bio ? `<div style="margin-top:10px;padding-top:10px;border-top:1px solid #F1ECE3;font-size:13.5px;color:#334155;"><strong style="color:#64748B;">About Me:</strong><p style="margin:4px 0 0;">${escapeHtml(extProfile.bio)}</p></div>` : ''}
+                    ${paymentLines.length ? `<div style="margin-top:10px;padding-top:10px;border-top:1px solid #F1ECE3;font-size:13.5px;color:#334155;"><strong style="color:#64748B;">Configured Payment Modes:</strong><div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:6px;">${paymentLines.map(line => `<span style="background:#F8FAFC;border:1px solid #E2E8F0;padding:4px 10px;border-radius:8px;font-size:12px;">💳 ${line}</span>`).join('')}</div></div>` : ''}
+                </div>
+
+                <div style="background:#FFFFFF;border:1.5px solid #EAE5DC;border-radius:12px;padding:16px;margin-bottom:16px;">
+                    <h4 style="margin:0 0 10px;color:#1E293B;font-size:14.5px;">🏠 Landlord Properties (${props.length})</h4>
+                    ${props.length === 0
+                        ? '<p style="margin:0;color:#64748B;font-size:13px;">No properties posted yet.</p>'
+                        : props.map(p => {
+                            const { meta } = parsePropertyDescription(p.description);
+                            const approvalState = getPropertyApprovalState(p, meta);
+                            const badge = approvalState === 'pending_approval'
+                                ? '<span style="padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;background:#FEF3C7;color:#92400E;">⏳ Pending</span>'
+                                : approvalState === 'rejected'
+                                ? '<span style="padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;background:#FEE2E2;color:#991B1B;">❌ Rejected</span>'
+                                : statusBadgeHtml(p.availability_status);
+                            return `
+                                <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #F1ECE3;flex-wrap:wrap;">
+                                    <div>
+                                        <strong style="color:#1E293B;font-size:14px;">${escapeHtml(p.title)}</strong>
+                                        <span style="color:#0F4C81;font-weight:700;font-size:13px;margin-left:6px;">${formatPeso(p.price)}/mo</span>
+                                        <div style="font-size:12.5px;color:#64748B;">📍 ${escapeHtml(p.location)}</div>
+                                    </div>
+                                    <div style="display:flex;align-items:center;gap:8px;">
+                                        ${badge}
+                                        <button class="ll-btn-preview" onclick="closeAdminUserDetails(); openPropertyDetails('${p.property_id}');" style="padding:5px 10px;font-size:12px;">👁️ Inspect</button>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                </div>
+
+                <div style="display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;padding-top:8px;border-top:1px solid #EAE5DC;">
+                    <button class="btn-secondary" onclick="closeAdminUserDetails(); openMessageToUser('${user.id}', '${escapeJsAttr(user.full_name)}');" style="padding:9px 14px;font-size:13px;">💬 Message Landlord</button>
+                    <button class="btn" onclick="adminVerifyLandlord('${user.id}', ${!user.is_verified})" style="padding:9px 14px;font-size:13px;">${user.is_verified ? 'Revoke Verify' : '✔ Verify Landlord'}</button>
+                    ${user.id !== currentUser.id ? `<button class="btn-secondary" onclick="adminToggleUserStatus('${user.id}', '${user.status === 'suspended' ? 'active' : 'suspended'}')" style="padding:9px 14px;font-size:13px;${user.status === 'suspended' ? 'color:#1B5E20;border-color:#2E7D32;' : 'color:#B42318;border-color:#FF6B6B;'}">${user.status === 'suspended' ? 'Activate Account' : 'Suspend Account'}</button>` : ''}
+                </div>
+            `;
+        } else {
+            // Tenant view
+            const [apps, reviews, complaints] = await Promise.all([
+                window.applicationService.getTenantApplications(userId).catch(() => []),
+                window.reviewService.getTenantReviews(userId).catch(() => []),
+                window.complaintService.getMyComplaints(userId).catch(() => []),
+            ]);
+
+            bodyEl.innerHTML = `
+                <div style="display:flex;align-items:center;gap:16px;padding:16px;background:#FAF8F5;border:1.5px solid #EAE5DC;border-radius:14px;margin-bottom:16px;flex-wrap:wrap;">
+                    <div style="width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#0288D1,#38BDF8);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:22px;flex-shrink:0;">${escapeHtml(initials)}</div>
+                    <div style="flex:1;min-width:200px;">
+                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
+                            <h3 style="margin:0;color:#1E293B;font-size:18px;">${escapeHtml(user.full_name)}</h3>
+                            <span style="padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;text-transform:uppercase;color:#0288D1;background:#E0F2FE;">Tenant</span>
+                            ${statusBadgeHtml(user.status)}
+                        </div>
+                        <div style="font-size:13px;color:#64748B;">Member since ${formatDate(user.created_at)}</div>
+                    </div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px;">
+                    <div style="background:#FFFFFF;border:1.5px solid #EAE5DC;border-radius:12px;padding:12px;text-align:center;">
+                        <div style="font-size:20px;font-weight:800;color:#0F4C81;">${apps.length}</div>
+                        <div style="font-size:12px;color:#64748B;">Applications</div>
+                    </div>
+                    <div style="background:#FFFFFF;border:1.5px solid #EAE5DC;border-radius:12px;padding:12px;text-align:center;">
+                        <div style="font-size:20px;font-weight:800;color:#D97706;">${reviews.length}</div>
+                        <div style="font-size:12px;color:#64748B;">Reviews Written</div>
+                    </div>
+                    <div style="background:#FFFFFF;border:1.5px solid #EAE5DC;border-radius:12px;padding:12px;text-align:center;">
+                        <div style="font-size:20px;font-weight:800;color:#B42318;">${complaints.length}</div>
+                        <div style="font-size:12px;color:#64748B;">Complaints Filed</div>
+                    </div>
+                </div>
+
+                <div style="background:#FFFFFF;border:1.5px solid #EAE5DC;border-radius:12px;padding:16px;margin-bottom:16px;">
+                    <h4 style="margin:0 0 10px;color:#1E293B;font-size:14.5px;">📋 Account &amp; Contact Information</h4>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;font-size:13.5px;color:#334155;">
+                        <div><strong style="color:#64748B;">Email:</strong><br>${escapeHtml(user.email || '—')}</div>
+                        <div><strong style="color:#64748B;">Phone:</strong><br>${escapeHtml(user.phone || 'Not provided')}</div>
+                        <div><strong style="color:#64748B;">Account Status:</strong><br>${escapeHtml(user.status || 'active')}</div>
+                        <div><strong style="color:#64748B;">Joined:</strong><br>${formatDateTime(user.created_at)}</div>
+                    </div>
+                </div>
+
+                <div style="background:#FFFFFF;border:1.5px solid #EAE5DC;border-radius:12px;padding:16px;margin-bottom:16px;">
+                    <h4 style="margin:0 0 10px;color:#1E293B;font-size:14.5px;">📝 Rental Applications (${apps.length})</h4>
+                    ${apps.length === 0
+                        ? '<p style="margin:0;color:#64748B;font-size:13px;">No rental applications submitted yet.</p>'
+                        : apps.map(a => `
+                            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #F1ECE3;flex-wrap:wrap;">
+                                <div>
+                                    <strong style="color:#1E293B;font-size:14px;">${escapeHtml(a.property?.title || 'Property')}</strong>
+                                    ${a.property?.price ? `<span style="color:#0F4C81;font-weight:700;font-size:13px;margin-left:6px;">${formatPeso(a.property.price)}/mo</span>` : ''}
+                                    <div style="font-size:12.5px;color:#64748B;">Applied ${formatDate(a.application_date)} ${a.property?.location ? `· 📍 ${escapeHtml(a.property.location)}` : ''}</div>
+                                </div>
+                                <div style="display:flex;align-items:center;gap:8px;">
+                                    ${statusBadgeHtml(a.status)}
+                                    ${a.property?.property_id ? `<button class="ll-btn-preview" onclick="closeAdminUserDetails(); openPropertyDetails('${a.property.property_id}');" style="padding:5px 10px;font-size:12px;">👁️ View</button>` : ''}
+                                </div>
+                            </div>
+                        `).join('')}
+                </div>
+
+                <div style="background:#FFFFFF;border:1.5px solid #EAE5DC;border-radius:12px;padding:16px;margin-bottom:16px;">
+                    <h4 style="margin:0 0 10px;color:#1E293B;font-size:14.5px;">⭐ Reviews Written (${reviews.length})</h4>
+                    ${reviews.length === 0
+                        ? '<p style="margin:0;color:#64748B;font-size:13px;">No reviews written yet.</p>'
+                        : reviews.map(r => `
+                            <div style="padding:8px 0;border-bottom:1px solid #F1ECE3;font-size:13px;">
+                                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+                                    <strong style="color:#1E293B;">${escapeHtml(r.property?.title || 'Property')}</strong>
+                                    <span style="color:#D97706;font-weight:700;">${'★'.repeat(Number(r.rating || 0))}${'☆'.repeat(5 - Number(r.rating || 0))} (${r.rating}/5)</span>
+                                </div>
+                                ${r.comment ? `<p style="margin:4px 0 2px;color:#475569;">${escapeHtml(r.comment)}</p>` : ''}
+                                <small style="color:#94A3B8;">${formatDate(r.created_at)}</small>
+                            </div>
+                        `).join('')}
+                </div>
+
+                ${complaints.length ? `
+                <div style="background:#FFFFFF;border:1.5px solid #EAE5DC;border-radius:12px;padding:16px;margin-bottom:16px;">
+                    <h4 style="margin:0 0 10px;color:#1E293B;font-size:14.5px;">🚨 Complaints Filed (${complaints.length})</h4>
+                    ${complaints.map(c => {
+                        const parsed = parseComplaintReason(c.reason);
+                        return `
+                            <div style="padding:8px 0;border-bottom:1px solid #F1ECE3;font-size:13px;">
+                                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
+                                    <span style="background:#FEE2E2;color:#991B1B;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;">${escapeHtml(parsed.category)}</span>
+                                    ${statusBadgeHtml(c.status)}
+                                </div>
+                                <p style="margin:2px 0;color:#475569;">${escapeHtml(parsed.details)}</p>
+                                <small style="color:#94A3B8;">${formatDate(c.created_at)}</small>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>` : ''}
+
+                <div style="display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;padding-top:8px;border-top:1px solid #EAE5DC;">
+                    <button class="btn-secondary" onclick="closeAdminUserDetails(); openMessageToUser('${user.id}', '${escapeJsAttr(user.full_name)}');" style="padding:9px 14px;font-size:13px;">💬 Message Tenant</button>
+                    ${user.id !== currentUser.id ? `<button class="btn-secondary" onclick="adminToggleUserStatus('${user.id}', '${user.status === 'suspended' ? 'active' : 'suspended'}')" style="padding:9px 14px;font-size:13px;${user.status === 'suspended' ? 'color:#1B5E20;border-color:#2E7D32;' : 'color:#B42318;border-color:#FF6B6B;'}">${user.status === 'suspended' ? 'Activate Account' : 'Suspend Account'}</button>` : ''}
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Admin user details error:', error);
+        bodyEl.innerHTML = `<div class="auth-alert show error">${escapeHtml(error.message)}</div>`;
     }
 }
 
@@ -2411,7 +2681,8 @@ async function adminVerifyLandlord(userId, isVerified) {
     try {
         await window.adminService.verifyLandlord(currentUser.id, userId, isVerified);
         showToast(isVerified ? 'Landlord verified!' : 'Landlord verification revoked.', 'success');
-        loadAdminDashboard();
+        await loadAdminDashboard();
+        if (activeAdminDetailUserId === userId) openAdminUserDetails(userId);
     } catch (error) {
         showToast(`Failed: ${error.message}`, 'error');
     }
@@ -2421,7 +2692,8 @@ async function adminToggleUserStatus(userId, newStatus) {
     try {
         await window.adminService.updateUserStatus(currentUser.id, userId, newStatus);
         showToast(`User status updated to ${newStatus}.`, 'success');
-        loadAdminDashboard();
+        await loadAdminDashboard();
+        if (activeAdminDetailUserId === userId) openAdminUserDetails(userId);
     } catch (error) {
         showToast(`Failed: ${error.message}`, 'error');
     }
@@ -3027,9 +3299,12 @@ function wireAllUIListeners() {
 
     // Close modals when clicking backdrop
     document.addEventListener('click', (e) => {
-        ['property-modal', 'messages-modal', 'new-message-modal', 'notifications-modal', 'complaint-modal'].forEach(id => {
+        ['property-modal', 'messages-modal', 'new-message-modal', 'notifications-modal', 'complaint-modal', 'admin-user-details-modal'].forEach(id => {
             const modal = document.getElementById(id);
-            if (modal && e.target === modal) modal.classList.remove('active');
+            if (modal && e.target === modal) {
+                modal.classList.remove('active');
+                if (id === 'admin-user-details-modal') activeAdminDetailUserId = null;
+            }
         });
     });
 
