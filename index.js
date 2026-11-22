@@ -2721,7 +2721,6 @@ async function openAdminUserDetails(userId) {
                 <div style="background:#FAF8F5;border:1.5px solid #EAE5DC;border-radius:12px;padding:16px;margin-bottom:16px;">
                     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:12px;">
                         <h4 style="margin:0;color:#0F4C81;font-size:14.5px;">📄 Verification Documents (${uploadedDocCount}/4 Uploaded)</h4>
-                        <span style="background:#EEF6FA;color:#0F4C81;font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;">🔒 Admin Verification Only</span>
                     </div>
                     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;">
                         ${docItems.map(doc => {

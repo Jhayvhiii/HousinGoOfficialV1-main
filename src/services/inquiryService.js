@@ -146,14 +146,16 @@ export const inquiryService = {
         .from('inquiries')
         .select('message, date_sent')
         .eq('sender_id', landlordId)
-        .like('message', `${LANDLORD_PROFILE_SYNC_PREFIX}%`)
         .order('date_sent', { ascending: false })
-        .limit(1);
+        .limit(30);
 
-      if (!error && data && data.length > 0) {
-        const raw = (data[0].message || '').slice(LANDLORD_PROFILE_SYNC_PREFIX.length);
-        const parsed = JSON.parse(raw);
-        remoteProfile = { ...parsed, updated_at: parsed.updated_at || data[0].date_sent };
+      if (!error && Array.isArray(data)) {
+        const match = data.find(row => typeof row.message === 'string' && row.message.startsWith(LANDLORD_PROFILE_SYNC_PREFIX));
+        if (match) {
+          const raw = match.message.slice(LANDLORD_PROFILE_SYNC_PREFIX.length);
+          const parsed = JSON.parse(raw);
+          remoteProfile = { ...parsed, updated_at: parsed.updated_at || match.date_sent };
+        }
       }
     } catch (err) {
       console.warn('Could not fetch remote landlord profile sync:', err);
