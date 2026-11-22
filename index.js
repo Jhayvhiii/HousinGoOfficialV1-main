@@ -2232,30 +2232,41 @@ function populateRoleProfileForm(role) {
         ];
         docFields.forEach(({ key, previewId, label }) => {
             const pEl = document.getElementById(previewId);
+            const cardEl = document.getElementById(`ll-vdoc-card-${key}`);
+            if (cardEl) cardEl.classList.toggle('uploaded', Boolean(docs[key]));
             if (!pEl) return;
             if (docs[key]) {
                 pEl.innerHTML = `
-                    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+                    <div class="vdoc-preview-row">
                         <div style="display:flex;align-items:center;gap:10px;">
-                            <a href="${escapeHtml(docs[key])}" target="_blank" rel="noopener noreferrer">
-                                <img src="${escapeHtml(docs[key])}" alt="${escapeHtml(label)}" style="width:58px;height:58px;object-fit:cover;border-radius:8px;border:1.5px solid #C8E2F2;">
+                            <a href="${escapeHtml(docs[key])}" target="_blank" rel="noopener noreferrer" title="View full image">
+                                <img src="${escapeHtml(docs[key])}" alt="${escapeHtml(label)}" style="width:52px;height:52px;object-fit:cover;border-radius:8px;border:1.5px solid #C8E2F2;">
                             </a>
-                            <span style="font-size:12px;font-weight:700;color:#2E7D32;">✅ Saved &amp; Visible to Admin</span>
+                            <div>
+                                <span style="display:inline-block;background:#DCFCE7;color:#166534;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;">✅ Saved</span>
+                                <div style="font-size:11.5px;color:#64748B;margin-top:2px;">Click photo to zoom</div>
+                            </div>
                         </div>
-                        <button type="button" class="ll-btn-delete" onclick="deleteLandlordVerificationDoc('${key}')" style="padding:4px 10px;font-size:11.5px;">🗑️ Delete</button>
+                        <button type="button" class="ll-btn-delete" onclick="deleteLandlordVerificationDoc('${key}')" style="padding:5px 10px;font-size:11.5px;">🗑️ Delete</button>
                     </div>
                 `;
             } else {
-                pEl.innerHTML = '<small style="color:#94A3B8;">⏳ Not uploaded yet</small>';
+                pEl.innerHTML = '<div style="font-size:12px;color:#94A3B8;display:flex;align-items:center;gap:6px;"><span>⏳</span><span>No file uploaded yet</span></div>';
             }
         });
+
+        const uploadedCount = docFields.filter(d => Boolean(docs[d.key])).length;
+        const counterEl = document.getElementById('ll-vdoc-counter');
+        if (counterEl) {
+            counterEl.textContent = `${uploadedCount} / 4 Uploaded`;
+            counterEl.classList.toggle('complete', uploadedCount === 4);
+        }
 
         const delPhotoBtn = document.getElementById('ll-delete-photo-btn');
         if (delPhotoBtn) delPhotoBtn.style.display = currentUser.avatar_url ? 'inline-flex' : 'none';
 
         const statusEl = document.getElementById('ll-profile-sync-status');
         if (statusEl) {
-            const uploadedCount = docFields.filter(d => Boolean(docs[d.key])).length;
             const hasDetails = Boolean(currentUser.avatar_url || currentUser.house_address || currentUser.bio || currentUser.hobbies || uploadedCount > 0);
             if (hasDetails) {
                 statusEl.innerHTML = `

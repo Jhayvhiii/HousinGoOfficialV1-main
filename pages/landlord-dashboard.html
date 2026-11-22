@@ -128,42 +128,72 @@
       <textarea id="ll-profile-bio" rows="3" placeholder="Tell tenants a bit about yourself and how you manage your properties..." style="width: 100%; padding: 11px 14px; border: 1.5px solid #D8D2C7; border-radius: 10px; font-size: 15px; resize: vertical;"></textarea>
      </div>
 
-     <!-- Verification Documents Section (Private — For Verification Only) -->
-     <div style="margin-bottom: 20px; background: #FAF8F5; border: 1.5px solid #EAE5DC; border-radius: 14px; padding: 18px;">
-      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 6px;">
-       <h3 style="font-size: 16px; font-weight: 700; color: #0F4C81; margin: 0;">📄 Verification Documents</h3>
-      </div>
-      <p style="font-size: 13px; color: #64748B; margin: 0 0 14px;">Upload clear photos of the required documents below and click Save Documents.</p>
-
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
-       <div style="background: #FFFFFF; border: 1px solid #EAE5DC; border-radius: 10px; padding: 12px;">
-        <label for="ll-doc-title" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 13.5px; color: #1E293B;">📜 Certified True Copy of Title</label>
-        <input type="file" id="ll-doc-title" accept="image/*" style="width: 100%; padding: 8px; border: 1.5px solid #D8D2C7; border-radius: 8px; font-size: 13px;">
-        <div id="ll-doc-title-preview" style="margin-top: 8px;"></div>
+     <!-- Verification Documents Section -->
+     <div class="vdoc-section">
+      <div class="vdoc-header">
+       <div class="vdoc-header-left">
+        <div class="vdoc-header-icon">📄</div>
+        <div>
+         <h3 style="font-size: 17px; font-weight: 700; color: #1E293B; margin: 0;">Verification Documents</h3>
+         <p style="font-size: 13px; color: #64748B; margin: 2px 0 0;">Upload clear photos of the required documents below and click Save Documents.</p>
+        </div>
        </div>
-
-       <div style="background: #FFFFFF; border: 1px solid #EAE5DC; border-radius: 10px; padding: 12px;">
-        <label for="ll-doc-business-permit" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 13.5px; color: #1E293B;">🏢 Business Permit</label>
-        <input type="file" id="ll-doc-business-permit" accept="image/*" style="width: 100%; padding: 8px; border: 1.5px solid #D8D2C7; border-radius: 8px; font-size: 13px;">
-        <div id="ll-doc-business-permit-preview" style="margin-top: 8px;"></div>
-       </div>
-
-       <div style="background: #FFFFFF; border: 1px solid #EAE5DC; border-radius: 10px; padding: 12px;">
-        <label for="ll-doc-tax-receipt" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 13.5px; color: #1E293B;">🧾 Real Property Tax Receipt</label>
-        <input type="file" id="ll-doc-tax-receipt" accept="image/*" style="width: 100%; padding: 8px; border: 1.5px solid #D8D2C7; border-radius: 8px; font-size: 13px;">
-        <div id="ll-doc-tax-receipt-preview" style="margin-top: 8px;"></div>
-       </div>
-
-       <div style="background: #FFFFFF; border: 1px solid #EAE5DC; border-radius: 10px; padding: 12px;">
-        <label for="ll-doc-valid-ids" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 13.5px; color: #1E293B;">🪪 2 Valid IDs w/ 3 Specimen Signatures</label>
-        <input type="file" id="ll-doc-valid-ids" accept="image/*" style="width: 100%; padding: 8px; border: 1.5px solid #D8D2C7; border-radius: 8px; font-size: 13px;">
-        <div id="ll-doc-valid-ids-preview" style="margin-top: 8px;"></div>
-       </div>
+       <span id="ll-vdoc-counter" class="vdoc-counter-pill">0 / 4 Uploaded</span>
       </div>
 
-      <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 16px; padding-top: 14px; border-top: 1px solid #EAE5DC;">
-       <button type="button" id="ll-save-docs-btn" class="btn" onclick="handleSaveLandlordDocs()" style="padding: 10px 20px; font-size: 14px;">💾 Save Documents</button>
-       <button type="button" id="ll-delete-docs-btn" class="ll-btn-delete" onclick="handleDeleteAllLandlordDocs()" style="padding: 10px 18px; font-size: 14px;">🗑️ Delete Documents</button>
+      <div class="vdoc-grid">
+       <div class="vdoc-card" id="ll-vdoc-card-title_copy">
+        <div class="vdoc-card-head">
+         <div class="vdoc-icon">📜</div>
+         <div>
+          <label for="ll-doc-title" class="vdoc-label">Certified True Copy of Title</label>
+          <span class="vdoc-hint">JPG, PNG, or clear photo</span>
+         </div>
+        </div>
+        <input type="file" id="ll-doc-title" accept="image/*" class="vdoc-file-input">
+        <div id="ll-doc-title-preview" class="vdoc-preview"></div>
+       </div>
+
+       <div class="vdoc-card" id="ll-vdoc-card-business_permit">
+        <div class="vdoc-card-head">
+         <div class="vdoc-icon">🏢</div>
+         <div>
+          <label for="ll-doc-business-permit" class="vdoc-label">Business Permit</label>
+          <span class="vdoc-hint">Valid barangay or city permit</span>
+         </div>
+        </div>
+        <input type="file" id="ll-doc-business-permit" accept="image/*" class="vdoc-file-input">
+        <div id="ll-doc-business-permit-preview" class="vdoc-preview"></div>
+       </div>
+
+       <div class="vdoc-card" id="ll-vdoc-card-tax_receipt">
+        <div class="vdoc-card-head">
+         <div class="vdoc-icon">🧾</div>
+         <div>
+          <label for="ll-doc-tax-receipt" class="vdoc-label">Real Property Tax Receipt</label>
+          <span class="vdoc-hint">Latest property tax receipt</span>
+         </div>
+        </div>
+        <input type="file" id="ll-doc-tax-receipt" accept="image/*" class="vdoc-file-input">
+        <div id="ll-doc-tax-receipt-preview" class="vdoc-preview"></div>
+       </div>
+
+       <div class="vdoc-card" id="ll-vdoc-card-valid_ids">
+        <div class="vdoc-card-head">
+         <div class="vdoc-icon">🪪</div>
+         <div>
+          <label for="ll-doc-valid-ids" class="vdoc-label">2 Valid IDs w/ 3 Specimen Signatures</label>
+          <span class="vdoc-hint">Government-issued IDs with signatures</span>
+         </div>
+        </div>
+        <input type="file" id="ll-doc-valid-ids" accept="image/*" class="vdoc-file-input">
+        <div id="ll-doc-valid-ids-preview" class="vdoc-preview"></div>
+       </div>
+      </div>
+
+      <div class="vdoc-actions">
+       <button type="button" id="ll-delete-docs-btn" class="ll-btn-delete" onclick="handleDeleteAllLandlordDocs()" style="padding: 10px 18px; font-size: 13.5px;">🗑️ Delete Documents</button>
+       <button type="button" id="ll-save-docs-btn" class="btn" onclick="handleSaveLandlordDocs()" style="padding: 10px 22px; font-size: 13.5px;">💾 Save Documents</button>
       </div>
      </div>
 

@@ -2426,3 +2426,201 @@ html, body {
         max-width: none !important;
     }
 }
+
+/* ============================================================================
+   Verification Documents — HousinGo Polished Card UI
+   ============================================================================ */
+.vdoc-section {
+    margin-bottom: 22px;
+    background: #FAF8F5;
+    border: 1.5px solid #EAE5DC;
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+}
+
+.vdoc-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 16px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid #EAE5DC;
+}
+
+.vdoc-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.vdoc-header-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #0F4C81, #0288D1);
+    color: #FFFFFF;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+    box-shadow: 0 4px 10px rgba(15, 76, 129, 0.2);
+}
+
+.vdoc-counter-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    background: #EEF6FA;
+    color: #0F4C81;
+    border: 1px solid #C8E2F2;
+}
+
+.vdoc-counter-pill.complete {
+    background: #DCFCE7;
+    color: #166534;
+    border-color: #86EFAC;
+}
+
+.vdoc-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.vdoc-card {
+    background: #FFFFFF;
+    border: 1.5px solid #EAE5DC;
+    border-radius: 14px;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.vdoc-card:hover {
+    border-color: #93C5FD;
+    box-shadow: 0 6px 18px rgba(15, 76, 129, 0.08);
+    transform: translateY(-1px);
+}
+
+.vdoc-card.uploaded {
+    border-color: #BBF7D0;
+    background: linear-gradient(180deg, #FFFFFF 0%, #F7FEF9 100%);
+}
+
+.vdoc-card-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.vdoc-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: #EEF6FA;
+    color: #0F4C81;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+    flex-shrink: 0;
+}
+
+.vdoc-label {
+    display: block;
+    font-weight: 700;
+    font-size: 13.5px;
+    color: #1E293B;
+    margin: 0;
+    cursor: pointer;
+}
+
+.vdoc-hint {
+    display: block;
+    font-size: 11.5px;
+    color: #64748B;
+    margin-top: 1px;
+}
+
+.vdoc-file-input {
+    width: 100%;
+    padding: 9px 10px;
+    border: 1.5px dashed #CBD5E1;
+    border-radius: 10px;
+    background: #F8FAFC;
+    font-size: 12.5px;
+    color: #475569;
+    cursor: pointer;
+    transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.vdoc-file-input:hover {
+    border-color: #0288D1;
+    background: #F0F9FF;
+}
+
+.vdoc-file-input::file-selector-button {
+    background: #EEF6FA;
+    color: #0F4C81;
+    border: 1px solid #C8E2F2;
+    border-radius: 7px;
+    padding: 5px 10px;
+    margin-right: 10px;
+    font-weight: 700;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.vdoc-file-input::file-selector-button:hover {
+    background: #DBEAFE;
+}
+
+.vdoc-preview {
+    min-height: 24px;
+}
+
+.vdoc-preview-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 10px;
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 10px;
+    flex-wrap: wrap;
+}
+
+.vdoc-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid #EAE5DC;
+}
+
+@media (max-width: 768px) {
+    .vdoc-grid {
+        grid-template-columns: 1fr;
+    }
+    .vdoc-actions {
+        justify-content: stretch;
+    }
+    .vdoc-actions > button {
+        flex: 1;
+    }
+}
