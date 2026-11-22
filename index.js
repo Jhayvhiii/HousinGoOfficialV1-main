@@ -1102,22 +1102,46 @@ function initPostPropertyMap(initialLat = null, initialLng = null) {
     }
 
     if (typeof initialLat === 'number' && typeof initialLng === 'number') {
-        setPostPropertyPin(initialLat, initialLng);
+        const hasExistingLink = Boolean(document.getElementById('location-link')?.value?.trim());
+        setPostPropertyPin(initialLat, initialLng, { updateMapLink: !hasExistingLink });
     } else if (postPropertyPin) {
         postPropertyMap.removeLayer(postPropertyPin);
         postPropertyPin = null;
+        const lbl = document.getElementById('post-map-coords-label');
+        if (lbl) lbl.textContent = 'Click anywhere on the map to pin the address (auto-fills Google Maps link)';
     }
 
     setTimeout(() => postPropertyMap?.invalidateSize(), 150);
 }
 
-function setPostPropertyPin(lat, lng) {
+let postPinLookupSeq = 0;
+
+function formatReverseGeocodedAddress(data) {
+    if (!data) return '';
+    const addr = data.address || {};
+    const street = [addr.house_number, addr.road || addr.pedestrian || addr.footway].filter(Boolean).join(' ');
+    const area = addr.neighbourhood || addr.quarter || addr.suburb || addr.village || '';
+    const city = addr.city || addr.town || addr.municipality || '';
+    const parts = [street, area, city].filter(Boolean);
+    if (parts.length) return parts.join(', ');
+    return (data.display_name || '').split(',').slice(0, 4).join(',').trim();
+}
+
+async function setPostPropertyPin(lat, lng, options = {}) {
+    const { updateMapLink = true } = options;
     const latEl = document.getElementById('property-lat');
     const lngEl = document.getElementById('property-lng');
     const lbl = document.getElementById('post-map-coords-label');
+    const linkEl = document.getElementById('location-link');
+    const addrInput = document.getElementById('property-address');
+
     if (latEl) latEl.value = lat.toFixed(6);
     if (lngEl) lngEl.value = lng.toFixed(6);
-    if (lbl) lbl.textContent = `Pinned GPS: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+
+    const googleMapsUrl = `https://www.google.com/maps?q=${lat.toFixed(6)},${lng.toFixed(6)}`;
+    if (linkEl && updateMapLink) {
+        linkEl.value = googleMapsUrl;
+    }
 
     if (postPropertyMap) {
         if (postPropertyPin) {
@@ -1126,23 +1150,47 @@ function setPostPropertyPin(lat, lng) {
             postPropertyPin = window.L.marker([lat, lng], { draggable: true }).addTo(postPropertyMap);
             postPropertyPin.on('dragend', (ev) => {
                 const p = ev.target.getLatLng();
-                setPostPropertyPin(p.lat, p.lng);
+                setPostPropertyPin(p.lat, p.lng, { updateMapLink: true });
             });
         }
         postPropertyMap.panTo([lat, lng]);
     }
+
+    if (lbl) lbl.textContent = '📍 Finding pinned location address...';
+    const seq = ++postPinLookupSeq;
+
+    try {
+        const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}&zoom=18&addressdetails=1`,
+            { headers: { Accept: 'application/json' } }
+        );
+        if (seq !== postPinLookupSeq) return;
+        if (!res.ok) throw new Error('Reverse geocode failed');
+        const data = await res.json();
+        if (seq !== postPinLookupSeq) return;
+
+        const addressText = formatReverseGeocodedAddress(data) || 'Barangay East Rembo, Taguig City';
+        if (lbl) lbl.textContent = `📍 Pinned Location: ${addressText}`;
+        if (addrInput && !addrInput.value.trim()) {
+            addrInput.value = addressText;
+        }
+    } catch {
+        if (seq !== postPinLookupSeq) return;
+        const fallbackAddr = addrInput?.value.trim() || 'Barangay East Rembo, Taguig City';
+        if (lbl) lbl.textContent = `📍 Pinned Location: ${fallbackAddr}`;
+    }
 }
 
 function useCurrentGpsForProperty() {
-    if (!navigator.geolocation) return showToast('GPS not supported by this browser.', 'warning');
-    showToast('Getting your current GPS coordinates...', 'info');
+    if (!navigator.geolocation) return showToast('Location is not supported by this browser.', 'warning');
+    showToast('Getting your current location...', 'info');
     navigator.geolocation.getCurrentPosition(
         (pos) => {
             initPostPropertyMap(pos.coords.latitude, pos.coords.longitude);
-            setPostPropertyPin(pos.coords.latitude, pos.coords.longitude);
-            showToast('GPS pin placed at your current location!', 'success');
+            setPostPropertyPin(pos.coords.latitude, pos.coords.longitude, { updateMapLink: true });
+            showToast('Location pinned and Google Maps link added!', 'success');
         },
-        (err) => showToast(`GPS error: ${err.message}`, 'error'),
+        (err) => showToast(`Location error: ${err.message}`, 'error'),
         { enableHighAccuracy: true, timeout: 10000 }
     );
 }
@@ -1796,6 +1844,12 @@ function openCreatePropertyForm() {
     const submitBtn = document.getElementById('post-property-submit-btn');
     if (submitBtn) submitBtn.textContent = 'Publish Property';
     document.getElementById('post-property-form')?.reset();
+    const latReset = document.getElementById('property-lat');
+    const lngReset = document.getElementById('property-lng');
+    const pinLbl = document.getElementById('post-map-coords-label');
+    if (latReset) latReset.value = '';
+    if (lngReset) lngReset.value = '';
+    if (pinLbl) pinLbl.textContent = 'Click anywhere on the map to pin the address (auto-fills Google Maps link)';
     const preview = document.getElementById('image-preview');
     if (preview) preview.innerHTML = '';
     showPage('post-property');
