@@ -4,9 +4,36 @@
   <span class="dash-role-pill" style="margin-bottom: 14px;">📍 Brgy. East Rembo, Taguig City</span>
   <h1 id="site-name-hero">HousinGo</h1>
   <p id="tagline">Your next home is just a click away.</p>
-  <div class="search-bar"><input type="text" id="search-input" placeholder="Near in Barangay East Rembo">
-   <div class="search-divider"></div><select id="type-search"> <option value="">Property Type</option> <option value="Bed Spacer">Bed Spacer</option> <option value="Single Room">Single Room</option> <option value="Boarding House">Boarding House</option> <option value="Studio Type">Studio Type</option> <option value="Single Family">Single Family</option> </select>
-   <div class="search-divider"></div><select id="price-search"> <option value="">Price Range</option> <option value="5000">Up to ₱5,000</option> <option value="10000">Up to ₱10,000</option> <option value="15000">Up to ₱15,000</option> <option value="20000">Up to ₱20,000</option> <option value="999999">₱20,000+</option> </select> <button class="btn" id="search-btn">🔍 Search</button>
+  <div class="search-bar hg-search-bar">
+   <div class="hg-search-field hg-search-field-grow">
+    <label for="search-input" class="hg-search-label">📍 Location / Keyword</label>
+    <input type="text" id="search-input" placeholder="Near in Barangay East Rembo">
+   </div>
+   <div class="search-divider"></div>
+   <div class="hg-search-field">
+    <label for="type-search" class="hg-search-label">🏠 Property Type</label>
+    <select id="type-search" class="hg-search-select">
+     <option value="">All Property Types</option>
+     <option value="Bed Spacer">🛏️ Bed Spacer</option>
+     <option value="Single Room">🚪 Single Room</option>
+     <option value="Boarding House">🏢 Boarding House</option>
+     <option value="Studio Type">🏠 Studio Type</option>
+     <option value="Single Family">🏡 Single Family</option>
+    </select>
+   </div>
+   <div class="search-divider"></div>
+   <div class="hg-search-field">
+    <label for="price-search" class="hg-search-label">💰 Price Range</label>
+    <select id="price-search" class="hg-search-select">
+     <option value="">Any Budget</option>
+     <option value="5000">Up to ₱5,000 / mo</option>
+     <option value="10000">Up to ₱10,000 / mo</option>
+     <option value="15000">Up to ₱15,000 / mo</option>
+     <option value="20000">Up to ₱20,000 / mo</option>
+     <option value="999999">₱20,000+ / mo</option>
+    </select>
+   </div>
+   <button class="btn hg-search-submit" id="search-btn">🔍 Search</button>
   </div>
  </div>
 </section>

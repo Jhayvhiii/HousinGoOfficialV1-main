@@ -1118,6 +1118,106 @@ nav a.nav-link-active {
     border-radius: 16px !important;
 }
 
+.hg-search-bar {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    padding: 10px 12px !important;
+    max-width: 960px !important;
+    margin: 0 auto !important;
+    text-align: left !important;
+}
+
+.hg-search-field {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 6px 12px;
+    border-radius: 12px;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease;
+    min-width: 185px;
+}
+
+.hg-search-field-grow {
+    flex: 1.4;
+    min-width: 220px;
+}
+
+.hg-search-field:hover,
+.hg-search-field:focus-within {
+    background: #EEF6FA;
+    box-shadow: inset 0 0 0 1.5px #C8E2F2;
+}
+
+.hg-search-label {
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #0F4C81;
+    margin: 0;
+}
+
+.hg-search-bar input {
+    border: none !important;
+    background: transparent !important;
+    padding: 4px 0 !important;
+    font-family: inherit !important;
+    font-size: 14.5px !important;
+    font-weight: 600 !important;
+    color: #1E293B !important;
+    width: 100%;
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+.hg-search-select {
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    border: none !important;
+    background-color: transparent !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%230F4C81' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 2px center !important;
+    padding: 4px 24px 4px 0 !important;
+    font-family: inherit !important;
+    font-size: 14.5px !important;
+    font-weight: 700 !important;
+    color: #1E293B !important;
+    cursor: pointer !important;
+    width: 100%;
+    outline: none !important;
+}
+
+.hg-search-select option {
+    color: #1E293B;
+    background: #FFFFFF;
+    font-weight: 600;
+}
+
+.hg-search-submit {
+    padding: 14px 24px !important;
+    border-radius: 12px !important;
+    font-size: 15px !important;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+    .hg-search-field,
+    .hg-search-field-grow {
+        width: 100% !important;
+        min-width: 0 !important;
+        background: #FAF8F5;
+        border: 1px solid #EAE5DC;
+        padding: 10px 14px !important;
+    }
+    .hg-search-submit {
+        width: 100% !important;
+    }
+}
+
 /* Crisp Buttons */
 .btn {
     background: linear-gradient(135deg, #0F4C81 0%, #0288D1 100%) !important;
