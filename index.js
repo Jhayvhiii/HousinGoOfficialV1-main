@@ -410,7 +410,6 @@ function updateNavForLoggedInUser() {
                 <li class="mobile-only-nav-item"><a href="#" onclick="openDashboardSection('landlord-dashboard', 'landlord', 'landlord-tab-apps'); return false;">📩 Applications</a></li>
                 <li class="mobile-only-nav-item"><a href="#" onclick="openDashboardSection('landlord-dashboard', 'landlord', 'landlord-tab-inquiries'); return false;">💬 Inquiries</a></li>
                 <li class="mobile-only-nav-item"><a href="#" onclick="openDashboardSection('landlord-dashboard', 'landlord', 'landlord-tab-feedback'); return false;">⭐ Feedback</a></li>
-                <li class="mobile-only-nav-item"><a href="#" onclick="openDashboardSection('landlord-dashboard', 'landlord', 'landlord-tab-payments'); return false;">💳 Payment &amp; QR Ph</a></li>
                 <li class="mobile-only-nav-item"><a href="#" onclick="openDashboardSection('landlord-dashboard', 'landlord', 'landlord-tab-profile'); return false;">👤 Account Profile</a></li>
                 <li class="mobile-only-nav-item"><a href="#" onclick="openCreatePropertyForm(); return false;">＋ Add New Property</a></li>
             `;
@@ -1299,23 +1298,6 @@ async function openPropertyDetails(propertyId) {
         const llAvatar = llProfile.avatar_url || '';
         const llInitials = llName.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'L';
 
-        const payInfo = meta.payment_info || {};
-        const payMethods = Array.isArray(payInfo.methods) ? payInfo.methods : [];
-        const hasPaymentDetails = payMethods.length > 0 || payInfo.gcash || payInfo.maya || payInfo.bank || payInfo.card || payInfo.qrph_url;
-        const paymentSectionHtml = hasPaymentDetails
-            ? `<div style="background:#EFF6FF;border:1px solid #BFDBFE;padding:16px;border-radius:12px;margin-bottom:20px;">
-                 <strong style="display:block;color:#0F4C81;font-size:15px;margin-bottom:8px;">💳 Accepted Modes of Payment &amp; QR Ph</strong>
-                 ${payMethods.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">${payMethods.map(m => `<span style="background:#FFFFFF;border:1px solid #93C5FD;color:#1E3A8A;font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;">${escapeHtml(m)}</span>`).join('')}</div>` : ''}
-                 <div style="font-size:13.5px;color:#1E293B;line-height:1.65;">
-                   ${payInfo.gcash ? `<div>💙 <strong>GCash:</strong> ${escapeHtml(payInfo.gcash)}</div>` : ''}
-                   ${payInfo.maya ? `<div>💚 <strong>Maya:</strong> ${escapeHtml(payInfo.maya)}</div>` : ''}
-                   ${payInfo.bank ? `<div>🏦 <strong>Bank Transfer:</strong> ${escapeHtml(payInfo.bank)}</div>` : ''}
-                   ${payInfo.card ? `<div>💳 <strong>Credit / Debit Card:</strong> ${escapeHtml(payInfo.card)}</div>` : ''}
-                 </div>
-                 ${payInfo.qrph_url ? `<div style="margin-top:12px;"><div style="font-size:12px;font-weight:700;color:#0F4C81;margin-bottom:6px;">📲 Scan QR Ph to Pay:</div><a href="${escapeHtml(payInfo.qrph_url)}" target="_blank" rel="noopener noreferrer"><img src="${escapeHtml(payInfo.qrph_url)}" alt="QR Ph Code" style="max-width:200px;max-height:200px;border-radius:10px;border:2px solid #FFFFFF;box-shadow:0 4px 12px rgba(0,0,0,0.12);"></a></div>` : ''}
-               </div>`
-            : '';
-
         const isWishlisted = currentUser?.role === 'tenant' && isInWishlist(property.property_id);
 
         bodyEl.innerHTML = `
@@ -1333,7 +1315,6 @@ async function openPropertyDetails(propertyId) {
                 <p style="color:#475569;line-height:1.7;margin:0;white-space:pre-line;">${escapeHtml(cleanDesc || 'No description provided.')}</p>
             </div>
             ${rulesDetailHtml}
-            ${paymentSectionHtml}
             <div style="background:#FAF8F5;border:1px solid #EAE5DC;padding:18px;border-radius:12px;margin-bottom:20px;">
                 <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.05em;color:#64748B;margin-bottom:10px;">👤 Property Manager / Landlord Information</div>
                 <div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;">
@@ -1586,7 +1567,6 @@ async function loadLandlordDashboard() {
     if (fbEl) fbEl.innerHTML = '<p>Loading tenant feedback...</p>';
 
     populateRoleProfileForm('landlord');
-    populateLandlordPaymentForm();
 
     try {
         const [properties, summary, applications, inquiries, feedback] = await Promise.all([
@@ -1974,14 +1954,6 @@ async function handlePostProperty(event) {
             house_address: currentUser.house_address || '',
             email: currentUser.email || '',
         },
-        payment_info: {
-            methods: currentUser.payment_methods || [],
-            gcash: currentUser.payment_gcash || '',
-            maya: currentUser.payment_maya || '',
-            bank: currentUser.payment_bank || '',
-            card: currentUser.payment_card || '',
-            qrph_url: currentUser.qrph_url || '',
-        },
         approval_status: approvalStatus,
         rejection_reason: '',
         lat: document.getElementById('property-lat')?.value || '',
@@ -2167,26 +2139,6 @@ function populateRoleProfileForm(role) {
     }
 }
 
-function populateLandlordPaymentForm() {
-    if (!currentUser) return;
-    const methods = new Set(currentUser.payment_methods || []);
-    document.querySelectorAll('#landlord-payment-form input[name="ll-pay-method"]').forEach(cb => {
-        cb.checked = methods.has(cb.value);
-    });
-    const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
-    setVal('ll-pay-gcash', currentUser.payment_gcash);
-    setVal('ll-pay-maya', currentUser.payment_maya);
-    setVal('ll-pay-bank', currentUser.payment_bank);
-    setVal('ll-pay-card', currentUser.payment_card);
-
-    const preview = document.getElementById('ll-qrph-preview');
-    if (preview) {
-        preview.innerHTML = currentUser.qrph_url
-            ? `<img src="${escapeHtml(currentUser.qrph_url)}" alt="QR Ph" style="max-width:190px;max-height:190px;border-radius:10px;border:2px solid #C8E2F2;">`
-            : '<small style="color:#64748B;">No QR Ph image uploaded yet.</small>';
-    }
-}
-
 async function syncLandlordMetaToProperties() {
     if (!currentUser || currentUser.role !== 'landlord') return;
     try {
@@ -2201,14 +2153,6 @@ async function syncLandlordMetaToProperties() {
                     hobbies: currentUser.hobbies || '',
                     house_address: currentUser.house_address || '',
                     email: currentUser.email || '',
-                },
-                payment_info: {
-                    methods: currentUser.payment_methods || [],
-                    gcash: currentUser.payment_gcash || '',
-                    maya: currentUser.payment_maya || '',
-                    bank: currentUser.payment_bank || '',
-                    card: currentUser.payment_card || '',
-                    qrph_url: currentUser.qrph_url || '',
                 },
             });
             await window.propertyService.updateProperty(p.property_id, { description: updatedDesc });
@@ -2294,54 +2238,6 @@ async function handleSaveRoleProfile(event, role) {
         showToast(`Failed to save profile: ${error.message}`, 'error');
     } finally {
         if (btn) { btn.disabled = false; btn.textContent = role === 'landlord' ? '💾 Save Landlord Profile' : '💾 Save Tenant Profile'; }
-    }
-}
-
-async function handleSaveLandlordPayments(event) {
-    event.preventDefault();
-    if (!currentUser || currentUser.role !== 'landlord') return;
-    const btn = document.getElementById('ll-save-payments-btn');
-    if (btn) { btn.disabled = true; btn.textContent = '⏳ Saving...'; }
-
-    try {
-        const methods = Array.from(document.querySelectorAll('#landlord-payment-form input[name="ll-pay-method"]:checked')).map(cb => cb.value);
-        const payment_gcash = document.getElementById('ll-pay-gcash')?.value.trim() || '';
-        const payment_maya = document.getElementById('ll-pay-maya')?.value.trim() || '';
-        const payment_bank = document.getElementById('ll-pay-bank')?.value.trim() || '';
-        const payment_card = document.getElementById('ll-pay-card')?.value.trim() || '';
-        const qrFile = document.getElementById('ll-qrph-file')?.files?.[0];
-
-        let qrph_url = currentUser.qrph_url || '';
-        if (qrFile) {
-            if (currentUser.is_verified) {
-                try {
-                    qrph_url = await window.propertyService.uploadPropertyImage(currentUser.id, qrFile);
-                } catch {
-                    qrph_url = await compressImageToDataUrl(qrFile, 420);
-                }
-            } else {
-                qrph_url = await compressImageToDataUrl(qrFile, 420);
-            }
-        }
-
-        const updatedAuthUser = await window.authService.updateUserMetadata({
-            payment_methods: methods,
-            payment_gcash,
-            payment_maya,
-            payment_bank,
-            payment_card,
-            qrph_url,
-        });
-
-        currentUser = normalizeUserProfile(currentUser, updatedAuthUser);
-        populateLandlordPaymentForm();
-        await syncLandlordMetaToProperties();
-        showToast('Payment methods & QR Ph saved and synced to your listings! 💳', 'success');
-    } catch (error) {
-        console.error('Save payment methods error:', error);
-        showToast(`Failed to save payment methods: ${error.message}`, 'error');
-    } finally {
-        if (btn) { btn.disabled = false; btn.textContent = '💾 Save Payment Methods'; }
     }
 }
 
@@ -2459,14 +2355,14 @@ async function openAdminUserDetails(userId) {
                 window.complaintService.getMyComplaints(userId).catch(() => []),
             ]);
 
-            // Extract extended landlord profile & payment info stored in their listing metadata (if any)
+            // Extract extended landlord profile stored in their listing metadata (if any)
             let extProfile = null;
-            let extPayment = null;
             for (const p of props) {
                 const { meta } = parsePropertyDescription(p.description);
-                if (!extProfile && meta?.landlord_profile) extProfile = meta.landlord_profile;
-                if (!extPayment && meta?.payment_info) extPayment = meta.payment_info;
-                if (extProfile && extPayment) break;
+                if (!extProfile && meta?.landlord_profile) {
+                    extProfile = meta.landlord_profile;
+                    break;
+                }
             }
 
             const avgRating = reviews.length
@@ -2476,14 +2372,6 @@ async function openAdminUserDetails(userId) {
             const avatarHtml = extProfile?.avatar_url
                 ? `<img src="${escapeHtml(extProfile.avatar_url)}" alt="${escapeHtml(user.full_name)}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:2.5px solid #0F4C81;flex-shrink:0;">`
                 : `<div style="width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#0F4C81,#0288D1);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:22px;flex-shrink:0;">${escapeHtml(initials)}</div>`;
-
-            const paymentLines = [];
-            if (extPayment?.gcash) paymentLines.push(`GCash: ${escapeHtml(extPayment.gcash)}`);
-            if (extPayment?.maya) paymentLines.push(`Maya: ${escapeHtml(extPayment.maya)}`);
-            if (extPayment?.bank_name || extPayment?.bank_account) {
-                paymentLines.push(`Bank: ${escapeHtml([extPayment.bank_name, extPayment.bank_account].filter(Boolean).join(' · '))}`);
-            }
-            if (extPayment?.credit_card) paymentLines.push(`Card: ${escapeHtml(extPayment.credit_card)}`);
 
             bodyEl.innerHTML = `
                 <div style="display:flex;align-items:center;gap:16px;padding:16px;background:#FAF8F5;border:1.5px solid #EAE5DC;border-radius:14px;margin-bottom:16px;flex-wrap:wrap;">
@@ -2529,7 +2417,6 @@ async function openAdminUserDetails(userId) {
                         <div><strong style="color:#64748B;">Hobbies / Interests:</strong><br>${escapeHtml(extProfile?.hobbies || 'Not provided')}</div>
                     </div>
                     ${extProfile?.bio ? `<div style="margin-top:10px;padding-top:10px;border-top:1px solid #F1ECE3;font-size:13.5px;color:#334155;"><strong style="color:#64748B;">About Me:</strong><p style="margin:4px 0 0;">${escapeHtml(extProfile.bio)}</p></div>` : ''}
-                    ${paymentLines.length ? `<div style="margin-top:10px;padding-top:10px;border-top:1px solid #F1ECE3;font-size:13.5px;color:#334155;"><strong style="color:#64748B;">Configured Payment Modes:</strong><div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:6px;">${paymentLines.map(line => `<span style="background:#F8FAFC;border:1px solid #E2E8F0;padding:4px 10px;border-radius:8px;font-size:12px;">💳 ${line}</span>`).join('')}</div></div>` : ''}
                 </div>
 
                 <div style="background:#FFFFFF;border:1.5px solid #EAE5DC;border-radius:12px;padding:16px;margin-bottom:16px;">
