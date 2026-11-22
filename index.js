@@ -1291,11 +1291,9 @@ async function openPropertyDetails(propertyId) {
                </div>`
             : '';
 
-        const llProfile = meta.landlord_profile || {};
         const llName = meta.contact_name || property.landlord?.full_name || 'Property Owner';
         const llPhone = meta.contact_phone || property.landlord?.phone || '';
-        const llEmail = llProfile.email || property.landlord?.email || '';
-        const llAvatar = llProfile.avatar_url || '';
+        const llEmail = property.landlord?.email || '';
         const llInitials = llName.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'L';
 
         const isWishlisted = currentUser?.role === 'tenant' && isInWishlist(property.property_id);
@@ -1319,7 +1317,7 @@ async function openPropertyDetails(propertyId) {
                 <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.05em;color:#64748B;margin-bottom:10px;">👤 Property Manager / Landlord Information</div>
                 <div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;">
                     <div style="width:56px;height:56px;border-radius:50%;overflow:hidden;background:linear-gradient(135deg,#0F4C81,#0288D1);color:#fff;font-weight:800;font-size:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                        ${llAvatar ? `<img src="${escapeHtml(llAvatar)}" alt="${escapeHtml(llName)}" style="width:100%;height:100%;object-fit:cover;">` : escapeHtml(llInitials)}
+                        ${escapeHtml(llInitials)}
                     </div>
                     <div style="flex:1;min-width:200px;font-size:14px;color:#334155;line-height:1.65;">
                         <div style="font-size:16px;font-weight:700;color:#1E293B;">
@@ -1328,9 +1326,6 @@ async function openPropertyDetails(propertyId) {
                         </div>
                         ${llPhone ? `<div>📞 <strong>Contact:</strong> ${escapeHtml(llPhone)}</div>` : ''}
                         ${llEmail ? `<div>📧 <strong>Email:</strong> ${escapeHtml(llEmail)}</div>` : ''}
-                        ${llProfile.house_address ? `<div>🏡 <strong>Address:</strong> ${escapeHtml(llProfile.house_address)}</div>` : ''}
-                        ${llProfile.bio ? `<div style="margin-top:6px;color:#475569;">ℹ️ ${escapeHtml(llProfile.bio)}</div>` : ''}
-                        ${llProfile.hobbies ? `<div style="margin-top:4px;font-size:13px;color:#64748B;">🎯 <strong>Hobbies:</strong> ${escapeHtml(llProfile.hobbies)}</div>` : ''}
                         ${meta.social_link ? `<div style="margin-top:10px;"><a href="${escapeHtml(normalizeSafeUrl(meta.social_link))}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;background:#1877F2;color:#FFFFFF;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;">💬 Open Facebook / Messenger ↗</a></div>` : ''}
                     </div>
                 </div>
@@ -1947,13 +1942,6 @@ async function handlePostProperty(event) {
         contact_name: document.getElementById('contact-name')?.value.trim() || '',
         contact_phone: document.getElementById('contact-number')?.value.trim() || '',
         social_link: document.getElementById('contact-social-link')?.value.trim() || '',
-        landlord_profile: {
-            avatar_url: currentUser.avatar_url || '',
-            bio: currentUser.bio || '',
-            hobbies: currentUser.hobbies || '',
-            house_address: currentUser.house_address || '',
-            email: currentUser.email || '',
-        },
         approval_status: approvalStatus,
         rejection_reason: '',
         lat: document.getElementById('property-lat')?.value || '',
@@ -2230,9 +2218,20 @@ async function handleSaveRoleProfile(event, role) {
         populateRoleProfileForm(role);
 
         if (role === 'landlord') {
-            await syncLandlordMetaToProperties();
+            await window.inquiryService.syncLandlordProfileForAdmin(currentUser.id, {
+                full_name: fullName,
+                email: currentUser.email || '',
+                phone,
+                avatar_url: avatarUrl,
+                bio,
+                hobbies,
+                house_address: houseAddress,
+                verification_docs: verificationDocs,
+            });
+            showToast('Account profile saved and updated for Admin review! 🔒', 'success');
+        } else {
+            showToast('Account profile saved successfully!', 'success');
         }
-        showToast('Account profile saved successfully!', 'success');
     } catch (error) {
         console.error('Save role profile error:', error);
         showToast(`Failed to save profile: ${error.message}`, 'error');
@@ -2348,29 +2347,44 @@ async function openAdminUserDetails(userId) {
         if (titleEl) titleEl.textContent = isLandlord ? '🔑 Landlord Details' : isTenant ? '🔍 Tenant Details' : '👤 User Details';
 
         if (isLandlord) {
-            const [props, apps, reviews, complaints] = await Promise.all([
+            const [props, apps, reviews, complaints, syncedProfile] = await Promise.all([
                 window.propertyService.getLandlordProperties(userId).catch(() => []),
                 window.applicationService.getLandlordApplications(userId).catch(() => []),
                 window.reviewService.getLandlordReviews(userId).catch(() => []),
                 window.complaintService.getMyComplaints(userId).catch(() => []),
+                window.inquiryService.getLatestLandlordProfileSync(userId).catch(() => null),
             ]);
 
-            // Extract extended landlord profile stored in their listing metadata (if any)
-            let extProfile = null;
-            for (const p of props) {
-                const { meta } = parsePropertyDescription(p.description);
-                if (!extProfile && meta?.landlord_profile) {
-                    extProfile = meta.landlord_profile;
-                    break;
+            // Prefer the private Admin-only synced profile; fallback to any legacy listing metadata
+            let extProfile = syncedProfile || null;
+            if (!extProfile) {
+                for (const p of props) {
+                    const { meta } = parsePropertyDescription(p.description);
+                    if (meta?.landlord_profile) {
+                        extProfile = meta.landlord_profile;
+                        break;
+                    }
                 }
             }
+
+            const docs = extProfile?.verification_docs || {};
+            const docItems = [
+                { key: 'title_copy', label: '📜 Certified True Copy of Title' },
+                { key: 'business_permit', label: '🏢 Business Permit' },
+                { key: 'tax_receipt', label: '🧾 Real Property Tax Receipt' },
+                { key: 'valid_ids', label: '🪪 2 Valid IDs w/ 3 Specimen Signatures' },
+            ];
+            const uploadedDocCount = docItems.filter(d => Boolean(docs[d.key])).length;
 
             const avgRating = reviews.length
                 ? (reviews.reduce((sum, r) => sum + Number(r.rating || 0), 0) / reviews.length).toFixed(1)
                 : '—';
 
+            const displayFullName = extProfile?.full_name || user.full_name;
+            const displayPhone = extProfile?.phone || user.phone || 'Not provided';
+
             const avatarHtml = extProfile?.avatar_url
-                ? `<img src="${escapeHtml(extProfile.avatar_url)}" alt="${escapeHtml(user.full_name)}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:2.5px solid #0F4C81;flex-shrink:0;">`
+                ? `<img src="${escapeHtml(extProfile.avatar_url)}" alt="${escapeHtml(displayFullName)}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:2.5px solid #0F4C81;flex-shrink:0;">`
                 : `<div style="width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#0F4C81,#0288D1);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:22px;flex-shrink:0;">${escapeHtml(initials)}</div>`;
 
             bodyEl.innerHTML = `
@@ -2378,18 +2392,21 @@ async function openAdminUserDetails(userId) {
                     ${avatarHtml}
                     <div style="flex:1;min-width:200px;">
                         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
-                            <h3 style="margin:0;color:#1E293B;font-size:18px;">${escapeHtml(user.full_name)}</h3>
+                            <h3 style="margin:0;color:#1E293B;font-size:18px;">${escapeHtml(displayFullName)}</h3>
                             <span style="padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;text-transform:uppercase;color:#0F4C81;background:#EBF5FF;">Landlord</span>
                             ${user.is_verified
                                 ? '<span style="padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;color:#166534;background:#DCFCE7;">✔ Verified</span>'
                                 : '<span style="padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;color:#92400E;background:#FEF3C7;">⏳ Unverified</span>'}
                             ${statusBadgeHtml(user.status)}
                         </div>
-                        <div style="font-size:13px;color:#64748B;">Member since ${formatDate(user.created_at)}</div>
+                        <div style="font-size:13px;color:#64748B;">
+                            Member since ${formatDate(user.created_at)}
+                            ${extProfile?.updated_at ? ` · Profile updated ${formatDateTime(extProfile.updated_at)}` : ''}
+                        </div>
                     </div>
                 </div>
 
-                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px;">
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:16px;">
                     <div style="background:#FFFFFF;border:1.5px solid #EAE5DC;border-radius:12px;padding:12px;text-align:center;">
                         <div style="font-size:20px;font-weight:800;color:#0F4C81;">${props.length}</div>
                         <div style="font-size:12px;color:#64748B;">Properties</div>
@@ -2403,20 +2420,51 @@ async function openAdminUserDetails(userId) {
                         <div style="font-size:12px;color:#64748B;">${reviews.length} Review${reviews.length === 1 ? '' : 's'}</div>
                     </div>
                     <div style="background:#FFFFFF;border:1.5px solid #EAE5DC;border-radius:12px;padding:12px;text-align:center;">
-                        <div style="font-size:20px;font-weight:800;color:#B42318;">${complaints.length}</div>
-                        <div style="font-size:12px;color:#64748B;">Complaints Filed</div>
+                        <div style="font-size:20px;font-weight:800;color:${uploadedDocCount === 4 ? '#166534' : '#B54708'};">${uploadedDocCount}/4</div>
+                        <div style="font-size:12px;color:#64748B;">Verification Docs</div>
                     </div>
                 </div>
 
                 <div style="background:#FFFFFF;border:1.5px solid #EAE5DC;border-radius:12px;padding:16px;margin-bottom:16px;">
-                    <h4 style="margin:0 0 10px;color:#1E293B;font-size:14.5px;">📋 Account &amp; Profile Information</h4>
+                    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
+                        <h4 style="margin:0;color:#1E293B;font-size:14.5px;">📋 Account &amp; Profile Information</h4>
+                        <span style="background:#EEF6FA;color:#0F4C81;font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;">🔒 Visible to Admin Only</span>
+                    </div>
                     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;font-size:13.5px;color:#334155;">
                         <div><strong style="color:#64748B;">Email:</strong><br>${escapeHtml(user.email || '—')}</div>
-                        <div><strong style="color:#64748B;">Phone:</strong><br>${escapeHtml(user.phone || 'Not provided')}</div>
+                        <div><strong style="color:#64748B;">Phone:</strong><br>${escapeHtml(displayPhone)}</div>
                         <div><strong style="color:#64748B;">House Address:</strong><br>${escapeHtml(extProfile?.house_address || 'Not provided')}</div>
                         <div><strong style="color:#64748B;">Hobbies / Interests:</strong><br>${escapeHtml(extProfile?.hobbies || 'Not provided')}</div>
                     </div>
-                    ${extProfile?.bio ? `<div style="margin-top:10px;padding-top:10px;border-top:1px solid #F1ECE3;font-size:13.5px;color:#334155;"><strong style="color:#64748B;">About Me:</strong><p style="margin:4px 0 0;">${escapeHtml(extProfile.bio)}</p></div>` : ''}
+                    ${extProfile?.bio ? `<div style="margin-top:10px;padding-top:10px;border-top:1px solid #F1ECE3;font-size:13.5px;color:#334155;"><strong style="color:#64748B;">Personal Info / About Me:</strong><p style="margin:4px 0 0;">${escapeHtml(extProfile.bio)}</p></div>` : ''}
+                </div>
+
+                <div style="background:#FAF8F5;border:1.5px solid #EAE5DC;border-radius:12px;padding:16px;margin-bottom:16px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:12px;">
+                        <h4 style="margin:0;color:#0F4C81;font-size:14.5px;">📄 Verification Documents (${uploadedDocCount}/4 Uploaded)</h4>
+                        <span style="background:#EEF6FA;color:#0F4C81;font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;">🔒 Admin Verification Only</span>
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;">
+                        ${docItems.map(doc => {
+                            const url = docs[doc.key];
+                            return `
+                                <div style="background:#FFFFFF;border:1px solid #EAE5DC;border-radius:10px;padding:12px;">
+                                    <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:8px;">
+                                        <strong style="font-size:13px;color:#1E293B;">${doc.label}</strong>
+                                        ${url
+                                            ? '<span style="background:#DCFCE7;color:#166534;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:999px;">✔ Uploaded</span>'
+                                            : '<span style="background:#FEF3C7;color:#92400E;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:999px;">Missing</span>'}
+                                    </div>
+                                    ${url
+                                        ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" style="display:block;">
+                                             <img src="${escapeHtml(url)}" alt="${escapeHtml(doc.label)}" style="width:100%;max-height:140px;object-fit:cover;border-radius:8px;border:1.5px solid #C8E2F2;">
+                                             <span style="display:inline-block;margin-top:6px;font-size:12px;font-weight:600;color:#0288D1;">🔍 View Full Image ↗</span>
+                                           </a>`
+                                        : '<div style="font-size:12.5px;color:#94A3B8;padding:14px 8px;text-align:center;border:1px dashed #D8D2C7;border-radius:8px;">No document uploaded yet.</div>'}
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
                 </div>
 
                 <div style="background:#FFFFFF;border:1.5px solid #EAE5DC;border-radius:12px;padding:16px;margin-bottom:16px;">
