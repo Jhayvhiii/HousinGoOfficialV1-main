@@ -1266,19 +1266,24 @@ nav a.nav-link-active {
 .property-card-media {
     position: relative;
     overflow: hidden;
-    height: 205px;
-    background: linear-gradient(135deg, #E3F2FD 0%, #F5F5DC 100%);
+    height: 215px;
+    background: #F1F5F9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .property-card-media img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    transition: transform 0.35s ease;
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    display: block;
 }
 
 .property-card:hover .property-card-media img {
-    transform: scale(1.04);
+    transform: none;
 }
 
 .property-card-badge {

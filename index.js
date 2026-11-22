@@ -1244,12 +1244,25 @@ async function openPropertyDetails(propertyId) {
         if (titleEl) titleEl.textContent = property.title;
 
         const galleryHtml = currentModalImages.length > 0
-            ? `<div style="position:relative;margin-bottom:20px;">
-                 <img id="modal-carousel-img" src="${escapeHtml(currentModalImages[0])}" alt="${escapeHtml(property.title)}" style="width:100%;max-height:340px;object-fit:cover;border-radius:10px;">
+            ? `<div style="margin-bottom:20px;">
+                 <div style="position:relative;width:100%;height:360px;background:#F1F5F9;border:1.5px solid #EAE5DC;border-radius:12px;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+                   <a id="modal-carousel-link" href="${escapeHtml(currentModalImages[0])}" target="_blank" rel="noopener noreferrer" title="Open full photo" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">
+                     <img id="modal-carousel-img" src="${escapeHtml(currentModalImages[0])}" alt="${escapeHtml(property.title)}" style="max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;display:block;">
+                   </a>
+                   ${currentModalImages.length > 1 ? `
+                     <button type="button" onclick="prevModalImage()" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.92);border:1px solid #D8D2C7;border-radius:50%;width:38px;height:38px;font-size:20px;color:#0F4C81;cursor:pointer;box-shadow:0 2px 8px rgba(15,23,42,0.12);">‹</button>
+                     <button type="button" onclick="nextModalImage()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.92);border:1px solid #D8D2C7;border-radius:50%;width:38px;height:38px;font-size:20px;color:#0F4C81;cursor:pointer;box-shadow:0 2px 8px rgba(15,23,42,0.12);">›</button>
+                     <div id="modal-carousel-counter" style="position:absolute;bottom:10px;right:14px;background:rgba(15,23,42,0.72);color:#fff;padding:4px 11px;border-radius:999px;font-size:12px;font-weight:600;">1 / ${currentModalImages.length}</div>
+                   ` : ''}
+                 </div>
                  ${currentModalImages.length > 1 ? `
-                   <button onclick="prevModalImage()" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.9);border:none;border-radius:50%;width:38px;height:38px;font-size:18px;cursor:pointer;">‹</button>
-                   <button onclick="nextModalImage()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.9);border:none;border-radius:50%;width:38px;height:38px;font-size:18px;cursor:pointer;">›</button>
-                   <div id="modal-carousel-counter" style="position:absolute;bottom:10px;right:14px;background:rgba(0,0,0,0.6);color:#fff;padding:3px 10px;border-radius:999px;font-size:12px;">1 / ${currentModalImages.length}</div>
+                   <div id="modal-carousel-thumbs" style="display:flex;gap:8px;margin-top:10px;overflow-x:auto;padding-bottom:4px;">
+                     ${currentModalImages.map((imgUrl, idx) => `
+                       <button type="button" onclick="selectModalImage(${idx})" data-thumb-idx="${idx}" style="flex:0 0 auto;width:64px;height:52px;padding:2px;border-radius:8px;border:2px solid ${idx === 0 ? '#0F4C81' : '#EAE5DC'};background:#F8FAFC;cursor:pointer;overflow:hidden;display:flex;align-items:center;justify-content:center;">
+                         <img src="${escapeHtml(imgUrl)}" alt="Photo ${idx + 1}" style="max-width:100%;max-height:100%;object-fit:contain;">
+                       </button>
+                     `).join('')}
+                   </div>
                  ` : ''}
                </div>`
             : `<div style="width:100%;height:200px;background:linear-gradient(135deg,#ADD8E6,#E8F6FB);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:60px;margin-bottom:20px;">🏠</div>`;
@@ -1396,22 +1409,28 @@ async function openPropertyDetails(propertyId) {
     }
 }
 
-function nextModalImage() {
+function selectModalImage(index) {
     if (!currentModalImages.length) return;
-    modalCurrentImageIndex = (modalCurrentImageIndex + 1) % currentModalImages.length;
+    modalCurrentImageIndex = ((index % currentModalImages.length) + currentModalImages.length) % currentModalImages.length;
+    const url = currentModalImages[modalCurrentImageIndex];
     const img = document.getElementById('modal-carousel-img');
+    const link = document.getElementById('modal-carousel-link');
     const ctr = document.getElementById('modal-carousel-counter');
-    if (img) img.src = currentModalImages[modalCurrentImageIndex];
+    if (img) img.src = url;
+    if (link) link.href = url;
     if (ctr) ctr.textContent = `${modalCurrentImageIndex + 1} / ${currentModalImages.length}`;
+    document.querySelectorAll('#modal-carousel-thumbs [data-thumb-idx]').forEach(btn => {
+        const isSelected = Number(btn.getAttribute('data-thumb-idx')) === modalCurrentImageIndex;
+        btn.style.borderColor = isSelected ? '#0F4C81' : '#EAE5DC';
+    });
+}
+
+function nextModalImage() {
+    selectModalImage(modalCurrentImageIndex + 1);
 }
 
 function prevModalImage() {
-    if (!currentModalImages.length) return;
-    modalCurrentImageIndex = (modalCurrentImageIndex - 1 + currentModalImages.length) % currentModalImages.length;
-    const img = document.getElementById('modal-carousel-img');
-    const ctr = document.getElementById('modal-carousel-counter');
-    if (img) img.src = currentModalImages[modalCurrentImageIndex];
-    if (ctr) ctr.textContent = `${modalCurrentImageIndex + 1} / ${currentModalImages.length}`;
+    selectModalImage(modalCurrentImageIndex - 1);
 }
 
 async function applyForProperty(propertyId) {
