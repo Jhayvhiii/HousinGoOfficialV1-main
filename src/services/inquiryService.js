@@ -72,24 +72,38 @@ export const inquiryService = {
 
   /**
    * Private Admin-only sync for Landlord Account Profile edits (including verification docs).
-   * Stored in inquiries addressed to Admin users so Tenants cannot read it under RLS.
+   * Stored in inquiries addressed to Admin users so Tenants cannot read it under RLS,
+   * and mirrored to localStorage as an instant fallback.
    */
   async syncLandlordProfileForAdmin(landlordId, profilePayload) {
-    if (!landlordId) return null;
+    if (!landlordId) return { ok: false, payload: null };
+    const payload = {
+      ...profilePayload,
+      updated_at: new Date().toISOString(),
+    };
+
+    // Always mirror locally keyed by landlordId as a fast fallback
+    try {
+      const storeKey = 'housingo_landlord_admin_profiles_v1';
+      const existing = JSON.parse(localStorage.getItem(storeKey) || '{}');
+      existing[landlordId] = payload;
+      localStorage.setItem(storeKey, JSON.stringify(existing));
+    } catch {
+      // ignore storage quota errors
+    }
+
     const supabase = getClient();
     const { data: admins, error: adminErr } = await supabase
       .from('profiles')
       .select('id')
       .eq('role', 'admin');
 
-    if (adminErr || !admins || admins.length === 0) return null;
+    if (adminErr || !admins || admins.length === 0) {
+      console.warn('No admin profile visible for landlord sync:', adminErr);
+      return { ok: false, payload, reason: 'no_admin_visible' };
+    }
 
-    const payload = {
-      ...profilePayload,
-      updated_at: new Date().toISOString(),
-    };
     const encoded = `${LANDLORD_PROFILE_SYNC_PREFIX}${JSON.stringify(payload)}`;
-
     const rows = admins
       .filter(a => a.id && a.id !== landlordId)
       .map(a => ({
@@ -100,39 +114,57 @@ export const inquiryService = {
         date_sent: payload.updated_at,
       }));
 
-    if (!rows.length) return null;
+    if (!rows.length) return { ok: false, payload, reason: 'no_target_admin' };
 
     const { error } = await supabase.from('inquiries').insert(rows);
     if (error) {
-      console.warn('Could not sync landlord profile to admin:', error);
-      return null;
+      console.warn('Could not sync landlord profile to admin inquiries:', error);
+      return { ok: false, payload, reason: error.message };
     }
-    return payload;
+    return { ok: true, payload };
   },
 
   /**
    * Fetch the latest Admin-only synced Account Profile for a Landlord.
+   * Checks Supabase inquiries first and compares timestamps with local fallback.
    */
   async getLatestLandlordProfileSync(landlordId) {
     if (!landlordId) return null;
-    const supabase = getClient();
-    const { data, error } = await supabase
-      .from('inquiries')
-      .select('message, date_sent')
-      .eq('sender_id', landlordId)
-      .like('message', `${LANDLORD_PROFILE_SYNC_PREFIX}%`)
-      .order('date_sent', { ascending: false })
-      .limit(1);
-
-    if (error || !data || data.length === 0) return null;
+    let remoteProfile = null;
+    let localProfile = null;
 
     try {
-      const raw = (data[0].message || '').slice(LANDLORD_PROFILE_SYNC_PREFIX.length);
-      const parsed = JSON.parse(raw);
-      return { ...parsed, updated_at: parsed.updated_at || data[0].date_sent };
+      const store = JSON.parse(localStorage.getItem('housingo_landlord_admin_profiles_v1') || '{}');
+      if (store && store[landlordId]) localProfile = store[landlordId];
     } catch {
-      return null;
+      localProfile = null;
     }
+
+    try {
+      const supabase = getClient();
+      const { data, error } = await supabase
+        .from('inquiries')
+        .select('message, date_sent')
+        .eq('sender_id', landlordId)
+        .like('message', `${LANDLORD_PROFILE_SYNC_PREFIX}%`)
+        .order('date_sent', { ascending: false })
+        .limit(1);
+
+      if (!error && data && data.length > 0) {
+        const raw = (data[0].message || '').slice(LANDLORD_PROFILE_SYNC_PREFIX.length);
+        const parsed = JSON.parse(raw);
+        remoteProfile = { ...parsed, updated_at: parsed.updated_at || data[0].date_sent };
+      }
+    } catch (err) {
+      console.warn('Could not fetch remote landlord profile sync:', err);
+    }
+
+    if (remoteProfile && localProfile) {
+      return new Date(localProfile.updated_at || 0) > new Date(remoteProfile.updated_at || 0)
+        ? localProfile
+        : remoteProfile;
+    }
+    return remoteProfile || localProfile || null;
   },
 
   /**

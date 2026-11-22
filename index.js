@@ -1612,13 +1612,26 @@ async function loadLandlordDashboard() {
     populateRoleProfileForm('landlord');
 
     try {
-        const [properties, summary, applications, inquiries, feedback] = await Promise.all([
+        const [properties, summary, applications, inquiries, feedback, syncedSelfProfile] = await Promise.all([
             window.propertyService.getLandlordProperties(currentUser.id),
             window.propertyService.getLandlordSummary(currentUser.id),
             window.applicationService.getLandlordApplications(currentUser.id),
             window.inquiryService.getUserInquiries(currentUser.id),
             window.reviewService.getLandlordReviews(currentUser.id).catch(() => []),
+            window.inquiryService.getLatestLandlordProfileSync(currentUser.id).catch(() => null),
         ]);
+
+        if (syncedSelfProfile) {
+            currentUser = {
+                ...currentUser,
+                avatar_url: syncedSelfProfile.avatar_url ?? currentUser.avatar_url ?? '',
+                bio: syncedSelfProfile.bio ?? currentUser.bio ?? '',
+                hobbies: syncedSelfProfile.hobbies ?? currentUser.hobbies ?? '',
+                house_address: syncedSelfProfile.house_address ?? currentUser.house_address ?? '',
+                verification_docs: syncedSelfProfile.verification_docs || currentUser.verification_docs || {},
+            };
+            populateRoleProfileForm('landlord');
+        }
 
         if (fbEl) {
             if (!feedback.length) {
@@ -2113,7 +2126,7 @@ async function renderTenantWishlistTab(wishlistIds) {
     el.innerHTML = items.map(renderPropertyCard).join('');
 }
 
-function compressImageToDataUrl(file, maxSize = 480) {
+function compressImageToDataUrl(file, maxSize = 480, quality = 0.72) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onerror = () => reject(new Error('Failed to read image file.'));
@@ -2126,12 +2139,77 @@ function compressImageToDataUrl(file, maxSize = 480) {
                 canvas.width = Math.max(1, Math.round(img.width * scale));
                 canvas.height = Math.max(1, Math.round(img.height * scale));
                 canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-                resolve(canvas.toDataURL('image/jpeg', 0.82));
+                resolve(canvas.toDataURL('image/jpeg', quality));
             };
             img.src = ev.target.result;
         };
         reader.readAsDataURL(file);
     });
+}
+
+async function uploadLandlordAssetImage(file, fallbackMaxSize = 360) {
+    if (!file) return '';
+    try {
+        return await window.propertyService.uploadPropertyImage(currentUser.id, file);
+    } catch {
+        return await compressImageToDataUrl(file, fallbackMaxSize, 0.65);
+    }
+}
+
+async function persistLandlordProfileAndSync({ fullName, phone, avatarUrl, bio, hobbies, houseAddress, verificationDocs }) {
+    const updatedProfile = await window.authService.updateProfile(currentUser.id, {
+        full_name: fullName,
+        phone,
+    });
+
+    // Save text fields & Storage URLs to Auth metadata safely (avoiding JWT size overflow for base64 docs)
+    const compactDocsForAuth = {};
+    Object.entries(verificationDocs || {}).forEach(([k, v]) => {
+        if (typeof v === 'string' && !v.startsWith('data:')) {
+            compactDocsForAuth[k] = v;
+        }
+    });
+    const safeAvatarForAuth = typeof avatarUrl === 'string' && !avatarUrl.startsWith('data:') ? avatarUrl : '';
+
+    let updatedAuthUser = null;
+    try {
+        updatedAuthUser = await window.authService.updateUserMetadata({
+            full_name: fullName,
+            phone,
+            avatar_url: safeAvatarForAuth,
+            bio,
+            hobbies,
+            house_address: houseAddress,
+            verification_docs: compactDocsForAuth,
+        });
+    } catch (metaErr) {
+        console.warn('Auth metadata update warning (non-blocking):', metaErr);
+    }
+
+    // Always sync full profile + all verification docs (including data URLs if Storage wasn't used) to Admin
+    const syncPayload = {
+        full_name: fullName,
+        email: currentUser.email || '',
+        phone,
+        avatar_url: avatarUrl || '',
+        bio: bio || '',
+        hobbies: hobbies || '',
+        house_address: houseAddress || '',
+        verification_docs: verificationDocs || {},
+    };
+    const syncRes = await window.inquiryService.syncLandlordProfileForAdmin(currentUser.id, syncPayload);
+
+    currentUser = {
+        ...normalizeUserProfile(updatedProfile, updatedAuthUser || { id: currentUser.id, email: currentUser.email }),
+        avatar_url: avatarUrl || '',
+        bio: bio || '',
+        hobbies: hobbies || '',
+        house_address: houseAddress || '',
+        verification_docs: verificationDocs || {},
+    };
+    updateNavForLoggedInUser();
+    populateRoleProfileForm('landlord');
+    return syncRes;
 }
 
 function populateRoleProfileForm(role) {
@@ -2246,19 +2324,13 @@ async function handleSaveRoleProfile(event, role) {
 
         let avatarUrl = currentUser.avatar_url || '';
         if (photoFile) {
-            if (role === 'landlord' && currentUser.is_verified) {
-                try {
-                    avatarUrl = await window.propertyService.uploadPropertyImage(currentUser.id, photoFile);
-                } catch {
-                    avatarUrl = await compressImageToDataUrl(photoFile, 240);
-                }
-            } else {
-                avatarUrl = await compressImageToDataUrl(photoFile, 240);
-            }
+            avatarUrl = role === 'landlord'
+                ? await uploadLandlordAssetImage(photoFile, 240)
+                : await compressImageToDataUrl(photoFile, 240, 0.72);
         }
 
-        const verificationDocs = { ...(currentUser.verification_docs || {}) };
         if (role === 'landlord') {
+            const verificationDocs = { ...(currentUser.verification_docs || {}) };
             const docInputs = [
                 { id: 'll-doc-title', key: 'title_copy' },
                 { id: 'll-doc-business-permit', key: 'business_permit' },
@@ -2268,58 +2340,140 @@ async function handleSaveRoleProfile(event, role) {
             for (const item of docInputs) {
                 const file = document.getElementById(item.id)?.files?.[0];
                 if (file) {
-                    if (currentUser.is_verified) {
-                        try {
-                            verificationDocs[item.key] = await window.propertyService.uploadPropertyImage(currentUser.id, file);
-                        } catch {
-                            verificationDocs[item.key] = await compressImageToDataUrl(file, 420);
-                        }
-                    } else {
-                        verificationDocs[item.key] = await compressImageToDataUrl(file, 420);
-                    }
+                    verificationDocs[item.key] = await uploadLandlordAssetImage(file, 360);
                 }
             }
-        }
 
-        const updatedProfile = await window.authService.updateProfile(currentUser.id, { full_name: fullName, phone });
-        const updatedAuthUser = await window.authService.updateUserMetadata({
-            full_name: fullName,
-            phone,
-            avatar_url: avatarUrl,
-            bio,
-            hobbies,
-            house_address: houseAddress,
-            ...(role === 'landlord' ? { verification_docs: verificationDocs } : {}),
-        });
-
-        currentUser = normalizeUserProfile(updatedProfile, updatedAuthUser);
-        updateNavForLoggedInUser();
-        populateRoleProfileForm(role);
-
-        if (role === 'landlord') {
+            await persistLandlordProfileAndSync({
+                fullName,
+                phone,
+                avatarUrl,
+                bio,
+                hobbies,
+                houseAddress,
+                verificationDocs,
+            });
             ['ll-profile-photo', 'll-doc-title', 'll-doc-business-permit', 'll-doc-tax-receipt', 'll-doc-valid-ids'].forEach(id => {
                 const inp = document.getElementById(id);
                 if (inp) inp.value = '';
             });
-            await window.inquiryService.syncLandlordProfileForAdmin(currentUser.id, {
+            showToast('Landlord profile & documents saved and reflected in Admin! 🔒', 'success');
+        } else {
+            const updatedProfile = await window.authService.updateProfile(currentUser.id, { full_name: fullName, phone });
+            const updatedAuthUser = await window.authService.updateUserMetadata({
                 full_name: fullName,
-                email: currentUser.email || '',
                 phone,
                 avatar_url: avatarUrl,
                 bio,
                 hobbies,
                 house_address: houseAddress,
-                verification_docs: verificationDocs,
             });
-            showToast('Account profile saved and updated for Admin review! 🔒', 'success');
-        } else {
+            currentUser = normalizeUserProfile(updatedProfile, updatedAuthUser);
+            updateNavForLoggedInUser();
+            populateRoleProfileForm(role);
             showToast('Account profile saved successfully!', 'success');
         }
     } catch (error) {
         console.error('Save role profile error:', error);
         showToast(`Failed to save profile: ${error.message}`, 'error');
     } finally {
-        if (btn) { btn.disabled = false; btn.textContent = role === 'landlord' ? '💾 Save' : '💾 Save Tenant Profile'; }
+        if (btn) { btn.disabled = false; btn.textContent = role === 'landlord' ? '💾 Save Landlord Profile' : '💾 Save Tenant Profile'; }
+    }
+}
+
+async function handleSaveLandlordDocs() {
+    if (!currentUser || currentUser.role !== 'landlord') return;
+    const btn = document.getElementById('ll-save-docs-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Saving...'; }
+
+    try {
+        const docInputs = [
+            { id: 'll-doc-title', key: 'title_copy' },
+            { id: 'll-doc-business-permit', key: 'business_permit' },
+            { id: 'll-doc-tax-receipt', key: 'tax_receipt' },
+            { id: 'll-doc-valid-ids', key: 'valid_ids' },
+        ];
+        const verificationDocs = { ...(currentUser.verification_docs || {}) };
+        let newlyAdded = 0;
+
+        for (const item of docInputs) {
+            const file = document.getElementById(item.id)?.files?.[0];
+            if (file) {
+                verificationDocs[item.key] = await uploadLandlordAssetImage(file, 360);
+                newlyAdded++;
+            }
+        }
+
+        const fullName = document.getElementById('ll-profile-name')?.value.trim() || currentUser.full_name;
+        const phone = document.getElementById('ll-profile-phone')?.value.trim() || currentUser.phone || '';
+        const bio = document.getElementById('ll-profile-bio')?.value.trim() || currentUser.bio || '';
+        const hobbies = document.getElementById('ll-profile-hobbies')?.value.trim() || currentUser.hobbies || '';
+        const houseAddress = document.getElementById('ll-profile-address')?.value.trim() || currentUser.house_address || '';
+
+        await persistLandlordProfileAndSync({
+            fullName,
+            phone,
+            avatarUrl: currentUser.avatar_url || '',
+            bio,
+            hobbies,
+            houseAddress,
+            verificationDocs,
+        });
+
+        docInputs.forEach(({ id }) => {
+            const inp = document.getElementById(id);
+            if (inp) inp.value = '';
+        });
+
+        showToast(
+            newlyAdded > 0
+                ? `${newlyAdded} verification document${newlyAdded > 1 ? 's' : ''} saved and visible to Admin! 🔒`
+                : 'Verification documents & profile synced to Admin! 🔒',
+            'success'
+        );
+    } catch (error) {
+        console.error('Save landlord docs error:', error);
+        showToast(`Failed to save documents: ${error.message}`, 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '💾 Save Documents'; }
+    }
+}
+
+async function handleDeleteAllLandlordDocs() {
+    if (!currentUser || currentUser.role !== 'landlord') return;
+    if (!confirm('Delete all uploaded verification documents? This will also clear them from Admin review.')) return;
+
+    const btn = document.getElementById('ll-delete-docs-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Deleting...'; }
+
+    try {
+        const fullName = document.getElementById('ll-profile-name')?.value.trim() || currentUser.full_name;
+        const phone = document.getElementById('ll-profile-phone')?.value.trim() || currentUser.phone || '';
+        const bio = document.getElementById('ll-profile-bio')?.value.trim() || currentUser.bio || '';
+        const hobbies = document.getElementById('ll-profile-hobbies')?.value.trim() || currentUser.hobbies || '';
+        const houseAddress = document.getElementById('ll-profile-address')?.value.trim() || currentUser.house_address || '';
+
+        await persistLandlordProfileAndSync({
+            fullName,
+            phone,
+            avatarUrl: currentUser.avatar_url || '',
+            bio,
+            hobbies,
+            houseAddress,
+            verificationDocs: {},
+        });
+
+        ['ll-doc-title', 'll-doc-business-permit', 'll-doc-tax-receipt', 'll-doc-valid-ids'].forEach(id => {
+            const inp = document.getElementById(id);
+            if (inp) inp.value = '';
+        });
+
+        showToast('All verification documents deleted and updated in Admin.', 'info');
+    } catch (error) {
+        console.error('Delete landlord docs error:', error);
+        showToast(`Failed to delete documents: ${error.message}`, 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '🗑️ Delete Documents'; }
     }
 }
 
@@ -2327,21 +2481,16 @@ async function deleteLandlordProfilePhoto() {
     if (!currentUser || currentUser.role !== 'landlord') return;
     if (!confirm('Remove your saved profile photo? This will also update what Admin sees.')) return;
     try {
-        const updatedAuthUser = await window.authService.updateUserMetadata({ avatar_url: '' });
-        currentUser = normalizeUserProfile(currentUser, updatedAuthUser);
         const photoInp = document.getElementById('ll-profile-photo');
         if (photoInp) photoInp.value = '';
-        updateNavForLoggedInUser();
-        populateRoleProfileForm('landlord');
-        await window.inquiryService.syncLandlordProfileForAdmin(currentUser.id, {
-            full_name: currentUser.full_name || '',
-            email: currentUser.email || '',
+        await persistLandlordProfileAndSync({
+            fullName: currentUser.full_name || '',
             phone: currentUser.phone || '',
-            avatar_url: '',
+            avatarUrl: '',
             bio: currentUser.bio || '',
             hobbies: currentUser.hobbies || '',
-            house_address: currentUser.house_address || '',
-            verification_docs: currentUser.verification_docs || {},
+            houseAddress: currentUser.house_address || '',
+            verificationDocs: currentUser.verification_docs || {},
         });
         showToast('Profile photo deleted and updated for Admin.', 'info');
     } catch (error) {
@@ -2355,64 +2504,18 @@ async function deleteLandlordVerificationDoc(docKey) {
     try {
         const nextDocs = { ...(currentUser.verification_docs || {}) };
         delete nextDocs[docKey];
-        const updatedAuthUser = await window.authService.updateUserMetadata({ verification_docs: nextDocs });
-        currentUser = normalizeUserProfile(currentUser, updatedAuthUser);
-        populateRoleProfileForm('landlord');
-        await window.inquiryService.syncLandlordProfileForAdmin(currentUser.id, {
-            full_name: currentUser.full_name || '',
-            email: currentUser.email || '',
+        await persistLandlordProfileAndSync({
+            fullName: currentUser.full_name || '',
             phone: currentUser.phone || '',
-            avatar_url: currentUser.avatar_url || '',
+            avatarUrl: currentUser.avatar_url || '',
             bio: currentUser.bio || '',
             hobbies: currentUser.hobbies || '',
-            house_address: currentUser.house_address || '',
-            verification_docs: nextDocs,
+            houseAddress: currentUser.house_address || '',
+            verificationDocs: nextDocs,
         });
         showToast('Verification document deleted and updated for Admin.', 'info');
     } catch (error) {
         showToast(`Failed to delete document: ${error.message}`, 'error');
-    }
-}
-
-async function handleDeleteLandlordProfile() {
-    if (!currentUser || currentUser.role !== 'landlord') return;
-    if (!confirm('Delete your saved Landlord Account Profile details (photo, address, about me, hobbies, and verification documents)? This will also clear them from Admin review.')) return;
-
-    const delBtn = document.getElementById('ll-delete-profile-btn');
-    if (delBtn) { delBtn.disabled = true; delBtn.textContent = '⏳ Deleting...'; }
-
-    try {
-        const updatedAuthUser = await window.authService.updateUserMetadata({
-            avatar_url: '',
-            bio: '',
-            hobbies: '',
-            house_address: '',
-            verification_docs: {},
-        });
-        currentUser = normalizeUserProfile(currentUser, updatedAuthUser);
-        ['ll-profile-photo', 'll-doc-title', 'll-doc-business-permit', 'll-doc-tax-receipt', 'll-doc-valid-ids'].forEach(id => {
-            const inp = document.getElementById(id);
-            if (inp) inp.value = '';
-        });
-        updateNavForLoggedInUser();
-        populateRoleProfileForm('landlord');
-
-        await window.inquiryService.syncLandlordProfileForAdmin(currentUser.id, {
-            full_name: currentUser.full_name || '',
-            email: currentUser.email || '',
-            phone: currentUser.phone || '',
-            avatar_url: '',
-            bio: '',
-            hobbies: '',
-            house_address: '',
-            verification_docs: {},
-        });
-        showToast('Landlord profile details deleted and reflected in Admin panel.', 'info');
-    } catch (error) {
-        console.error('Delete landlord profile error:', error);
-        showToast(`Failed to delete profile details: ${error.message}`, 'error');
-    } finally {
-        if (delBtn) { delBtn.disabled = false; delBtn.textContent = '🗑️ Delete'; }
     }
 }
 

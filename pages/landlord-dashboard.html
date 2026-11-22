@@ -161,6 +161,11 @@
         <div id="ll-doc-valid-ids-preview" style="margin-top: 8px;"></div>
        </div>
       </div>
+
+      <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 16px; padding-top: 14px; border-top: 1px solid #EAE5DC;">
+       <button type="button" id="ll-save-docs-btn" class="btn" onclick="handleSaveLandlordDocs()" style="padding: 10px 20px; font-size: 14px;">💾 Save Documents</button>
+       <button type="button" id="ll-delete-docs-btn" class="ll-btn-delete" onclick="handleDeleteAllLandlordDocs()" style="padding: 10px 18px; font-size: 14px;">🗑️ Delete Documents</button>
+      </div>
      </div>
 
      <div style="margin-bottom: 20px;">
@@ -168,10 +173,7 @@
       <input type="text" id="ll-profile-hobbies" placeholder="e.g., Gardening, Coffee, Cycling, Home Improvement" style="width: 100%; padding: 11px 14px; border: 1.5px solid #D8D2C7; border-radius: 10px; font-size: 15px;">
      </div>
 
-     <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
-      <button type="submit" id="ll-save-profile-btn" class="btn" style="padding: 13px 26px; font-size: 15px;">💾 Save</button>
-      <button type="button" id="ll-delete-profile-btn" class="ll-btn-delete" onclick="handleDeleteLandlordProfile()" style="padding: 13px 24px; font-size: 15px;">🗑️ Delete</button>
-     </div>
+     <button type="submit" id="ll-save-profile-btn" class="btn" style="padding: 13px 26px; font-size: 15px;">💾 Save Landlord Profile</button>
     </form>
    </div>
   </div>
