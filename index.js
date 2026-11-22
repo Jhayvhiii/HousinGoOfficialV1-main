@@ -257,6 +257,7 @@ function normalizeUserProfile(profile, authUser = null) {
         payment_card: meta.payment_card || '',
         qrph_url: meta.qrph_url || '',
         wishlist: Array.isArray(meta.wishlist) ? meta.wishlist : [],
+        verification_docs: meta.verification_docs && typeof meta.verification_docs === 'object' ? meta.verification_docs : {},
     };
 }
 
@@ -2128,7 +2129,32 @@ function populateRoleProfileForm(role) {
     setVal(`${prefix}-profile-phone`, currentUser.phone);
     setVal(`${prefix}-profile-bio`, currentUser.bio);
     setVal(`${prefix}-profile-hobbies`, currentUser.hobbies);
-    if (role === 'landlord') setVal('ll-profile-address', currentUser.house_address);
+    if (role === 'landlord') {
+        setVal('ll-profile-address', currentUser.house_address);
+        const docs = currentUser.verification_docs || {};
+        const docFields = [
+            { key: 'title_copy', previewId: 'll-doc-title-preview', label: 'Certified True Copy of Title' },
+            { key: 'business_permit', previewId: 'll-doc-business-permit-preview', label: 'Business Permit' },
+            { key: 'tax_receipt', previewId: 'll-doc-tax-receipt-preview', label: 'Real Property Tax Receipt' },
+            { key: 'valid_ids', previewId: 'll-doc-valid-ids-preview', label: '2 Valid IDs w/ 3 Specimen Signatures' },
+        ];
+        docFields.forEach(({ key, previewId, label }) => {
+            const pEl = document.getElementById(previewId);
+            if (!pEl) return;
+            if (docs[key]) {
+                pEl.innerHTML = `
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <a href="${escapeHtml(docs[key])}" target="_blank" rel="noopener noreferrer">
+                            <img src="${escapeHtml(docs[key])}" alt="${escapeHtml(label)}" style="width:58px;height:58px;object-fit:cover;border-radius:8px;border:1.5px solid #C8E2F2;">
+                        </a>
+                        <span style="font-size:12px;font-weight:700;color:#2E7D32;">✅ Uploaded</span>
+                    </div>
+                `;
+            } else {
+                pEl.innerHTML = '<small style="color:#94A3B8;">⏳ Not uploaded yet</small>';
+            }
+        });
+    }
 
     const avEl = document.getElementById(`${prefix}-profile-avatar-preview`);
     if (avEl) {
@@ -2220,6 +2246,30 @@ async function handleSaveRoleProfile(event, role) {
             }
         }
 
+        const verificationDocs = { ...(currentUser.verification_docs || {}) };
+        if (role === 'landlord') {
+            const docInputs = [
+                { id: 'll-doc-title', key: 'title_copy' },
+                { id: 'll-doc-business-permit', key: 'business_permit' },
+                { id: 'll-doc-tax-receipt', key: 'tax_receipt' },
+                { id: 'll-doc-valid-ids', key: 'valid_ids' },
+            ];
+            for (const item of docInputs) {
+                const file = document.getElementById(item.id)?.files?.[0];
+                if (file) {
+                    if (currentUser.is_verified) {
+                        try {
+                            verificationDocs[item.key] = await window.propertyService.uploadPropertyImage(currentUser.id, file);
+                        } catch {
+                            verificationDocs[item.key] = await compressImageToDataUrl(file, 420);
+                        }
+                    } else {
+                        verificationDocs[item.key] = await compressImageToDataUrl(file, 420);
+                    }
+                }
+            }
+        }
+
         const updatedProfile = await window.authService.updateProfile(currentUser.id, { full_name: fullName, phone });
         const updatedAuthUser = await window.authService.updateUserMetadata({
             full_name: fullName,
@@ -2228,6 +2278,7 @@ async function handleSaveRoleProfile(event, role) {
             bio,
             hobbies,
             house_address: houseAddress,
+            ...(role === 'landlord' ? { verification_docs: verificationDocs } : {}),
         });
 
         currentUser = normalizeUserProfile(updatedProfile, updatedAuthUser);

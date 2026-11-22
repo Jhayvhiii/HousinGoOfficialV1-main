@@ -175,9 +175,44 @@
       </div>
      </div>
 
-     <div style="margin-bottom: 16px;">
+     <div style="margin-bottom: 18px;">
       <label for="ll-profile-bio" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; color: #334155;">Personal Info / About Me</label>
       <textarea id="ll-profile-bio" rows="3" placeholder="Tell tenants a bit about yourself and how you manage your properties..." style="width: 100%; padding: 11px 14px; border: 1.5px solid #D8D2C7; border-radius: 10px; font-size: 15px; resize: vertical;"></textarea>
+     </div>
+
+     <!-- Verification Documents Section (Private — For Verification Only) -->
+     <div style="margin-bottom: 20px; background: #FAF8F5; border: 1.5px solid #EAE5DC; border-radius: 14px; padding: 18px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 6px;">
+       <h3 style="font-size: 16px; font-weight: 700; color: #0F4C81; margin: 0;">📄 Verification Documents</h3>
+       <span style="background: #EEF6FA; color: #0F4C81; font-size: 11.5px; font-weight: 700; padding: 3px 10px; border-radius: 999px;">🔒 For Admin Verification Only</span>
+      </div>
+      <p style="font-size: 13px; color: #64748B; margin: 0 0 14px;">Upload clear photos of the required documents below. These are strictly for verification and are never displayed publicly to tenants.</p>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+       <div style="background: #FFFFFF; border: 1px solid #EAE5DC; border-radius: 10px; padding: 12px;">
+        <label for="ll-doc-title" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 13.5px; color: #1E293B;">📜 Certified True Copy of Title</label>
+        <input type="file" id="ll-doc-title" accept="image/*" style="width: 100%; padding: 8px; border: 1.5px solid #D8D2C7; border-radius: 8px; font-size: 13px;">
+        <div id="ll-doc-title-preview" style="margin-top: 8px;"></div>
+       </div>
+
+       <div style="background: #FFFFFF; border: 1px solid #EAE5DC; border-radius: 10px; padding: 12px;">
+        <label for="ll-doc-business-permit" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 13.5px; color: #1E293B;">🏢 Business Permit</label>
+        <input type="file" id="ll-doc-business-permit" accept="image/*" style="width: 100%; padding: 8px; border: 1.5px solid #D8D2C7; border-radius: 8px; font-size: 13px;">
+        <div id="ll-doc-business-permit-preview" style="margin-top: 8px;"></div>
+       </div>
+
+       <div style="background: #FFFFFF; border: 1px solid #EAE5DC; border-radius: 10px; padding: 12px;">
+        <label for="ll-doc-tax-receipt" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 13.5px; color: #1E293B;">🧾 Real Property Tax Receipt</label>
+        <input type="file" id="ll-doc-tax-receipt" accept="image/*" style="width: 100%; padding: 8px; border: 1.5px solid #D8D2C7; border-radius: 8px; font-size: 13px;">
+        <div id="ll-doc-tax-receipt-preview" style="margin-top: 8px;"></div>
+       </div>
+
+       <div style="background: #FFFFFF; border: 1px solid #EAE5DC; border-radius: 10px; padding: 12px;">
+        <label for="ll-doc-valid-ids" style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 13.5px; color: #1E293B;">🪪 2 Valid IDs w/ 3 Specimen Signatures</label>
+        <input type="file" id="ll-doc-valid-ids" accept="image/*" style="width: 100%; padding: 8px; border: 1.5px solid #D8D2C7; border-radius: 8px; font-size: 13px;">
+        <div id="ll-doc-valid-ids-preview" style="margin-top: 8px;"></div>
+       </div>
+      </div>
      </div>
 
      <div style="margin-bottom: 20px;">
