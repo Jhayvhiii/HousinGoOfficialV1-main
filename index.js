@@ -1878,6 +1878,7 @@ function openCreatePropertyForm() {
         return showToast('Your landlord account is pending admin verification.', 'warning');
     }
     editingExistingImageUrls = [];
+    pendingPropertyImageFiles = [];
     const editId = document.getElementById('edit-property-id');
     if (editId) editId.value = '';
     const heading = document.getElementById('post-property-heading');
@@ -1893,6 +1894,7 @@ function openCreatePropertyForm() {
     if (pinLbl) pinLbl.textContent = 'Click anywhere on the map to pin the address (auto-fills Google Maps link)';
     const preview = document.getElementById('image-preview');
     if (preview) preview.innerHTML = '';
+    updatePropertyImagesCountLabel();
     showPage('post-property');
 }
 
@@ -1901,6 +1903,7 @@ async function openEditPropertyForm(propertyId) {
         const prop = await window.propertyService.getPropertyById(propertyId);
         const { text: cleanDesc, meta } = parsePropertyDescription(prop.description);
         editingExistingImageUrls = Array.isArray(prop.image_urls) ? [...prop.image_urls] : [];
+        pendingPropertyImageFiles = [];
         showPage('post-property');
 
         const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v ?? ''; };
@@ -1948,19 +1951,47 @@ async function openEditPropertyForm(propertyId) {
     }
 }
 
+let pendingPropertyImageFiles = [];
+
+function updatePropertyImagesCountLabel() {
+    const lbl = document.getElementById('property-images-count');
+    if (!lbl) return;
+    const total = editingExistingImageUrls.length + pendingPropertyImageFiles.length;
+    if (total === 0) {
+        lbl.textContent = 'No files added yet';
+    } else {
+        lbl.textContent = `${total} file${total > 1 ? 's' : ''} added`;
+    }
+}
+
 function renderExistingImagePreview() {
     const preview = document.getElementById('image-preview');
     if (!preview) return;
-    preview.innerHTML = editingExistingImageUrls.map((url, idx) => `
-        <div style="position:relative;">
-            <img src="${escapeHtml(url)}" style="width:100%;height:95px;object-fit:cover;border-radius:8px;border:2px solid #ADD8E6;">
+    const existingHtml = editingExistingImageUrls.map((url, idx) => `
+        <div style="position:relative;background:#F1F5F9;border-radius:8px;border:1.5px solid #C8E2F2;height:95px;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+            <img src="${escapeHtml(url)}" style="max-width:100%;max-height:100%;object-fit:contain;">
             <button type="button" onclick="removeEditingImage(${idx})" style="position:absolute;top:4px;right:4px;background:#FF6B6B;color:#fff;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:12px;">×</button>
         </div>
     `).join('');
+
+    const pendingHtml = pendingPropertyImageFiles.map((item, idx) => `
+        <div style="position:relative;background:#F1F5F9;border-radius:8px;border:1.5px solid #0288D1;height:95px;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+            <img src="${item.previewUrl}" style="max-width:100%;max-height:100%;object-fit:contain;">
+            <button type="button" onclick="removePendingPropertyImage(${idx})" style="position:absolute;top:4px;right:4px;background:#FF6B6B;color:#fff;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:12px;">×</button>
+        </div>
+    `).join('');
+
+    preview.innerHTML = existingHtml + pendingHtml;
+    updatePropertyImagesCountLabel();
 }
 
 function removeEditingImage(index) {
     editingExistingImageUrls.splice(index, 1);
+    renderExistingImagePreview();
+}
+
+function removePendingPropertyImage(index) {
+    pendingPropertyImageFiles.splice(index, 1);
     renderExistingImagePreview();
 }
 
@@ -2050,8 +2081,11 @@ async function handlePostProperty(event) {
 
     try {
         const uploadedUrls = [...editingExistingImageUrls];
-        if (fileInput?.files?.length) {
-            for (const file of Array.from(fileInput.files)) {
+        const filesToUpload = pendingPropertyImageFiles.length > 0
+            ? pendingPropertyImageFiles.map(item => item.file)
+            : Array.from(fileInput?.files || []);
+        if (filesToUpload.length) {
+            for (const file of filesToUpload) {
                 const url = await window.propertyService.uploadPropertyImage(currentUser.id, file);
                 uploadedUrls.push(url);
             }
@@ -3633,21 +3667,19 @@ function wireAllUIListeners() {
     regPass?.addEventListener('input', () => { updateStrength(); updateMatch(); });
     regConfirm?.addEventListener('input', updateMatch);
 
-    // Property image file preview on Post/Edit Property page
+    // Property image file preview on Post/Edit Property page (cumulative Add Files)
     document.getElementById('property-images')?.addEventListener('change', (e) => {
-        const preview = document.getElementById('image-preview');
-        if (!preview) return;
-        renderExistingImagePreview();
         const files = Array.from(e.target.files || []);
+        if (!files.length) return;
         files.forEach(file => {
             const reader = new FileReader();
             reader.onload = (ev) => {
-                const wrap = document.createElement('div');
-                wrap.innerHTML = `<img src="${ev.target.result}" style="width:100%;height:95px;object-fit:cover;border-radius:8px;border:2px solid #87CEEB;">`;
-                preview.appendChild(wrap);
+                pendingPropertyImageFiles.push({ file, previewUrl: ev.target.result });
+                renderExistingImagePreview();
             };
             reader.readAsDataURL(file);
         });
+        e.target.value = '';
     });
 
     // Recipient search in New Message modal (queries real profiles)

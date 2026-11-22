@@ -22,8 +22,12 @@
 
    <div style="margin-bottom: 22px;">
     <h3 style="color: #2C1E16; margin-bottom: 8px; font-size: 16px;">📷 Property Photos</h3>
-    <input type="file" id="property-images" multiple accept="image/*" style="width: 100%; padding: 12px; border: 1.5px solid #D8D2C7; border-radius: 10px;">
-    <p style="font-size: 13px; color: #64748B; margin-top: 6px;">Images upload directly to Supabase Storage (<code>property-images</code> bucket).</p>
+    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 14px; border: 1.5px dashed #CBD5E1; border-radius: 12px; background: #FAF8F5;">
+     <input type="file" id="property-images" multiple accept="image/*" style="display: none;">
+     <label for="property-images" class="btn" style="padding: 9px 18px; font-size: 14px; cursor: pointer; margin: 0; display: inline-flex; align-items: center; gap: 6px;">＋ Add Files</label>
+     <span id="property-images-count" style="font-size: 13.5px; color: #64748B;">No files added yet</span>
+    </div>
+    <p style="font-size: 13px; color: #64748B; margin-top: 6px;">You can click <strong>＋ Add Files</strong> multiple times to add more property photos.</p>
     <div id="image-preview" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; margin-top: 12px;"></div>
    </div>
 
