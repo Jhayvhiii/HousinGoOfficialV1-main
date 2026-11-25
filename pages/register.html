@@ -36,6 +36,9 @@
    </div>
    <div class="auth-input-wrap" style="margin-bottom: 20px;"><label for="reg-mobile" style="display: block; margin-bottom: 8px; font-weight: 600; color: #8B4513;">Mobile Number</label> <input type="tel" id="reg-mobile" required autocomplete="tel" placeholder="09XX XXX XXXX" style="width: 100%; padding: 12px 14px; border: 2px solid #ADD8E6; border-radius: 8px; font-size: 16px; color: #8B4513;">
    </div>
+   <div class="auth-input-wrap" style="margin-bottom: 20px;"><label for="reg-lrn" style="display: block; margin-bottom: 8px; font-weight: 600; color: #8B4513;">LRN (Learner Reference Number)</label> <input type="text" id="reg-lrn" required inputmode="numeric" minlength="12" maxlength="12" pattern="[0-9]{12}" title="LRN must be exactly 12 numbers" placeholder="Enter 12-digit LRN (e.g., 123456789012)" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 12)" style="width: 100%; padding: 12px 14px; border: 2px solid #ADD8E6; border-radius: 8px; font-size: 16px; color: #8B4513;">
+    <p style="font-size: 12px; color: #654321; margin-top: 5px;">Must be exactly 12 numbers (digits 0–9 only).</p>
+   </div>
    <div class="auth-input-wrap" style="margin-bottom: 20px;"><label for="reg-password" style="display: block; margin-bottom: 8px; font-weight: 600; color: #8B4513;">Password</label>
     <div style="position: relative;"><input type="password" id="reg-password" required minlength="6" autocomplete="new-password" placeholder="Minimum 6 characters" style="width: 100%; padding: 12px 46px 12px 14px; border: 2px solid #ADD8E6; border-radius: 8px; font-size: 16px; color: #8B4513;"> <button type="button" class="password-toggle-btn" data-toggle-password="reg-password" aria-label="Toggle password visibility" title="Show / hide password">👁️</button>
     </div>

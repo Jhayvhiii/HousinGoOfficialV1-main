@@ -15,7 +15,7 @@ export const authService = {
    * Metadata is used by handle_new_user trigger to populate public.profiles.
    * Role can only be 'tenant' or 'landlord'.
    */
-  async signUp({ email, password, fullName, role, phone }) {
+  async signUp({ email, password, fullName, role, phone, lrn }) {
     const supabase = getClient();
     const cleanRole = (role || 'tenant').toLowerCase().trim();
     if (!['tenant', 'landlord'].includes(cleanRole)) {
@@ -30,6 +30,7 @@ export const authService = {
           full_name: fullName.trim(),
           role: cleanRole,
           phone: phone ? phone.trim() : null,
+          ...(lrn ? { lrn: lrn.trim() } : {}),
         },
       },
     });

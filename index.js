@@ -699,12 +699,14 @@ async function handleRegister(event) {
     const lastName = document.getElementById('reg-lastname')?.value.trim() || '';
     const email = document.getElementById('reg-email')?.value.trim() || '';
     const phone = document.getElementById('reg-mobile')?.value.trim() || '';
+    const lrn = (document.getElementById('reg-lrn')?.value || '').trim();
     const role = (document.getElementById('reg-usertype')?.value || 'tenant').toLowerCase();
     const password = document.getElementById('reg-password')?.value || '';
     const confirmPassword = document.getElementById('reg-confirm-password')?.value || '';
     const submitBtn = document.getElementById('register-submit-btn');
 
     if (!firstName || !lastName) return showAuthAlert('register-alert', 'Please enter your first and last name.', 'error');
+    if (!/^\d{12}$/.test(lrn)) return showAuthAlert('register-alert', 'LRN must be exactly 12 numbers.', 'error');
     if (password.length < 6) return showAuthAlert('register-alert', 'Password must be at least 6 characters.', 'error');
     if (password !== confirmPassword) return showAuthAlert('register-alert', 'Passwords do not match.', 'error');
     if (!['tenant', 'landlord'].includes(role)) return showAuthAlert('register-alert', 'Please choose Tenant or Landlord.', 'error');
@@ -714,7 +716,7 @@ async function handleRegister(event) {
 
     try {
         const fullName = `${firstName} ${lastName}`.trim();
-        const data = await window.authService.signUp({ email, password, fullName, role, phone });
+        const data = await window.authService.signUp({ email, password, fullName, role, phone, lrn });
 
         if (data?.session && data?.user) {
             await new Promise(r => setTimeout(r, 350));
